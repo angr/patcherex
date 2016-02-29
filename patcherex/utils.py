@@ -1,35 +1,25 @@
-
-import subprocess
-import contextlib
-import yaml
-import tempfile
-import shutil
 import os
-import capstone
-import struct
+import re
 import sys
+import shutil
+import struct
+import capstone
+import tempfile
+import contextlib
+import subprocess
 
-from Exceptions import *
 
-import IPython
+class NasmException(Exception):
+    pass
 
 
-ELF_HEADER = "7f45 4c46 0101 0100 0000 0000 0000 0000".replace(" ","").decode('hex')
-CGC_HEADER = "7f43 4743 0101 0143 014d 6572 696e 6f00".replace(" ","").decode('hex')
+class UndefinedSymbolException(Exception):
+    pass
 
-#adapted from:
-#http://stackoverflow.com/questions/18666816/using-python-to-dump-hexidecimals-into-yaml
-def representer(dumper, data):
-    return yaml.ScalarNode('tag:yaml.org,2002:int', hex(data))
-def ydump(*args,**kwargs):
-    kwargs['width']=1000000 #we like long lines
-    res = yaml._dump(*args,**kwargs)
-    return res.strip()
-yaml.add_representer(int, representer)
-yaml._dump = yaml.dump
-yaml.dump = ydump
-#the output of yaml_hex.dump() can still be loaded using the standard yaml module
-yaml_hex = yaml
+
+ELF_HEADER = "7f45 4c46 0101 0100 0000 0000 0000 0000".replace(" ", "").decode('hex')
+CGC_HEADER = "7f43 4743 0101 0143 014d 6572 696e 6f00".replace(" ", "").decode('hex')
+
 
 def str_overwrite(tstr,new,pos=None):
     if pos == None:
@@ -37,22 +27,22 @@ def str_overwrite(tstr,new,pos=None):
     return tstr[:pos] + new + tstr[pos+len(new):]
 
 
-def pad_str(tstr,align,pad="\x00"):
+def pad_str(tstr, align, pad="\x00"):
     str_len = len(tstr)
     if str_len % align == 0:
         return tstr
     else:
-        return tstr + pad * (align - (str_len%align))
+        return tstr + pad * (align - (str_len % align))
 
 
 def elf_to_cgc(tstr):
     assert(tstr.startswith(ELF_HEADER))
-    return str_overwrite(tstr,CGC_HEADER,0)
+    return str_overwrite(tstr, CGC_HEADER,0)
 
 
 def cgc_to_elf(tstr):
     assert(tstr.startswith(CGC_HEADER))
-    return str_overwrite(tstr,ELF_HEADER,0)
+    return str_overwrite(tstr, ELF_HEADER,0)
 
 
 def exe_type(tstr):
@@ -83,7 +73,7 @@ def exec_cmd(args,cwd=None,shell=False,debug=False):
     p = subprocess.Popen(args,cwd=cwd,shell=shell,stdout=pipe,stderr=pipe)
     std = p.communicate()
     retcode = p.poll()
-    res = (std[0],std[1],retcode)
+    res = (std[0], std[1], retcode)
     
     if debug:
         print "RESULT:",repr(res)
@@ -91,14 +81,14 @@ def exec_cmd(args,cwd=None,shell=False,debug=False):
     return res
 
 
-def compile_asm_template(template_name,substitution_dict):
-    formatted_template_content = get_asm_template(template_name,substitution_dict)
+def compile_asm_template(template_name, substitution_dict):
+    formatted_template_content = get_asm_template(template_name, substitution_dict)
     return compile_asm(formatted_template_content)
 
 
-def get_asm_template(template_name,substitution_dict):
+def get_asm_template(template_name, substitution_dict):
     project_basedir = os.path.sep.join(os.path.abspath(__file__).split(os.path.sep)[:-2])
-    template_fname = os.path.join(project_basedir,"asm",template_name)
+    template_fname = os.path.join(project_basedir, "asm", template_name)
     template_content = open(template_fname).read()
     formatted_template_content = template_content.format(**substitution_dict)
     return formatted_template_content
@@ -147,29 +137,63 @@ def get_multiline_str():
     return "\n".join(input_list)
 
 
-def compile_asm(code,base=None):
+def compile_asm(code, base=None, name_map=None):
+    try:
+        if name_map is not None:
+            code = code.format(**name_map)
+    except KeyError as e:
+        raise UndefinedSymbolException(str(e))
+
     with tempdir() as td:
-        asm_fname = os.path.join(td,"asm.s")
-        bin_fname = os.path.join(td,"bin.o")
+        asm_fname = os.path.join(td, "asm.s")
+        bin_fname = os.path.join(td, "bin.o")
         
         fp = open(asm_fname,'wb')
         fp.write("bits 32\n")
-        if base != None:
+        if base is not None:
             fp.write("org %s\n" % hex(base))
         fp.write(code)
         fp.close()
         
-        res = exec_cmd("nasm -o %s %s"%(bin_fname,asm_fname),shell=True)
+        res = exec_cmd("nasm -o %s %s"%(bin_fname, asm_fname), shell=True)
         if res[2] != 0:
             print "NASM error:"
             print res[0]
             print res[1]
-            print open(asm_fname,'r').read()
+            print open(asm_fname, 'r').read()
             raise NasmException
 
         compiled = open(bin_fname).read()
 
     return compiled
+
+
+def compile_asm_fake_symbol(code, base=None, ):
+    code = re.subn('\{.*?\}',"0x41414141",code)[0]
+
+    with tempdir() as td:
+        asm_fname = os.path.join(td, "asm.s")
+        bin_fname = os.path.join(td, "bin.o")
+
+        fp = open(asm_fname,'wb')
+        fp.write("bits 32\n")
+        if base is not None:
+            fp.write("org %s\n" % hex(base))
+        fp.write(code)
+        fp.close()
+
+        res = exec_cmd("nasm -o %s %s"%(bin_fname, asm_fname), shell=True)
+        if res[2] != 0:
+            print "NASM error:"
+            print res[0]
+            print res[1]
+            print open(asm_fname, 'r').read()
+            raise NasmException
+
+        compiled = open(bin_fname).read()
+
+    return compiled
+
 
 @contextlib.contextmanager
 def redirect_stdout(new_target1,new_target2):
@@ -182,4 +206,7 @@ def redirect_stdout(new_target1,new_target2):
         sys.stdout = old_target1 # restore to the previous value
         sys.stderr = old_target2
 
+
+def round_up_to_page(addr):
+    return (addr + 0x1000 - 1) / 0x1000 * 0x1000
 

@@ -3,9 +3,6 @@ import utils
 import struct
 import os
 
-from Exceptions import *
-
-
 import IPython
 
 
@@ -13,23 +10,29 @@ import logging
 l = logging.getLogger('cgrex.Fortifier')
 
 
+class InvalidVAddrException(Exception):
+    pass
+
+
 class FortifierException(Exception):
     pass
+
+
 class DetourException(Exception):
     pass
+
 
 class Fortifier:
 
     fortify_segment1_base = 0x09000000
     fortify_segment2_base = 0x09100000
-    fortified_tag = "FORTIFIED\x00" #should not be longer than 0x20
+    fortified_tag = "FORTIFIED\x00"  # should not be longer than 0x20
 
-
-    def __init__(self,fname,base_code=""):
+    def __init__(self, fname, base_code=""):
         self.fname = fname
-        self.ocontent = open(fname,"rb").read()
+        self.ocontent = open(fname, "rb").read()
         etype = utils.exe_type(self.ocontent)
-        assert etype != None
+        assert etype is not None
         if etype == "ELF":
             self.ocontent = utils.elf_to_cgc(self.ocontent)
         self.ncontent = self.ocontent
@@ -42,8 +45,7 @@ class Fortifier:
             self.injected_code = base_code
             self.first_patch = True
 
-
-    def save(self,nname,both_formats=False):
+    def save(self, nname, both_formats=False):
         if self.first_patch:
             self.set_fortify_segment(self.injected_code)
         else:
@@ -139,22 +141,22 @@ class Fortifier:
 
         segments = self.dump_segments()
 
-        #align size of the entire ELF
-        self.ncontent = utils.pad_str(self.ncontent,0x10)
-        #change pointer to program headers to point at the end of the elf
-        self.ncontent = utils.str_overwrite(self.ncontent,struct.pack("<I",len(self.ncontent)),0x1C)
+        # align size of the entire ELF
+        self.ncontent = utils.pad_str(self.ncontent, 0x10)
+        # change pointer to program headers to point at the end of the elf
+        self.ncontent = utils.str_overwrite(self.ncontent,struct.pack("<I", len(self.ncontent)), 0x1C)
 
-        #copying original program headers in the new place (at the end of the file)
+        # copying original program headers in the new place (at the end of the file)
         for segment in segments:
             self.ncontent = utils.str_overwrite(self.ncontent,struct.pack("<IIIIIIII",*segment))
 
-        #we overwrite the first original program header,
-        #we do not need it anymore since we have moved original program headers at the bottom of the file
-        self.ncontent = utils.str_overwrite(self.ncontent,self.fortified_tag,0x34) 
+        # we overwrite the first original program header,
+        # we do not need it anymore since we have moved original program headers at the bottom of the file
+        self.ncontent = utils.str_overwrite(self.ncontent, self.fortified_tag, 0x34)
 
 
-    def set_oep(self,new_oep):
-        self.ncontent = utils.str_overwrite(self.ncontent,struct.pack("<I",new_oep),0x18)
+    def set_oep(self, new_oep):
+        self.ncontent = utils.str_overwrite(self.ncontent,struct.pack("<I", new_oep), 0x18)
 
 
     def get_oep(self):
