@@ -367,6 +367,76 @@ class Patcherex(object):
             mem += self.ncontent[start:end]
         return mem
 
+    def get_movable_instructions(self, block):
+        # get movable_instructions in the bb
+        original_bbcode = block.bytes
+        instructions = utils.decompile(original_bbcode, block.addr)
+
+        if self.check_if_movable(instructions[-1]):
+            movable_instructions = instructions
+        else:
+            movable_instructions = instructions[:-1]
+
+        return movable_instructions
+
+    def find_detour_pos(self, block, detour_size, patch_addr):
+        # iterates through the instructions to find where the detour can be stored
+        movable_instructions = self.get_movable_instructions(block)
+
+        detour_attempts = range(-1*detour_size, 0+1)
+
+        movable_bb_start = movable_instructions[0].address
+        movable_bb_size = self.project.factory.block(block.addr, num_inst=len(movable_instructions))
+        l.debug("movable_bb_size: %d", movable_bb_size)
+        l.debug("movable bb instructions:\n%s", "\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
+
+        # find a spot for the detour
+        detour_pos = None
+        for pos in detour_attempts:
+            detour_start = patch_addr + pos
+            detour_end = detour_start + detour_size - 1
+            if detour_start >= movable_bb_start and detour_end < (movable_bb_start + movable_bb_size):
+                detour_pos = detour_start
+                break
+        if detour_pos is None:
+            raise DetourException("No space in bb", hex(block.addr), hex(block.size),
+                                  hex(movable_bb_start), hex(movable_bb_size))
+        else:
+            l.debug("detour fits at %s", hex(detour_pos))
+
+        return detour_pos
+
+    def compile_moved_injected_code(self, classified_instructions, patch_code):
+        # create injected_code (pre, injected, culprit, post, jmp_back)
+        injected_code = ""
+        injected_code += "\n"+"nop\n"*5+"\n"
+        injected_code += "\n".join([utils.capstone_to_nasm(i)
+                                    for i in classified_instructions
+                                    if i.overwritten == 'pre'])
+        injected_code += "\n"
+        injected_code += "; --- custom code start\n" + patch_code + "\n" + "; --- custom code end\n" + "\n"
+        injected_code += "\n".join([utils.capstone_to_nasm(i)
+                                    for i in classified_instructions
+                                    if i.overwritten == 'culprit'])
+        injected_code += "\n"
+        injected_code += "\n".join([utils.capstone_to_nasm(i)
+                                    for i in classified_instructions
+                                    if i.overwritten == 'post'])
+        injected_code += "\n"
+        jmp_back_target = None
+        for i in reversed(classified_instructions):  # jmp back to the one after the last byte of the last non-out
+            if i.overwritten != "out":
+                jmp_back_target = i.address+len(str(i.bytes))
+                break
+        assert jmp_back_target is not None
+        injected_code += "jmp %s" % hex(int(jmp_back_target)) + "\n"
+        # removing blank lines
+        injected_code = "\n".join([line for line in injected_code.split("\n") if line != ""])
+        l.debug("injected code:\n%s", injected_code)
+
+        compiled_code = utils.compile_asm(injected_code, base=self.curr_code_position)
+        return compiled_code
+
     def insert_detour(self, patch):
         block_addr = self.get_block_containing_inst(patch.addr)
         block = self.project.factory.block(block_addr)
@@ -374,42 +444,19 @@ class Patcherex(object):
         l.debug("inserting detour for patch: %s" % (map(hex, (block_addr, block.size, patch.addr))))
 
         detour_size = 5
-        detour_attempts = range(-1*detour_size, 0+1)
         one_byte_nop = '\x90'
 
-        # get movable_instructions in the bb
-        original_bbcode = block.bytes
-        instructions = utils.decompile(original_bbcode, block_addr)
-
-        if self.check_if_movable(instructions[-1]):
-            movable_instructions = instructions
-        else:
-            movable_instructions = instructions[:-1]
-
+        # get movable instructions
+        movable_instructions = self.get_movable_instructions(block)
         if len(movable_instructions) == 0:
             raise DetourException("No movable instructions found")
 
-        movable_bb_start = movable_instructions[0].address
-        movable_bb_size = self.project.factory.block(block_addr, num_inst=len(movable_instructions))
-        l.debug("movable_bb_size: %d", movable_bb_size)
-        l.debug("movable bb instructions:\n%s", "\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
+        # figure out where to insert the detour
+        detour_pos = self.find_detour_pos(block, detour_size, patch.addr)
 
-        # find a spot for the detour
-        detour_pos = None
-        for pos in detour_attempts:
-            detour_start = patch.addr + pos
-            detour_end = detour_start + detour_size - 1
-            if detour_start >= movable_bb_start and detour_end < (movable_bb_start + movable_bb_size):
-                detour_pos = detour_start
-                break
-        if detour_pos is None:
-            raise DetourException("No space in bb", hex(block_addr), hex(block.size),
-                                  hex(movable_bb_start), hex(movable_bb_size))
-        else:
-            l.debug("detour fits at %s", hex(detour_pos))
+        # classify overwritten instructions
         detour_overwritten_bytes = range(detour_pos, detour_pos+detour_size)
 
-        # detect overwritten instruction
         for i in movable_instructions:
             if len(set(detour_overwritten_bytes).intersection(set(range(i.address, i.address+len(i.bytes))))) > 0:
                 if i.address < patch.addr:
@@ -436,34 +483,8 @@ class Patcherex(object):
         l.debug("patched bb instructions:\n %s",
                 "\n".join([utils.instruction_to_str(i) for i in patched_bbinstructions]))
 
-        # create injected_code (pre, injected, culprit, post, jmp_back)
-        injected_code = ""
-        injected_code += "\n"+"nop\n"*5+"\n"
-        injected_code += "\n".join([utils.capstone_to_nasm(i)
-                                    for i in movable_instructions
-                                    if i.overwritten == 'pre'])
-        injected_code += "\n"
-        injected_code += "; --- custom code start\n" + patch.code + "\n" + "; --- custom code end\n" + "\n"
-        injected_code += "\n".join([utils.capstone_to_nasm(i)
-                                    for i in movable_instructions
-                                    if i.overwritten == 'culprit'])
-        injected_code += "\n"
-        injected_code += "\n".join([utils.capstone_to_nasm(i)
-                                    for i in movable_instructions
-                                    if i.overwritten == 'post'])
-        injected_code += "\n"
-        jmp_back_target = None
-        for i in reversed(movable_instructions):  # jmp back to the one after the last byte of the last non-out
-            if i.overwritten != "out":
-                jmp_back_target = i.address+len(str(i.bytes))
-                break
-        assert jmp_back_target is not None
-        injected_code += "jmp %s" % hex(int(jmp_back_target)) + "\n"
-        # removing blank lines
-        injected_code = "\n".join([line for line in injected_code.split("\n") if line != ""])
-        l.debug("injected code:\n%s", injected_code)
+        new_code = self.compile_moved_injected_code(movable_instructions, patch.code)
 
-        new_code = utils.compile_asm(injected_code, base=self.curr_code_position)
         self.added_code += new_code
         self.curr_code_position += len(new_code)
 
