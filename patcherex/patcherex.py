@@ -159,11 +159,13 @@ class Patcherex(object):
 
     def set_added_segment_headers(self):
         assert self.ncontent[0x34:0x34+len(self.patched_tag)] == self.patched_tag
+        #TODO if no added data or code, do not even add segments
+        print hex(self.added_data_file_start)
 
-        data_segment_header = (1, self.added_data_file_start, self.added_data_segment, 0, len(self.added_data),
-                               len(self.added_data), 0x6, 0x0)  # RW
-        code_segment_header = (1, self.added_code_file_start, self.added_code_segment, 0, len(self.added_code),
-                               len(self.added_code), 0x5, 0x0)  # RX
+        data_segment_header = (1, self.added_data_file_start, self.added_data_segment, self.added_data_segment,
+                                len(self.added_data), len(self.added_data), 0x6, 0x0)  # RW
+        code_segment_header = (1, self.added_code_file_start, self.added_code_segment, self.added_code_segment,
+                                len(self.added_code), len(self.added_code), 0x5, 0x0)  # RX
 
         self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *code_segment_header), self.original_header_end)
         self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *data_segment_header), self.original_header_end + 32)
@@ -185,10 +187,20 @@ class Patcherex(object):
             perms += "X"
         return perms
 
+
+    def set_oep(self, new_oep):
+        self.ncontent = utils.str_overwrite(self.ncontent,struct.pack("<I", new_oep), 0x18)
+
+
+    def get_oep(self):
+        return struct.unpack("<I",self.ncontent[0x18:0x18+4])[0]
+
+
     # 3 inserting strategies
     # Jump out and jump back
     # move a single function out
     # extending all the functions, so all need to move
+
 
     def compile_patches(self):
         # for now any added code will be executed by jumping out and back ie CGRex
@@ -235,7 +247,7 @@ class Patcherex(object):
                 self.added_code += new_code
                 self.curr_code_position += len(new_code)
                 self.curr_file_position += len(new_code)
-                utils.str_overwrite(self.ncontent, new_code)
+                self.ncontent = utils.str_overwrite(self.ncontent, new_code)
 
         # 3) InlinePatch
         # we assume the patch never patches the added code

@@ -54,14 +54,14 @@ def exe_type(tstr):
         return None
 
 @contextlib.contextmanager
-def tempdir(prefix='/tmp/python_tmp'):
+def tempdir(prefix='/tmp/python_tmp',delete=True):
     """A context manager for creating and then deleting a temporary directory."""
     tmpdir = tempfile.mkdtemp(prefix=prefix)
     try:
         yield tmpdir
     finally:
-        #pass
-        shutil.rmtree(tmpdir)
+        if delete:
+            shutil.rmtree(tmpdir)
 
 
 def exec_cmd(args,cwd=None,shell=False,debug=False):
