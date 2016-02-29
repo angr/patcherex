@@ -67,7 +67,6 @@ def test_added_code_and_data():
             mov     esi, 0
             int     80h
             mov     eax, 1
-            push    ebx
             mov     ebx, 0x33
             int     80h
         ''' % (len(test_str))
