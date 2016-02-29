@@ -297,14 +297,14 @@ class Patcherex(object):
                 file_offset = self.project.loader.main_bin.addr_to_offset(patch.instruction_addr)
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code, file_offset)
 
-        self.set_added_segment_headers()
-
         # 4) InsertCodePatch
         # these patches specify an address in some basic block, In general we will move the basic block
         # and fix relative offsets
         for patch in self.patches:
             if isinstance(patch, InsertCodePatch):
                 self.insert_detour(patch)
+
+        self.set_added_segment_headers()
 
     @staticmethod
     def check_if_movable(instruction):
