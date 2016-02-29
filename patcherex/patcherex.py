@@ -87,6 +87,8 @@ class Patcherex(object):
 
         # set up headers, initializes ncontent
         self.setup_headers()
+        self.name_map["ADDED_DATA_START"] = (data_start % 0x1000) + self.added_data_segment
+        #we can set ADDED_CODE_START only after we added all the data (unless we decide to pad the data)
 
         # patches data
         self.patches = []
@@ -94,9 +96,9 @@ class Patcherex(object):
 
         self.added_code = ""
         self.added_data = ""
-        self.curr_code_position = self.added_code_segment
-        self.curr_data_position = self.added_data_segment
-        self.curr_file_position = utils.round_up_to_page(len(self.ncontent) + 2*32)
+
+        self.additional_headers_size = 2*32
+        self.curr_file_position = len(self.ncontent)
         self.added_code_file_start = None
         self.added_data_file_start = None
 
@@ -156,6 +158,10 @@ class Patcherex(object):
         # we do not need it anymore since we have moved original program headers at the bottom of the file
         self.ncontent = utils.str_overwrite(self.ncontent, self.patched_tag, 0x34)
 
+        # adding space for the additional headers
+        self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size,"\x00")
+
+
     def dump_segments(self, tprint=False):
         # from: https://github.com/CyberGrandChallenge/readcgcef/blob/master/readcgcef-minimal.py
         header_size = 16 + 2*2 + 4*5 + 2*6
@@ -195,9 +201,11 @@ class Patcherex(object):
         # TODO if no added data or code, do not even add segments
         print hex(self.added_data_file_start)
 
-        data_segment_header = (1, self.added_data_file_start, self.added_data_segment, self.added_data_segment,
+        mem_data_location = self.added_data_segment + (self.added_data_file_start % 0x1000)
+        data_segment_header = (1, self.added_data_file_start, mem_data_location, mem_data_location,
                                len(self.added_data), len(self.added_data), 0x6, 0x0)  # RW
-        code_segment_header = (1, self.added_code_file_start, self.added_code_segment, self.added_code_segment,
+        mem_code_location = self.added_code_segment + (self.added_code_file_start % 0x1000)
+        code_segment_header = (1, self.added_code_file_start, mem_code_location, mem_code_location,
                                len(self.added_code), len(self.added_code), 0x5, 0x0)  # RX
 
         self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *code_segment_header),
@@ -247,8 +255,7 @@ class Patcherex(object):
         self.name_map = dict()
         self.added_data = ""
         self.added_code = ""
-        self.curr_code_position = self.added_code_segment
-        self.curr_data_position = self.added_data_segment
+        curr_data_position = self.name_map["ADDED_DATA_START"]
         self.curr_file_position = utils.round_up_to_page(len(self.ncontent) + 2*32)  # TODO no padding
         self.added_data_file_start = self.curr_file_position
 
@@ -260,19 +267,21 @@ class Patcherex(object):
             if isinstance(patch, AddDataPatch):
                 self.added_data += patch.data
                 if patch.name is not None:
-                    self.name_map[patch.name] = self.curr_data_position
-                self.curr_data_position += len(patch.data)
+                    self.name_map[patch.name] = curr_data_position
+                curr_data_position += len(patch.data)
                 self.curr_file_position += len(patch.data)
                 self.ncontent = utils.str_overwrite(self.ncontent, patch.data)
 
         # pad (todo remove)
         self.ncontent = utils.pad_str(self.ncontent, 0x1000)
         self.curr_file_position = len(self.ncontent)
-
         self.added_code_file_start = self.curr_file_position
+        self.name_map["ADDED_CODE_START"] = (len(self.ncontent) % 0x1000) + self.added_code_segment
+        curr_code_position = self.name_map["ADDED_CODE_START"]
+
         # 2) AddCodePatch
         # resolving symbols
-        current_symbol_pos = self.curr_code_position
+        current_symbol_pos = curr_code_position
         for patch in self.patches:
             if isinstance(patch, AddCodePatch):
                 code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
@@ -282,9 +291,9 @@ class Patcherex(object):
         # now compile for real
         for patch in self.patches:
             if isinstance(patch, AddCodePatch):
-                new_code = utils.compile_asm(patch.asm_code, self.curr_code_position, self.name_map)
+                new_code = utils.compile_asm(patch.asm_code, curr_code_position, self.name_map)
                 self.added_code += new_code
-                self.curr_code_position += len(new_code)
+                curr_code_position += len(new_code)
                 self.curr_file_position += len(new_code)
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code)
 
