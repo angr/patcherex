@@ -1,1 +1,7 @@
-central manager and compilers for all the patches
+Central manager and compiler for all the patches.
+
+It requires NASM:
+apt-get install nasm
+
+
+
