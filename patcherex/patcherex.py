@@ -45,7 +45,7 @@ class InsertCodePatch(Patch):
 # todo check for symbol name collisions
 
 
-class Patcher(object):
+class Patcherex(object):
     # how do we want to design this to track relocations in the blocks...
     def __init__(self, filename):
         # file info

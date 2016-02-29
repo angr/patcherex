@@ -18,7 +18,7 @@ def test_simple_inline():
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td,"patched")
-        p = patcherex.Patcher(filepath)
+        p = patcherex.Patcherex(filepath)
         p.replace_instruction_asm(0x8048291, "mov DWORD [esp+8], 0x40;", "asdf")
         p.compile_patches()
         p.save(tmp_file)
