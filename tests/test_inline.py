@@ -186,6 +186,18 @@ def test_complex1():
 
 
 def test_random_canary():
+    def check_output(tstr):
+        expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: canary failure: 00000000 vs "
+        init = "base canary value:"
+        if not tstr.startswith(init):
+            return False
+        canary = tstr.split(init)[1].split()[0].strip()
+        if expected not in tstr:
+            return False
+        if not tstr.endswith(canary):
+            return False
+        return True
+
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pipe = subprocess.PIPE
 
@@ -193,9 +205,12 @@ def test_random_canary():
         tmp_file = os.path.join(td, "patched")
         p = patcherex.Patcherex(filepath)
 
-        p.add_data("0123456789abcdef", "print_hex_array")
+        p.add_data("0123456789abcdef", "hex_array")
         p.add_data("\n", "new_line")
         p.add_data("X"*4, "saved_canary")
+        p.add_data("base canary value: \x00","str_bcanary")
+        p.add_data("canary failure: \x00","str_fcanary")
+        p.add_data(" vs \x00","str_vs")
 
         added_code = '''
             ; print eax as hex
@@ -206,20 +221,18 @@ def test_random_canary():
                 rol ebx,4
                 mov edi,ebx
                 and edi,0x0000000f
-                lea eax,[{print_hex_array}+edi]
+                lea eax,[{hex_array}+edi]
                 mov ebp,ebx
                 mov ebx,0x1
                 call {print}
                 mov ebx,ebp
                 sub ecx,4
                 jnz _print_reg_loop
-            mov eax, {new_line}
-            mov ebx,1
-            call {print}
             popa
             ret
         '''
         p.add_code(added_code,"print_hex_eax")
+
         added_code = '''
             ; eax=buf,ebx=len
             pusha
@@ -233,6 +246,14 @@ def test_random_canary():
             ret
         '''
         p.add_code(added_code,"print")
+
+        added_code = '''
+            mov     ebx, eax
+            mov     eax, 0x1
+            int     80h
+        '''
+        p.add_code(added_code,"exit_eax")
+
         added_code = '''
             ; put 4 random bytes in eax
             pusha
@@ -247,22 +268,75 @@ def test_random_canary():
         p.add_code(added_code,"random")
 
         added_code = '''
+            ; print a null terminated string pointed by eax
+            pusha
+            mov ecx, eax
+            _loop:
+                cmp BYTE [ecx],0
+                je _out
+                mov edx,1
+                mov eax,0x2
+                mov ebx,0x1
+                mov esi,0x0
+                int 0x80
+                inc ecx
+                jmp _loop
+            _out:
+            popa
+            ret
+        '''
+        p.add_code(added_code,"print_str")
+
+        added_code = '''
+            ; print a null terminated string pointed by eax
+            push eax
+            mov eax, {str_fcanary}
+            call {print_str}
+            pop eax
+            call {print_hex_eax}
+            mov eax, {str_vs}
+            call {print_str}
+            mov eax, [{saved_canary}]
+            call {print_hex_eax}
+            mov eax, 0x44
+            call {exit_eax}
+        '''
+        p.add_code(added_code,"canary_check_fail")
+
+        added_code = '''
             push eax
             mov eax, {saved_canary}
             call {random}
             xor eax, eax
+            mov eax, {str_bcanary}
+            call {print_str}
             mov eax, [{saved_canary}]
             call {print_hex_eax}
             pop eax
         '''
         p.add_entrypoint_code(added_code)
+
+        added_code = '''
+            push DWORD [{saved_canary}]
+        '''
+        p.insert_into_block(0x08048230,added_code,"canary_push1")
+        added_code = '''
+            push eax ; avoid changing eax
+            mov eax, dword [esp+4]
+            cmp eax, DWORD [{saved_canary}]
+            jne {canary_check_fail}
+            pop eax
+            add esp, 4
+        '''
+        p.insert_into_block(0x080483FF,added_code,"canary_pop1")
+
         p.compile_patches()
         p.save(tmp_file)
         #p.save("../../vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate("A"*10+"\n"+"\x00"*100)
         print res, p.returncode
-        nose.tools.assert_equal(p.returncode == 0, True)
+        nose.tools.assert_equal(check_output(res[0]) and p.returncode == 0x44, True)
 
 
 def run_all():
