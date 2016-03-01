@@ -50,17 +50,23 @@ class AddCodePatch(Patch):
         self.asm_code = asm_code
 
 
+class AddEntryPointPatch(Patch):
+    def __init__(self, asm_code, name=None):
+        super(AddEntryPointPatch, self).__init__(name)
+        self.asm_code = asm_code
+
 class InsertCodePatch(Patch):
     def __init__(self, addr, code, name=None):
         super(InsertCodePatch, self).__init__(name)
         self.addr = addr
         self.code = code
 
-# todo entry point patch, might need to be implemented differently
+
 # todo check that patches do not pile up
 # todo check for symbol name collisions
 # todo allow simple pile ups, maybe we want to iterate through functions/basic_blocks not through patches
 # todo asserts maybe should be exceptions
+# todo add checks to verify that functions are called in proper order
 
 
 class Patcherex(object):
@@ -122,6 +128,9 @@ class Patcherex(object):
 
     def add_code(self, code, name=None):
         self.patches.append(AddCodePatch(code, name))
+
+    def add_entrypoint_code(self, code, name=None):
+        self.patches.append(AddEntryPointPatch(code, name))
 
     def insert_into_block(self, addr, code_to_insert, name=None):
         self.patches.append(InsertCodePatch(addr, code_to_insert, name))
@@ -287,7 +296,32 @@ class Patcherex(object):
                 self.added_code += new_code
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code)
 
-        # 3) InlinePatch
+        # 3) AddEntryPointPatch
+        # basically like AddCodePatch but we detour by changing oep
+        # and we jump at the end of all of them
+        # resolving symbols 
+        oep_patched = False
+        pre_entrypoint_detour_position = self.get_current_code_position()
+        current_symbol_pos = len(self.ncontent)
+        for patch in self.patches:
+            if isinstance(patch, AddEntryPointPatch):
+                code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
+                if patch.name is not None:
+                    self.name_map[patch.name] = current_symbol_pos
+                current_symbol_pos += code_len
+        # now compile for real
+        for patch in self.patches:
+            if isinstance(patch, AddEntryPointPatch):
+                new_code = utils.compile_asm(patch.asm_code, len(self.ncontent), self.name_map)
+                self.added_code += new_code
+                oep_patched = True
+                self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+        if oep_patched:
+            oep = self.get_oep()
+            self.set_oep(pre_entrypoint_detour_position)
+            self.ncontent += utils.compile_jmp(self.get_current_code_position(),oep)
+
+        # 4) InlinePatch
         # we assume the patch never patches the added code
         for patch in self.patches:
             if isinstance(patch, InlinePatch):
@@ -296,7 +330,7 @@ class Patcherex(object):
                 file_offset = self.project.loader.main_bin.addr_to_offset(patch.instruction_addr)
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code, file_offset)
 
-        # 4) InsertCodePatch
+        # 5) InsertCodePatch
         # these patches specify an address in some basic block, In general we will move the basic block
         # and fix relative offsets
         for patch in self.patches:
