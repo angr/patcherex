@@ -283,7 +283,7 @@ class Patcherex(object):
         # resolving symbols
         self.added_code_file_start = len(self.ncontent)
         self.name_map["ADDED_CODE_START"] = (len(self.ncontent) % 0x1000) + self.added_code_segment
-        current_symbol_pos = len(self.ncontent)
+        current_symbol_pos = self.get_current_code_position()
         for patch in self.patches:
             if isinstance(patch, AddCodePatch):
                 code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
@@ -293,7 +293,7 @@ class Patcherex(object):
         # now compile for real
         for patch in self.patches:
             if isinstance(patch, AddCodePatch):
-                new_code = utils.compile_asm(patch.asm_code, len(self.ncontent), self.name_map)
+                new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                 self.added_code += new_code
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code)
 
@@ -303,7 +303,7 @@ class Patcherex(object):
         # resolving symbols 
         oep_patched = False
         pre_entrypoint_detour_position = self.get_current_code_position()
-        current_symbol_pos = len(self.ncontent)
+        current_symbol_pos = self.get_current_code_position()
         for patch in self.patches:
             if isinstance(patch, AddEntryPointPatch):
                 code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
@@ -313,7 +313,7 @@ class Patcherex(object):
         # now compile for real
         for patch in self.patches:
             if isinstance(patch, AddEntryPointPatch):
-                new_code = utils.compile_asm(patch.asm_code, len(self.ncontent), self.name_map)
+                new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                 self.added_code += new_code
                 oep_patched = True
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code)

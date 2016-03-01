@@ -140,6 +140,10 @@ def get_multiline_str():
 
 
 def compile_asm(code, base=None, name_map=None):
+    #print "=" * 10
+    #print code
+    #if base != None: print hex(base)
+    #if name_map != None: print {k: hex(v) for k,v in name_map.iteritems()}
     try:
         if name_map is not None:
             code = code.format(**name_map)
