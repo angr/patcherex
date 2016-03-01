@@ -204,9 +204,10 @@ class Patcherex(object):
 
     def set_added_segment_headers(self):
         assert self.ncontent[0x34:0x34+len(self.patched_tag)] == self.patched_tag
-        # TODO if no added data or code, do not even add segments
         l.debug("added_data_file_start: %#x", self.added_data_file_start)
 
+        # if the size of a segment is zero, the kernel does not allocate any memory
+        # so, we don't care about empty segments
         mem_data_location = self.added_data_segment + (self.added_data_file_start % 0x1000)
         data_segment_header = (1, self.added_data_file_start, mem_data_location, mem_data_location,
                                len(self.added_data), len(self.added_data), 0x6, 0x1000)  # RW
