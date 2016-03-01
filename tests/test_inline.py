@@ -177,10 +177,8 @@ def test_complex1():
         p.add_code(added_code, "added_function")
         p.add_data(test_str, "added_data")
         p.compile_patches()
-
-        p.compile_patches()
         p.save(tmp_file)
-        p.save("../../vm/shared/patched")
+        #p.save("../../vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
