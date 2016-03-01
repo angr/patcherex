@@ -57,7 +57,6 @@ class InsertCodePatch(Patch):
         self.code = code
 
 # todo entry point patch, might need to be implemented differently
-# todo remove padding
 # todo check that patches do not pile up
 # todo check for symbol name collisions
 # todo allow simple pile ups, maybe we want to iterate through functions/basic_blocks not through patches
@@ -81,22 +80,23 @@ class Patcherex(object):
         # tag to track if already patched
         self.patched_tag = "SHELLPHISH\x00"  # should not be longer than 0x20
 
-        # where to put the segments
-        self.added_code_segment = 0x09000000
-        self.added_data_segment = 0x09100000
-
-        # set up headers, initializes ncontent
-        self.setup_headers()
-
         # patches data
         self.patches = []
         self.name_map = dict()
 
+        # where to put the segments
+        self.added_code_segment = 0x09000000
+        self.added_data_segment = 0x09100000
+        self.additional_headers_size = 2*32
+
+        # set up headers, initializes ncontent
+        self.setup_headers()
+        self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + self.added_data_segment
+        # we can set ADDED_CODE_START only after we added all the data (unless we decide to pad the data)
+
         self.added_code = ""
         self.added_data = ""
-        self.curr_code_position = self.added_code_segment
-        self.curr_data_position = self.added_data_segment
-        self.curr_file_position = utils.round_up_to_page(len(self.ncontent) + 2*32)
+
         self.added_code_file_start = None
         self.added_data_file_start = None
 
@@ -156,6 +156,9 @@ class Patcherex(object):
         # we do not need it anymore since we have moved original program headers at the bottom of the file
         self.ncontent = utils.str_overwrite(self.ncontent, self.patched_tag, 0x34)
 
+        # adding space for the additional headers
+        self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size, "\x00")
+
     def dump_segments(self, tprint=False):
         # from: https://github.com/CyberGrandChallenge/readcgcef/blob/master/readcgcef-minimal.py
         header_size = 16 + 2*2 + 4*5 + 2*6
@@ -195,10 +198,12 @@ class Patcherex(object):
         # TODO if no added data or code, do not even add segments
         l.debug("added_data_file_start: %#x", self.added_data_file_start)
 
-        data_segment_header = (1, self.added_data_file_start, self.added_data_segment, self.added_data_segment,
-                               len(self.added_data), len(self.added_data), 0x6, 0x0)  # RW
-        code_segment_header = (1, self.added_code_file_start, self.added_code_segment, self.added_code_segment,
-                               len(self.added_code), len(self.added_code), 0x5, 0x0)  # RX
+        mem_data_location = self.added_data_segment + (self.added_data_file_start % 0x1000)
+        data_segment_header = (1, self.added_data_file_start, mem_data_location, mem_data_location,
+                               len(self.added_data), len(self.added_data), 0x6, 0x1000)  # RW
+        mem_code_location = self.added_code_segment + (self.added_code_file_start % 0x1000)
+        code_segment_header = (1, self.added_code_file_start, mem_code_location, mem_code_location,
+                               len(self.added_code), len(self.added_code), 0x5, 0x1000)  # RX
 
         self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *code_segment_header),
                                             self.original_header_end)
@@ -244,35 +249,26 @@ class Patcherex(object):
     def compile_patches(self):
         # for now any added code will be executed by jumping out and back ie CGRex
         # apply all add code patches
-        self.name_map = dict()
         self.added_data = ""
         self.added_code = ""
-        self.curr_code_position = self.added_code_segment
-        self.curr_data_position = self.added_data_segment
-        self.curr_file_position = utils.round_up_to_page(len(self.ncontent) + 2*32)  # TODO no padding
-        self.added_data_file_start = self.curr_file_position
-
-        # extend the file to the current file position
-        self.ncontent = self.ncontent.ljust(self.curr_file_position, "\x00")
+        curr_data_position = self.name_map["ADDED_DATA_START"]
+        self.added_data_file_start = len(self.ncontent)
 
         # 1) AddDataPatch
         for patch in self.patches:
             if isinstance(patch, AddDataPatch):
                 self.added_data += patch.data
                 if patch.name is not None:
-                    self.name_map[patch.name] = self.curr_data_position
-                self.curr_data_position += len(patch.data)
-                self.curr_file_position += len(patch.data)
+                    self.name_map[patch.name] = curr_data_position
+                curr_data_position += len(patch.data)
                 self.ncontent = utils.str_overwrite(self.ncontent, patch.data)
+        self.ncontent = utils.pad_str(self.ncontent, 0x10)  # some minimal alignment may be good
 
-        # pad (todo remove)
-        self.ncontent = utils.pad_str(self.ncontent, 0x1000)
-        self.curr_file_position = len(self.ncontent)
-
-        self.added_code_file_start = self.curr_file_position
         # 2) AddCodePatch
         # resolving symbols
-        current_symbol_pos = self.curr_code_position
+        self.added_code_file_start = len(self.ncontent)
+        self.name_map["ADDED_CODE_START"] = (len(self.ncontent) % 0x1000) + self.added_code_segment
+        current_symbol_pos = len(self.ncontent)
         for patch in self.patches:
             if isinstance(patch, AddCodePatch):
                 code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
@@ -282,10 +278,8 @@ class Patcherex(object):
         # now compile for real
         for patch in self.patches:
             if isinstance(patch, AddCodePatch):
-                new_code = utils.compile_asm(patch.asm_code, self.curr_code_position, self.name_map)
+                new_code = utils.compile_asm(patch.asm_code, len(self.ncontent), self.name_map)
                 self.added_code += new_code
-                self.curr_code_position += len(new_code)
-                self.curr_file_position += len(new_code)
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code)
 
         # 3) InlinePatch
@@ -304,8 +298,6 @@ class Patcherex(object):
             if isinstance(patch, InsertCodePatch):
                 new_code = self.insert_detour(patch)
                 self.added_code += new_code
-                self.curr_code_position += len(new_code)
-                self.curr_file_position += len(new_code)
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code)
                 # TODO symbol name
 
@@ -414,7 +406,6 @@ class Patcherex(object):
     def compile_moved_injected_code(self, classified_instructions, patch_code):
         # create injected_code (pre, injected, culprit, post, jmp_back)
         injected_code = ""
-        injected_code += "\n"+"nop\n"*5+"\n"
         injected_code += "\n".join([utils.capstone_to_nasm(i)
                                     for i in classified_instructions
                                     if i.overwritten == 'pre'])
