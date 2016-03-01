@@ -4,7 +4,7 @@ import os
 import nose
 import subprocess
 
-#TODO ideally these tests should be run in the vm
+# TODO ideally these tests should be run in the vm
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
 
@@ -25,7 +25,7 @@ def test_simple_inline():
         p.replace_instruction_asm(0x8048291, "mov DWORD [esp+8], 0x40;", "asdf")
         p.compile_patches()
         p.save(tmp_file)
-        #p.save("../../vm/shared/patched")
+        # p.save("../../vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*100)
         print res, p.returncode
@@ -48,9 +48,8 @@ def test_added_code():
         p.compile_patches()
         p.set_oep(p.name_map["ADDED_CODE_START"])
         p.save(tmp_file)
-        #p.save("../../vm/shared/patched")
+        # p.save("../../vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file],stdin=pipe,stdout=pipe,stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
         nose.tools.assert_equal(p.returncode == 0x32, True)
@@ -80,9 +79,8 @@ def test_added_code_and_data():
         p.compile_patches()
         p.set_oep(p.name_map["ADDED_CODE_START"])
         p.save(tmp_file)
-        #p.save("../../vm/shared/patched")
+        # p.save("../../vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file],stdin=pipe,stdout=pipe,stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
         nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
