@@ -185,6 +185,86 @@ def test_complex1():
         nose.tools.assert_equal("\n\nEASTER EGG!\n\n"+test_str in res[0] and p.returncode == 52, True)
 
 
+def test_random_canary():
+    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    pipe = subprocess.PIPE
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        p = patcherex.Patcherex(filepath)
+
+        p.add_data("0123456789abcdef", "print_hex_array")
+        p.add_data("\n", "new_line")
+        p.add_data("X"*4, "saved_canary")
+
+        added_code = '''
+            ; print eax as hex
+            pusha
+            mov ecx,32
+            mov ebx,eax
+            _print_reg_loop:
+                rol ebx,4
+                mov edi,ebx
+                and edi,0x0000000f
+                lea eax,[{print_hex_array}+edi]
+                mov ebp,ebx
+                mov ebx,0x1
+                call {print}
+                mov ebx,ebp
+                sub ecx,4
+                jnz _print_reg_loop
+            mov eax, {new_line}
+            mov ebx,1
+            call {print}
+            popa
+            ret
+        '''
+        p.add_code(added_code,"print_hex_eax")
+        added_code = '''
+            ; eax=buf,ebx=len
+            pusha
+            mov ecx,eax
+            mov edx,ebx
+            mov eax,0x2
+            mov ebx,0x1
+            mov esi,0x0
+            int 0x80
+            popa
+            ret
+        '''
+        p.add_code(added_code,"print")
+        added_code = '''
+            ; put 4 random bytes in eax
+            pusha
+            mov ebx, eax
+            mov eax,7
+            mov ecx,4
+            mov edx,0
+            int 0x80
+            popa
+            ret
+        '''
+        p.add_code(added_code,"random")
+
+        added_code = '''
+            push eax
+            mov eax, {saved_canary}
+            call {random}
+            xor eax, eax
+            mov eax, [{saved_canary}]
+            call {print_hex_eax}
+            pop eax
+        '''
+        p.add_entrypoint_code(added_code)
+        p.compile_patches()
+        p.save(tmp_file)
+        #p.save("../../vm/shared/patched")
+        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode == 0, True)
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
