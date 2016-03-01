@@ -57,7 +57,6 @@ class InsertCodePatch(Patch):
         self.code = code
 
 # todo entry point patch, might need to be implemented differently
-# todo remove padding
 # todo check that patches do not pile up
 # todo check for symbol name collisions
 # todo allow simple pile ups, maybe we want to iterate through functions/basic_blocks not through patches
@@ -201,10 +200,10 @@ class Patcherex(object):
 
         mem_data_location = self.added_data_segment + (self.added_data_file_start % 0x1000)
         data_segment_header = (1, self.added_data_file_start, mem_data_location, mem_data_location,
-                               len(self.added_data), len(self.added_data), 0x6, 0x0)  # RW
+                               len(self.added_data), len(self.added_data), 0x6, 0x1000)  # RW
         mem_code_location = self.added_code_segment + (self.added_code_file_start % 0x1000)
         code_segment_header = (1, self.added_code_file_start, mem_code_location, mem_code_location,
-                               len(self.added_code), len(self.added_code), 0x5, 0x0)  # RX
+                               len(self.added_code), len(self.added_code), 0x5, 0x1000)  # RX
 
         self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *code_segment_header),
                                             self.original_header_end)
@@ -263,12 +262,12 @@ class Patcherex(object):
                     self.name_map[patch.name] = curr_data_position
                 curr_data_position += len(patch.data)
                 self.ncontent = utils.str_overwrite(self.ncontent, patch.data)
-
-        self.added_code_file_start = len(self.ncontent)
-        self.name_map["ADDED_CODE_START"] = (len(self.ncontent) % 0x1000) + self.added_code_segment
+        self.ncontent = utils.pad_str(self.ncontent, 0x10) #some minimal alignment may be good
 
         # 2) AddCodePatch
         # resolving symbols
+        self.added_code_file_start = len(self.ncontent)
+        self.name_map["ADDED_CODE_START"] = (len(self.ncontent) % 0x1000) + self.added_code_segment
         current_symbol_pos = len(self.ncontent)
         for patch in self.patches:
             if isinstance(patch, AddCodePatch):
