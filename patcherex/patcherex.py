@@ -193,7 +193,7 @@ class Patcherex(object):
     def set_added_segment_headers(self):
         assert self.ncontent[0x34:0x34+len(self.patched_tag)] == self.patched_tag
         # TODO if no added data or code, do not even add segments
-        print hex(self.added_data_file_start)
+        l.debug("added_data_file_start: %#x", self.added_data_file_start)
 
         data_segment_header = (1, self.added_data_file_start, self.added_data_segment, self.added_data_segment,
                                len(self.added_data), len(self.added_data), 0x6, 0x0)  # RW
@@ -302,7 +302,12 @@ class Patcherex(object):
         # and fix relative offsets
         for patch in self.patches:
             if isinstance(patch, InsertCodePatch):
-                self.insert_detour(patch)
+                new_code = self.insert_detour(patch)
+                self.added_code += new_code
+                self.curr_code_position += len(new_code)
+                self.curr_file_position += len(new_code)
+                self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+                # TODO symbol name
 
         self.set_added_segment_headers()
 
@@ -386,7 +391,7 @@ class Patcherex(object):
         detour_attempts = range(-1*detour_size, 0+1)
 
         movable_bb_start = movable_instructions[0].address
-        movable_bb_size = self.project.factory.block(block.addr, num_inst=len(movable_instructions))
+        movable_bb_size = self.project.factory.block(block.addr, num_inst=len(movable_instructions)).size
         l.debug("movable_bb_size: %d", movable_bb_size)
         l.debug("movable bb instructions:\n%s", "\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
 
@@ -485,8 +490,8 @@ class Patcherex(object):
 
         new_code = self.compile_moved_injected_code(movable_instructions, patch.code)
 
-        self.added_code += new_code
-        self.curr_code_position += len(new_code)
+        return new_code
+
 
     def save(self, filename=None):
         if filename is None:
