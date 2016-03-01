@@ -304,7 +304,6 @@ def test_random_canary():
         p.add_code(added_code,"canary_check_fail")
 
         added_code = '''
-            push eax
             mov eax, {saved_canary}
             call {random}
             xor eax, eax
@@ -312,7 +311,6 @@ def test_random_canary():
             call {print_str}
             mov eax, [{saved_canary}]
             call {print_hex_eax}
-            pop eax
         '''
         p.add_entrypoint_code(added_code)
 

@@ -301,25 +301,28 @@ class Patcherex(object):
         # basically like AddCodePatch but we detour by changing oep
         # and we jump at the end of all of them
         # resolving symbols 
-        oep_patched = False
-        pre_entrypoint_detour_position = self.get_current_code_position()
-        current_symbol_pos = self.get_current_code_position()
-        for patch in self.patches:
-            if isinstance(patch, AddEntryPointPatch):
-                code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
-                if patch.name is not None:
-                    self.name_map[patch.name] = current_symbol_pos
-                current_symbol_pos += code_len
-        # now compile for real
-        for patch in self.patches:
-            if isinstance(patch, AddEntryPointPatch):
-                new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
-                self.added_code += new_code
-                oep_patched = True
-                self.ncontent = utils.str_overwrite(self.ncontent, new_code)
-        if oep_patched:
+        if any([isinstance(p, AddEntryPointPatch) for p in self.patches]):
+            pre_entrypoint_code_position = self.get_current_code_position()
+            current_symbol_pos = self.get_current_code_position()
+            current_symbol_pos += len(utils.compile_asm_fake_symbol("pusha\npushf\n", current_symbol_pos))
+            for patch in self.patches:
+                if isinstance(patch, AddEntryPointPatch):
+                    code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
+                    if patch.name is not None:
+                        self.name_map[patch.name] = current_symbol_pos
+                    current_symbol_pos += code_len
+            # now compile for real
+            new_code = utils.compile_asm("pusha\npushf\n", self.get_current_code_position())
+            self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+            for patch in self.patches:
+                if isinstance(patch, AddEntryPointPatch):
+                    new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
+                    self.added_code += new_code
+                    self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+            new_code = utils.compile_asm("popf\npopa\n", self.get_current_code_position())
+            self.ncontent = utils.str_overwrite(self.ncontent, new_code)
             oep = self.get_oep()
-            self.set_oep(pre_entrypoint_detour_position)
+            self.set_oep(pre_entrypoint_code_position)
             self.ncontent += utils.compile_jmp(self.get_current_code_position(),oep)
 
         # 4) InlinePatch
