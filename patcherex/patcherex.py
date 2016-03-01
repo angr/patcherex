@@ -228,9 +228,11 @@ class Patcherex(object):
         return perms
 
     def set_oep(self, new_oep):
+        # set original entry point
         self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<I", new_oep), 0x18)
 
     def get_oep(self):
+        # set original entry point
         return struct.unpack("<I", self.ncontent[0x18:0x18+4])[0]
 
     # 3 inserting strategies
@@ -433,7 +435,7 @@ class Patcherex(object):
         injected_code = "\n".join([line for line in injected_code.split("\n") if line != ""])
         l.debug("injected code:\n%s", injected_code)
 
-        compiled_code = utils.compile_asm(injected_code, base=self.get_current_code_position())
+        compiled_code = utils.compile_asm(injected_code, base=self.get_current_code_position(), name_map=self.name_map)
         return compiled_code
 
     def insert_detour(self, patch):
