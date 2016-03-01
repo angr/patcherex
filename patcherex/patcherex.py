@@ -433,7 +433,7 @@ class Patcherex(object):
         injected_code = "\n".join([line for line in injected_code.split("\n") if line != ""])
         l.debug("injected code:\n%s", injected_code)
 
-        compiled_code = utils.compile_asm(injected_code, base=self.curr_code_position)
+        compiled_code = utils.compile_asm(injected_code, base=self.get_current_code_position())
         return compiled_code
 
     def insert_detour(self, patch):
@@ -475,7 +475,7 @@ class Patcherex(object):
                 self.patch_bin(i.address, one_byte_nop*len(i.bytes))
 
         # insert the jump detour
-        detour_jmp_code = utils.compile_jmp(detour_pos, self.curr_code_position)
+        detour_jmp_code = utils.compile_jmp(detour_pos, self.get_current_code_position())
         self.patch_bin(detour_pos, detour_jmp_code)
         patched_bbcode = self.read_mem_from_file(block_addr, block.size)
         patched_bbinstructions = utils.decompile(patched_bbcode, block_addr)
@@ -485,7 +485,6 @@ class Patcherex(object):
         new_code = self.compile_moved_injected_code(movable_instructions, patch.code)
 
         return new_code
-
 
     def save(self, filename=None):
         if filename is None:
