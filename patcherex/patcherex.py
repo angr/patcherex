@@ -246,6 +246,9 @@ class Patcherex(object):
         else:
             raise MissingBlockException("Couldn't find a block containing address %#x" % inst_addr)
 
+    def get_current_code_position(self):
+        return self.name_map["ADDED_CODE_START"] + (len(self.ncontent) - self.added_code_file_start)
+
     def compile_patches(self):
         # for now any added code will be executed by jumping out and back ie CGRex
         # apply all add code patches
