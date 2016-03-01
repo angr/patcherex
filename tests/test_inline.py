@@ -37,13 +37,12 @@ def test_added_code():
         p = patcherex.Patcherex(filepath)
         added_code = '''
             mov     eax, 1
-            push    ebx
             mov     ebx, 0x32
             int     80h
         '''
         p.add_code(added_code, "aaa")
         p.compile_patches()
-        p.set_oep(p.added_code_segment)
+        p.set_oep(p.name_map["ADDED_CODE_START"])
         p.save(tmp_file)
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file],stdin=pipe,stdout=pipe,stderr=pipe)
         res = p.communicate("A"*10+"\n")
@@ -73,8 +72,9 @@ def test_added_code_and_data():
         p.add_code(added_code, "aaa")
         p.add_data(test_str,"added_data")
         p.compile_patches()
-        p.set_oep(p.added_code_segment)
+        p.set_oep(p.name_map["ADDED_CODE_START"])
         p.save(tmp_file)
+        #p.save("../../cgc/vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file],stdin=pipe,stdout=pipe,stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
