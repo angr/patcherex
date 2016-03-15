@@ -177,8 +177,10 @@ class CanaryPatcher(object):
         for k,ff in cfg.function_manager.functions.iteritems():
             start,ends = self.function_to_canary_locations(ff)
             if start!=None and ends !=None:
-                l.info("added canary to function %s (%s -> %s)",ff.name,hex(start),map(hex,ends))
-                self.add_canary_to_function(start,ends)
+                #TODO fix patch dependencies problem
+                if start != 0x8048735:
+                    l.info("added canary to function %s (%s -> %s)",ff.name,hex(start),map(hex,ends))
+                    self.add_canary_to_function(start,ends)
 
         #import IPython; IPython.embed()
 

@@ -7,6 +7,7 @@ import bisect
 import logging
 
 l = logging.getLogger("patcherex.Patcherex")
+l.setLevel(logging.INFO)
 
 
 """
@@ -339,9 +340,13 @@ class Patcherex(object):
         # and fix relative offsets
         for patch in self.patches:
             if isinstance(patch, InsertCodePatch):
-                new_code = self.insert_detour(patch)
-                self.added_code += new_code
-                self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+                try:
+                    new_code = self.insert_detour(patch)
+                    self.added_code += new_code
+                    self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+                except DetourException as e:
+                    l.info(e)
+                    pass
                 # TODO symbol name
 
         self.set_added_segment_headers()
