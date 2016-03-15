@@ -2,6 +2,8 @@
 
 import logging
 import utils
+import traceback
+import timeout_decorator
 
 from canary_patcher import CanaryPatcher
 
@@ -10,22 +12,36 @@ class PatchMaster():
     def __init__(self,infile):
         self.infile = infile
 
+
+    @timeout_decorator.timeout(60*2)
+    def generate_shadow_stack_binary(self):
+        cp = CanaryPatcher(self.infile)
+        shadow_stack_binary = cp.apply_to_entire_bin()
+        return shadow_stack_binary
+
+
     def run(self):
         #TODO this should implement all the high level logic of patching
 
+        to_be_submitted = []
         original_binary = open(self.infile).read()
+        to_be_submitted.append(original_binary)
 
         #I modify one byte in ci_pad[7]. It is never used or checked, according to:
         #https://github.com/CyberGrandChallenge/linux-source-3.13.11-ckt21-cgc/blob/541cc214fb6eb6994414fb09414f945115ddae81/fs/binfmt_cgc.c
         one_byte_patch_binary = utils.str_overwrite(original_binary,"S",14)
-        #print repr(one_byte_patch_binary[:32])
+        to_be_submitted.append(original_binary)
 
-        cp = CanaryPatcher(self.infile)
-        shadow_stack_binary = cp.apply_to_entire_bin()
+        shadow_stack_binary = None
+        try:
+            shadow_stack_binary = self.generate_shadow_stack_binary()
+        except Exception as e:
+            print "ERROR","during generation of shadow stack binary, just returning the other patches"
+            traceback.print_exc()
+        if shadow_stack_binary != None:
+            to_be_submitted.append(shadow_stack_binary)
 
-
-        #TODO also add 1 byte patch
-        return [original_binary,one_byte_patch_binary,shadow_stack_binary]
+        return to_be_submitted
 
 
 if __name__ == "__main__":
