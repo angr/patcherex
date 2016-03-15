@@ -10,5 +10,8 @@ class PatchMaster():
         cp = CanaryPatcher(self.infile,"/tmp/poutfile")
         cp.apply_to_entire_bin()
 
-        return [open("/tmp/poutfile").read()]
+        original_blob = open(self.infile).read()
+
+        #TODO also add 1 byte patch
+        return [original_blob,open("/tmp/poutfile").read()]
 
