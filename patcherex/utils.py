@@ -17,8 +17,8 @@ class UndefinedSymbolException(Exception):
     pass
 
 
-ELF_HEADER = "7f45 4c46 0101 0100 0000 0000 0000 0000".replace(" ", "").decode('hex')
-CGC_HEADER = "7f43 4743 0101 0143 014d 6572 696e 6f00".replace(" ", "").decode('hex')
+ELF_HEADER = "7f45 4c46 0101 0100 0000 0000 0000".replace(" ", "").decode('hex')
+CGC_HEADER = "7f43 4743 0101 0143 014d 6572 696e".replace(" ", "").decode('hex')
 
 
 def str_overwrite(tstr, new, pos=None):

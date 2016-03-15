@@ -10,11 +10,10 @@ l = logging.getLogger("patcherex.CanaryPatcher")
 #TODO this should be a subclass of a generic patcher class
 class CanaryPatcher(object):
 
-    def __init__(self,binary_fname,output_fname):
+    def __init__(self,binary_fname):
         self.binary_fname = binary_fname
-        self.output_fname = output_fname
         self.patcher = patcherex.Patcherex(self.binary_fname)
-        self.shadow_stack_size = 0x400
+        self.shadow_stack_size = 0x800
         self.ncanary = 0
 
 
@@ -109,7 +108,7 @@ class CanaryPatcher(object):
         '''
         self.patcher.add_code(added_code,"canary_check_fail")
 
-        #TODO not necessary because it can be set at compile time (with better handling of symbols)
+        #TODO add randomization of starting point
         added_code = '''
             mov DWORD [{shadow_stack_pointer}],{shadow_stack}
         '''
@@ -148,22 +147,39 @@ class CanaryPatcher(object):
             self.patcher.insert_into_block(e,added_code,"canary_pop_%d_%d"%(self.ncanary,i))
 
 
+    #TODO this is in hack, this should be solved with patch dependencies or by changing patching strategy
+    def check_bb_size(self,bb):
+        movable_instructions = self.patcher.get_movable_instructions(bb)
+        movable_bb_size = self.patcher.project.factory.block(bb.addr, num_inst=len(movable_instructions)).size
+        if movable_bb_size < 5:
+            return False
+        else:
+            return True
+
     def function_to_canary_locations(self,ff):
         #TODO add more checks for validity
         if not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and not ff.has_unresolved_jumps:
             start = ff.startpoint
-            ends = set()
-            for endpoint in ff.endpoints:
-                bb = self.patcher.project.factory.block(endpoint)
-                last_instruction = bb.capstone.insns[-1]
-                if last_instruction.mnemonic != u"ret":
-                    l.debug("bb at %s does not terminate with a ret" % hex(bb.addr))
+            if self.check_bb_size(self.patcher.project.factory.block(start)):
+                ends = set()
+                for endpoint in ff.endpoints:
+                    bb = self.patcher.project.factory.block(endpoint)
+                    last_instruction = bb.capstone.insns[-1]
+                    if last_instruction.mnemonic != u"ret":
+                        l.debug("bb at %s does not terminate with a ret in function %s" % (hex(int(bb.addr)),ff.name))
+                        break
+                    elif not self.check_bb_size(bb):
+                        l.debug("end bb at %s is too small in function %s" % (hex(int(bb.addr)),ff.name))
+                        break
+                    else:
+                        ends.add(last_instruction.address)
                 else:
-                    ends.add(last_instruction.address)
-            if len(ends) == 0:
-                l.debug("cannot find any ret")
+                    if len(ends) == 0:
+                        l.debug("cannot find any ret in function %s" %ff.name)
+                    else:
+                        return int(start),map(int,ends) #avoid "long" problems
             else:
-                return int(start),map(int,ends) #avoid "long" problems
+                l.debug("start bb is too small in function %s" % ff.name)
             
         l.debug("function %s has problems and cannot be patched" % ff.name)
         return None, None
@@ -178,16 +194,15 @@ class CanaryPatcher(object):
             start,ends = self.function_to_canary_locations(ff)
             if start!=None and ends !=None:
                 #TODO fix patch dependencies problem
-                if start != 0x8048735:
-                    l.info("added canary to function %s (%s -> %s)",ff.name,hex(start),map(hex,ends))
-                    self.add_canary_to_function(start,ends)
+                l.info("added canary to function %s (%s -> %s)",ff.name,hex(start),map(hex,ends))
+                self.add_canary_to_function(start,ends)
 
         #import IPython; IPython.embed()
 
         
 
         self.patcher.compile_patches()
-        self.patcher.save(self.output_fname)
+        return self.patcher.get_final_content()
 
 
 
@@ -196,11 +211,5 @@ class CanaryPatcher(object):
 #TODO cfg creation should probably not be in patcherex
 #TODO communicate with "the crs"
 if __name__ == "__main__":
-    l.setLevel(logging.DEBUG)
-    import sys
-    cp = CanaryPatcher(sys.argv[1],sys.argv[2])
-    cp.apply_to_entire_bin()
+    pass
 
-'''
-python ./canary_patcher.py ../../binaries-private/cgc_scored_event_2/cgc/0b32aa01_01 /tmp/t/p1 && ../../tracer/bin/tracer-qemu-cgc /tmp/t/p1
-'''

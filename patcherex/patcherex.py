@@ -7,7 +7,6 @@ import bisect
 import logging
 
 l = logging.getLogger("patcherex.Patcherex")
-l.setLevel(logging.INFO)
 
 
 """
@@ -531,11 +530,15 @@ class Patcherex(object):
 
         return new_code
 
+    def get_final_content(self):
+        return self.ncontent
+
     def save(self, filename=None):
         if filename is None:
             filename = self.filename + "_patched"
 
+        final_content = self.get_final_content()
         with open(filename, "wb") as f:
-            f.write(self.ncontent)
+            f.write(final_content)
 
         os.chmod(filename, 0755)
