@@ -30,7 +30,7 @@ class PatchMaster():
         #I modify one byte in ci_pad[7]. It is never used or checked, according to:
         #https://github.com/CyberGrandChallenge/linux-source-3.13.11-ckt21-cgc/blob/541cc214fb6eb6994414fb09414f945115ddae81/fs/binfmt_cgc.c
         one_byte_patch_binary = utils.str_overwrite(original_binary,"S",14)
-        to_be_submitted.append(original_binary)
+        to_be_submitted.append(one_byte_patch_binary)
 
         shadow_stack_binary = None
         try:
