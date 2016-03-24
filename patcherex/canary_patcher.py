@@ -23,7 +23,7 @@ class CanaryPatcher(object):
         self.patcher.add_data("p"*0x4, "shadow_stack_pointer")
         self.patcher.add_data("t"*0x4, "tmp_reg1")
         self.patcher.add_data("t"*0x4, "tmp_reg2")
-        self.patcher.add_data("s"*0x400, "shadow_stack")
+        self.patcher.add_data("s"*self.shadow_stack_size, "shadow_stack")
         self.patcher.add_data("canary failure: \x00","str_fcanary")
         self.patcher.add_data(" vs \x00","str_vs")
 

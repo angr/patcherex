@@ -6,6 +6,8 @@ import struct
 import bisect
 import logging
 
+from patches import *
+
 l = logging.getLogger("patcherex.Patcherex")
 
 
@@ -26,41 +28,6 @@ class InvalidVAddrException(Exception):
     pass
 
 
-class Patch(object):
-    def __init__(self, name):
-        self.name = name
-
-
-class InlinePatch(Patch):
-    def __init__(self, instruction_addr, new_asm, name=None):
-        super(InlinePatch, self).__init__(name)
-        self.instruction_addr = instruction_addr
-        self.new_asm = new_asm
-
-
-class AddDataPatch(Patch):
-    def __init__(self, data, name=None):
-        super(AddDataPatch, self).__init__(name)
-        self.data = data
-
-
-class AddCodePatch(Patch):
-    def __init__(self, asm_code, name=None):
-        super(AddCodePatch, self).__init__(name)
-        self.asm_code = asm_code
-
-
-class AddEntryPointPatch(Patch):
-    def __init__(self, asm_code, name=None):
-        super(AddEntryPointPatch, self).__init__(name)
-        self.asm_code = asm_code
-
-class InsertCodePatch(Patch):
-    def __init__(self, addr, code, name=None):
-        super(InsertCodePatch, self).__init__(name)
-        self.addr = addr
-        self.code = code
-
 
 # todo check that patches do not pile up
 # todo check for symbol name collisions
@@ -79,15 +46,13 @@ class Patcherex(object):
             self.ocontent = f.read()
 
         # header stuff
-        self.ncontent = None
+        self.ncontent = self.ocontent
         self.segments = None
         self.original_header_end = None
 
         # tag to track if already patched
         self.patched_tag = "SHELLPHISH\x00"  # should not be longer than 0x20
 
-        # patches data
-        self.patches = []
         self.name_map = dict()
 
         # where to put the segments
@@ -96,7 +61,6 @@ class Patcherex(object):
         self.additional_headers_size = 2*32
 
         # set up headers, initializes ncontent
-        self.setup_headers()
         self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + self.added_data_segment
         # we can set ADDED_CODE_START only after we added all the data (unless we decide to pad the data)
 
@@ -122,24 +86,6 @@ class Patcherex(object):
             prev_addr = n.addr
             ordered_nodes.append(n.addr)
         return ordered_nodes
-
-    def add_data(self, data, name=None):
-        self.patches.append(AddDataPatch(data, name))
-
-    def add_code(self, code, name=None):
-        self.patches.append(AddCodePatch(code, name))
-
-    def add_entrypoint_code(self, code, name=None):
-        self.patches.append(AddEntryPointPatch(code, name))
-
-    def insert_into_block(self, addr, code_to_insert, name=None):
-        self.patches.append(InsertCodePatch(addr, code_to_insert, name))
-
-    def replace_instruction_bytes(self, instruction_addr, new_bytes, name=None):
-        pass
-
-    def replace_instruction_asm(self, instruction_addr, new_asm, name=None):
-        self.patches.append(InlinePatch(instruction_addr, new_asm, name))
 
     def is_patched(self):
         return self.ncontent[0x34:0x34 + len(self.patched_tag)] == self.patched_tag
@@ -261,16 +207,27 @@ class Patcherex(object):
     def get_current_code_position(self):
         return self.name_map["ADDED_CODE_START"] + (len(self.ncontent) - self.added_code_file_start)
 
-    def compile_patches(self):
+    def apply_patches(self,patches):
         # for now any added code will be executed by jumping out and back ie CGRex
         # apply all add code patches
+        added_patches = []
         self.added_data = ""
         self.added_code = ""
         curr_data_position = self.name_map["ADDED_DATA_START"]
         self.added_data_file_start = len(self.ncontent)
 
+
+        # 0) RawPatch:
+        for patch in patches:
+            if isinstance(patch, RawFilePatch):
+                self.ncontent = utils.str_overwrite(self.ncontent,patch.data,patch.file_addr)
+                l.info("Added patch: " + str(patch))
+                added_patches.append(patch)
+        #TODO RawMemPatch
+
+
         # 1) AddDataPatch
-        for patch in self.patches:
+        for patch in patches:
             if isinstance(patch, AddDataPatch):
                 self.added_data += patch.data
                 if patch.name is not None:
@@ -284,14 +241,14 @@ class Patcherex(object):
         self.added_code_file_start = len(self.ncontent)
         self.name_map["ADDED_CODE_START"] = (len(self.ncontent) % 0x1000) + self.added_code_segment
         current_symbol_pos = self.get_current_code_position()
-        for patch in self.patches:
+        for patch in patches:
             if isinstance(patch, AddCodePatch):
                 code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
         # now compile for real
-        for patch in self.patches:
+        for patch in patches:
             if isinstance(patch, AddCodePatch):
                 new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                 self.added_code += new_code
@@ -301,11 +258,11 @@ class Patcherex(object):
         # basically like AddCodePatch but we detour by changing oep
         # and we jump at the end of all of them
         # resolving symbols 
-        if any([isinstance(p, AddEntryPointPatch) for p in self.patches]):
+        if any([isinstance(p, AddEntryPointPatch) for p in patches]):
             pre_entrypoint_code_position = self.get_current_code_position()
             current_symbol_pos = self.get_current_code_position()
             current_symbol_pos += len(utils.compile_asm_fake_symbol("pusha\npushf\n", current_symbol_pos))
-            for patch in self.patches:
+            for patch in patches:
                 if isinstance(patch, AddEntryPointPatch):
                     code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
                     if patch.name is not None:
@@ -314,7 +271,7 @@ class Patcherex(object):
             # now compile for real
             new_code = utils.compile_asm("pusha\npushf\n", self.get_current_code_position())
             self.ncontent = utils.str_overwrite(self.ncontent, new_code)
-            for patch in self.patches:
+            for patch in patches:
                 if isinstance(patch, AddEntryPointPatch):
                     new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                     self.added_code += new_code
@@ -327,7 +284,7 @@ class Patcherex(object):
 
         # 4) InlinePatch
         # we assume the patch never patches the added code
-        for patch in self.patches:
+        for patch in patches:
             if isinstance(patch, InlinePatch):
                 new_code = utils.compile_asm(patch.new_asm, patch.instruction_addr, self.name_map)
                 assert len(new_code) == self.project.factory.block(patch.instruction_addr, num_inst=1).size
@@ -337,7 +294,7 @@ class Patcherex(object):
         # 5) InsertCodePatch
         # these patches specify an address in some basic block, In general we will move the basic block
         # and fix relative offsets
-        for patch in self.patches:
+        for patch in patches:
             if isinstance(patch, InsertCodePatch):
                 try:
                     new_code = self.insert_detour(patch)
@@ -348,7 +305,10 @@ class Patcherex(object):
                     pass
                 # TODO symbol name
 
-        self.set_added_segment_headers()
+        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch,AddDataPatch]
+        if any([isinstance(p,ins) for ins in header_patches for p in added_patches]):
+            self.setup_headers()
+            self.set_added_segment_headers()
 
     @staticmethod
     def check_if_movable(instruction):
