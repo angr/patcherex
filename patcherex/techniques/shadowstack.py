@@ -4,7 +4,7 @@ import os
 import nose
 import subprocess
 import logging
-from patches import *
+from patcherex.patches import *
 
 l = logging.getLogger("patcherex.ShadowStack")
 

@@ -12,7 +12,7 @@ class InlinePatch(Patch):
         self.new_asm = new_asm
 
     def __str__(self):
-        return "InlinePatch [%s] %08x (%d)" % (self.name,self.instruction_addr,len(self.data))
+        return "InlinePatch [%s] %08x (%d)" % (self.name,self.instruction_addr,len(self.new_asm))
 
 
 class AddDataPatch(Patch):

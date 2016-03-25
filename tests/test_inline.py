@@ -1,8 +1,11 @@
-import patcherex
+#!/usr/bin/env python
 
 import os
 import nose
 import subprocess
+import patcherex
+from patcherex.patches import *
+
 
 # TODO ideally these tests should be run in the vm
 
@@ -21,11 +24,11 @@ def test_simple_inline():
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        p = patcherex.Patcherex(filepath)
-        p.replace_instruction_asm(0x8048291, "mov DWORD [esp+8], 0x40;", "asdf")
-        p.compile_patches()
-        p.save(tmp_file)
-        # p.save("../../vm/shared/patched")
+        backend = patcherex.Patcherex(filepath)
+        p = InlinePatch(0x8048291, "mov DWORD [esp+8], 0x40;", name="asdf")
+        backend.apply_patches([p])
+        backend.save(tmp_file)
+        # backend.save("../../vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*100)
         print res, p.returncode
@@ -38,17 +41,17 @@ def test_added_code():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        p = patcherex.Patcherex(filepath)
+        backend = patcherex.Patcherex(filepath)
         added_code = '''
             mov     eax, 1
             mov     ebx, 0x32
             int     80h
         '''
-        p.add_code(added_code, "aaa")
-        p.compile_patches()
-        p.set_oep(p.name_map["ADDED_CODE_START"])
-        p.save(tmp_file)
-        # p.save("../../vm/shared/patched")
+        p = AddCodePatch(added_code, "aaa")
+        backend.apply_patches([p])
+        backend.set_oep(backend.name_map["ADDED_CODE_START"])
+        backend.save(tmp_file)
+        # backend.save("../../vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
@@ -61,7 +64,7 @@ def test_added_code_and_data():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        p = patcherex.Patcherex(filepath)
+        backend = patcherex.Patcherex(filepath)
         test_str = "testtesttest\n\x00"
         added_code = '''
             mov     eax, 2
@@ -74,12 +77,12 @@ def test_added_code_and_data():
             mov     ebx, 0x33
             int     80h
         ''' % (len(test_str))
-        p.add_code(added_code, "aaa")
-        p.add_data(test_str, "added_data")
-        p.compile_patches()
-        p.set_oep(p.name_map["ADDED_CODE_START"])
-        p.save(tmp_file)
-        # p.save("../../vm/shared/patched")
+        p1 = AddCodePatch(added_code, "aaa")
+        p2 = AddDataPatch(test_str, "added_data")
+        backend.apply_patches([p1,p2])
+        backend.set_oep(backend.name_map["ADDED_CODE_START"])
+        backend.save(tmp_file)
+        # backend.save("../../vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
@@ -92,7 +95,7 @@ def test_detour():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        p = patcherex.Patcherex(filepath)
+        backend = patcherex.Patcherex(filepath)
         test_str = "qwertyuiop\n\x00"
         added_code = '''
             mov     eax, 2
@@ -102,11 +105,11 @@ def test_detour():
             mov     esi, 0
             int     80h
         ''' % (len(test_str))
-        p.insert_into_block(0x80480A6, added_code)
-        p.add_data(test_str, "qq")
-        p.compile_patches()
-        p.save(tmp_file)
-        # p.save("../../vm/shared/patched")
+        p1 = InsertCodePatch(0x80480A6, added_code)
+        p2 = AddDataPatch(test_str, "qq")
+        backend.apply_patches([p1,p2])
+        backend.save(tmp_file)
+        # backend.save("../../vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
@@ -121,7 +124,7 @@ def test_single_entry_point_patch():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        p = patcherex.Patcherex(filepath)
+        backend = patcherex.Patcherex(filepath)
         added_code = '''
             mov     eax, 2
             mov     ebx, 0
@@ -130,10 +133,10 @@ def test_single_entry_point_patch():
             mov     esi, 0
             int     80h
         '''
-        p.add_entrypoint_code(added_code)
-        p.compile_patches()
-        p.save(tmp_file)
-        #p.save("../../vm/shared/patched")
+        p = AddEntryPointPatch(added_code)
+        backend.apply_patches([p])
+        backend.save(tmp_file)
+        # backend.save("../../vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
@@ -146,8 +149,9 @@ def test_complex1():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        p = patcherex.Patcherex(filepath)
+        backend = patcherex.Patcherex(filepath)
 
+        patches = []
         added_code = '''
             mov     eax, 2
             mov     ebx, 0
@@ -157,13 +161,13 @@ def test_complex1():
             int     80h
             call    {added_function}
         '''
-        p.add_entrypoint_code(added_code)
+        patches.append(AddEntryPointPatch(added_code))
         added_code = '''
             mov     eax, 1
             mov     ebx, 0x34
             int     80h
         '''
-        p.add_entrypoint_code(added_code)
+        patches.append(AddEntryPointPatch(added_code))
         test_str = "testtesttest\n\x00"
         added_code = '''
             mov     eax, 2
@@ -174,11 +178,11 @@ def test_complex1():
             int     80h
             ret
         ''' % (len(test_str))
-        p.add_code(added_code, "added_function")
-        p.add_data(test_str, "added_data")
-        p.compile_patches()
-        p.save(tmp_file)
-        #p.save("../../vm/shared/patched")
+        patches.append(AddCodePatch(added_code, "added_function"))
+        patches.append(AddDataPatch(test_str, "added_data"))
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        # backend.save("../../vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
@@ -203,14 +207,15 @@ def test_random_canary():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        p = patcherex.Patcherex(filepath)
+        backend = patcherex.Patcherex(filepath)
 
-        p.add_data("0123456789abcdef", "hex_array")
-        p.add_data("\n", "new_line")
-        p.add_data("X"*4, "saved_canary")
-        p.add_data("base canary value: \x00","str_bcanary")
-        p.add_data("canary failure: \x00","str_fcanary")
-        p.add_data(" vs \x00","str_vs")
+        patches = []
+        patches.append(AddDataPatch("0123456789abcdef", "hex_array"))
+        patches.append(AddDataPatch("\n", "new_line"))
+        patches.append(AddDataPatch("X"*4, "saved_canary"))
+        patches.append(AddDataPatch("base canary value: \x00","str_bcanary"))
+        patches.append(AddDataPatch("canary failure: \x00","str_fcanary"))
+        patches.append(AddDataPatch(" vs \x00","str_vs"))
 
         added_code = '''
             ; print eax as hex
@@ -231,7 +236,7 @@ def test_random_canary():
             popa
             ret
         '''
-        p.add_code(added_code,"print_hex_eax")
+        patches.append(AddCodePatch(added_code,"print_hex_eax"))
 
         added_code = '''
             ; eax=buf,ebx=len
@@ -245,14 +250,14 @@ def test_random_canary():
             popa
             ret
         '''
-        p.add_code(added_code,"print")
+        patches.append(AddCodePatch(added_code,"print"))
 
         added_code = '''
             mov     ebx, eax
             mov     eax, 0x1
             int     80h
         '''
-        p.add_code(added_code,"exit_eax")
+        patches.append(AddCodePatch(added_code,"exit_eax"))
 
         added_code = '''
             ; put 4 random bytes in eax
@@ -265,7 +270,7 @@ def test_random_canary():
             popa
             ret
         '''
-        p.add_code(added_code,"random")
+        patches.append(AddCodePatch(added_code,"random"))
 
         added_code = '''
             ; print a null terminated string pointed by eax
@@ -285,7 +290,7 @@ def test_random_canary():
             popa
             ret
         '''
-        p.add_code(added_code,"print_str")
+        patches.append(AddCodePatch(added_code,"print_str"))
 
         added_code = '''
             ; print a null terminated string pointed by eax
@@ -301,7 +306,7 @@ def test_random_canary():
             mov eax, 0x44
             call {exit_eax}
         '''
-        p.add_code(added_code,"canary_check_fail")
+        patches.append(AddCodePatch(added_code,"canary_check_fail"))
 
         added_code = '''
             mov eax, {saved_canary}
@@ -312,12 +317,12 @@ def test_random_canary():
             mov eax, [{saved_canary}]
             call {print_hex_eax}
         '''
-        p.add_entrypoint_code(added_code)
+        patches.append(AddEntryPointPatch(added_code))
 
         added_code = '''
             push DWORD [{saved_canary}]
         '''
-        p.insert_into_block(0x08048230,added_code,"canary_push1")
+        patches.append(InsertCodePatch(0x08048230,added_code,"canary_push1"))
         added_code = '''
             push eax ; avoid changing eax
             mov eax, dword [esp+4]
@@ -326,15 +331,39 @@ def test_random_canary():
             pop eax
             add esp, 4
         '''
-        p.insert_into_block(0x080483FF,added_code,"canary_pop1")
+        patches.append(InsertCodePatch(0x080483FF,added_code,"canary_pop1"))
 
-        p.compile_patches()
-        p.save(tmp_file)
-        #p.save("../../vm/shared/patched")
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        # backend.save("../../vm/shared/patched")
         p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n"+"\x00"*100)
         print res, p.returncode
         nose.tools.assert_equal(check_output(res[0]) and p.returncode == 0x44, True)
+
+
+def test_shadowstack():
+    from patcherex.techniques.shadowstack import ShadowStack
+    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    pipe = subprocess.PIPE
+
+    p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+    res = p.communicate("\x00"*1000+"\n")
+    print res, p.returncode
+    nose.tools.assert_equal((p.returncode == -11), True)
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = patcherex.Patcherex(filepath)
+        cp = ShadowStack(filepath)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+
+        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("\x00"*100+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode == 68, True)
 
 
 def run_all():

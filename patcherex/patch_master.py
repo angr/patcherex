@@ -5,9 +5,9 @@ import utils
 import traceback
 import timeout_decorator
 
-from patches import *
 from techniques.shadowstack import ShadowStack
 from patcherex import Patcherex
+from patches import *
 
 class PatchMaster():
     
@@ -77,5 +77,5 @@ if __name__ == "__main__":
 
 
 '''
-./patch_master.py ../../binaries-private/cgc_scored_event_2/cgc/0b32aa01_01 /tmp/ppp && ../../tracer/bin/tracer-qemu-cgc /tmp/ppp_2
+rm /tmp/ppp_2; ./patch_master.py ../../binaries-private/cgc_trials/CADET_00003 /tmp/ppp && ../../tracer/bin/tracer-qemu-cgc /tmp/ppp_2
 '''
