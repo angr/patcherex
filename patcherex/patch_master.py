@@ -6,7 +6,7 @@ import traceback
 import timeout_decorator
 
 from patches import *
-from canary_patcher import CanaryPatcher
+from techniques.shadowstack import ShadowStack
 from patcherex import Patcherex
 
 class PatchMaster():
@@ -15,11 +15,13 @@ class PatchMaster():
         self.infile = infile
 
 
-    @timeout_decorator.timeout(60*2)
+    @timeout_decorator.timeout(60*4)
     def generate_shadow_stack_binary(self):
-        cp = CanaryPatcher(self.infile)
-        shadow_stack_binary = cp.apply_to_entire_bin()
-        return shadow_stack_binary
+        backend = Patcherex(self.infile)
+        cp = ShadowStack(self.infile)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        return backend.get_final_content()
 
 
     def generate_one_byte_patch(self):
@@ -41,7 +43,6 @@ class PatchMaster():
         one_byte_patch_binary = self.generate_one_byte_patch()
         to_be_submitted.append(one_byte_patch_binary)
 
-        '''
         shadow_stack_binary = None
         try:
             shadow_stack_binary = self.generate_shadow_stack_binary()
@@ -50,7 +51,6 @@ class PatchMaster():
             traceback.print_exc()
         if shadow_stack_binary != None:
             to_be_submitted.append(shadow_stack_binary)
-        '''
 
         return to_be_submitted
 
@@ -60,9 +60,8 @@ if __name__ == "__main__":
     import os
     import IPython
     #IPython.embed()
-    logging.getLogger("patcherex.CanaryPatcher").setLevel("DEBUG")
+    logging.getLogger("patcherex.ShadowStack").setLevel("INFO")
     logging.getLogger("patcherex.Patcherex").setLevel("INFO")
-    logging.getLogger("patcherex.Patcherex").setLevel("DEBUG")
 
 
     input_fname = sys.argv[1]

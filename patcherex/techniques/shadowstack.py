@@ -4,11 +4,12 @@ import os
 import nose
 import subprocess
 import logging
+from patches import *
 
-l = logging.getLogger("patcherex.CanaryPatcher")
+l = logging.getLogger("patcherex.ShadowStack")
 
 #TODO this should be a subclass of a generic patcher class
-class CanaryPatcher(object):
+class ShadowStack(object):
 
     def __init__(self,binary_fname):
         self.binary_fname = binary_fname
@@ -17,15 +18,16 @@ class CanaryPatcher(object):
         self.ncanary = 0
 
 
-    def add_common_patches(self):
-        self.patcher.add_data("0123456789abcdef", "hex_array")
-        self.patcher.add_data("X"*4, "saved_canary")
-        self.patcher.add_data("p"*0x4, "shadow_stack_pointer")
-        self.patcher.add_data("t"*0x4, "tmp_reg1")
-        self.patcher.add_data("t"*0x4, "tmp_reg2")
-        self.patcher.add_data("s"*self.shadow_stack_size, "shadow_stack")
-        self.patcher.add_data("canary failure: \x00","str_fcanary")
-        self.patcher.add_data(" vs \x00","str_vs")
+    def get_common_patches(self):
+        common_patches = []
+        common_patches.append(AddDataPatch("0123456789abcdef",name="hex_array"))
+        common_patches.append(AddDataPatch("X"*4,name="saved_canary"))
+        common_patches.append(AddDataPatch("p"*4,name="shadow_stack_pointer"))
+        common_patches.append(AddDataPatch("t"*4,name="tmp_reg1"))
+        common_patches.append(AddDataPatch("t"*4,name="tmp_reg2"))
+        common_patches.append(AddDataPatch("s"*self.shadow_stack_size,name="shadow_stack"))
+        common_patches.append(AddDataPatch("canary failure: \x00",name="str_fcanary"))
+        common_patches.append(AddDataPatch(" vs \x00",name="str_vs"))
 
         added_code = '''
             ; print eax as hex
@@ -46,7 +48,7 @@ class CanaryPatcher(object):
             popa
             ret
         '''
-        self.patcher.add_code(added_code,"print_hex_eax")
+        common_patches.append(AddCodePatch(added_code,name="print_hex_eax"))
 
         added_code = '''
             ; eax=buf,ebx=len
@@ -60,14 +62,14 @@ class CanaryPatcher(object):
             popa
             ret
         '''
-        self.patcher.add_code(added_code,"print")
+        common_patches.append(AddCodePatch(added_code,name="print"))
 
         added_code = '''
             mov     ebx, eax
             mov     eax, 0x1
             int     80h
         '''
-        self.patcher.add_code(added_code,"exit_eax")
+        common_patches.append(AddCodePatch(added_code,name="exit_eax"))
 
         added_code = '''
             ; put 4 random bytes in eax
@@ -80,7 +82,7 @@ class CanaryPatcher(object):
             popa
             ret
         '''
-        self.patcher.add_code(added_code,"random")
+        common_patches.append(AddCodePatch(added_code,name="random"))
 
         added_code = '''
             ; print a null terminated string pointed by eax
@@ -100,23 +102,24 @@ class CanaryPatcher(object):
             popa
             ret
         '''
-        self.patcher.add_code(added_code,"print_str")
+        common_patches.append(AddCodePatch(added_code,name="print_str"))
 
         added_code = '''
             mov eax, 0x44
             call {exit_eax}
         '''
-        self.patcher.add_code(added_code,"canary_check_fail")
+        common_patches.append(AddCodePatch(added_code,name="canary_check_fail"))
 
         #TODO add randomization of starting point
         added_code = '''
             mov DWORD [{shadow_stack_pointer}],{shadow_stack}
         '''
-        self.patcher.add_entrypoint_code(added_code)
+        common_patches.append(AddEntryPointPatch(added_code,name="set_shadowstack_pointer"))
+        return common_patches
 
 
     #TODO more efficient (at least when ebx and eax are "free")
-    def add_canary_to_function(self,start,ends):
+    def add_shadowstack_to_function(self,start,ends):
         added_code = '''
             mov DWORD [{tmp_reg1}], eax
             mov DWORD [{tmp_reg2}], ebx
@@ -129,7 +132,8 @@ class CanaryPatcher(object):
             mov eax,  DWORD [{tmp_reg1}]
             mov ebx,  DWORD [{tmp_reg2}]
         '''
-        self.patcher.insert_into_block(start,added_code,"canary_push_%d"%self.ncanary)
+        headp = InsertCodePatch(start,added_code,name="canary_push_%d"%self.ncanary)
+        tailp = []
         for i,e in enumerate(ends):
             added_code = '''
                 mov  DWORD [{tmp_reg1}], eax
@@ -144,10 +148,14 @@ class CanaryPatcher(object):
                 mov eax,  DWORD [{tmp_reg1}]
                 mov ebx,  DWORD [{tmp_reg2}]
             '''
-            self.patcher.insert_into_block(e,added_code,"canary_pop_%d_%d"%(self.ncanary,i))
+            tailp.append(InsertCodePatch(e,added_code,name="canary_pop_%d_%d"%(self.ncanary,i)))
+            for p in tailp:
+                headp.dependencies.append(p)
+                p.dependencies.append(headp)
+            self.ncanary += 1
+            return [headp]+tailp
 
-
-    #TODO this is in hack, this should be solved with patch dependencies or by changing patching strategy
+    #not used anymore
     def check_bb_size(self,bb):
         movable_instructions = self.patcher.get_movable_instructions(bb)
         movable_bb_size = self.patcher.project.factory.block(bb.addr, num_inst=len(movable_instructions)).size
@@ -160,56 +168,44 @@ class CanaryPatcher(object):
         #TODO add more checks for validity
         if not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and not ff.has_unresolved_jumps:
             start = ff.startpoint
-            if self.check_bb_size(self.patcher.project.factory.block(start)):
-                ends = set()
-                for endpoint in ff.endpoints:
-                    bb = self.patcher.project.factory.block(endpoint)
-                    last_instruction = bb.capstone.insns[-1]
-                    if last_instruction.mnemonic != u"ret":
-                        l.debug("bb at %s does not terminate with a ret in function %s" % (hex(int(bb.addr)),ff.name))
-                        break
-                    elif not self.check_bb_size(bb):
-                        l.debug("end bb at %s is too small in function %s" % (hex(int(bb.addr)),ff.name))
-                        break
-                    else:
-                        ends.add(last_instruction.address)
+            ends = set()
+            for endpoint in ff.endpoints:
+                bb = self.patcher.project.factory.block(endpoint)
+                last_instruction = bb.capstone.insns[-1]
+                if last_instruction.mnemonic != u"ret":
+                    l.debug("bb at %s does not terminate with a ret in function %s" % (hex(int(bb.addr)),ff.name))
+                    break
                 else:
-                    if len(ends) == 0:
-                        l.debug("cannot find any ret in function %s" %ff.name)
-                    else:
-                        return int(start),map(int,ends) #avoid "long" problems
+                    ends.add(last_instruction.address)
             else:
-                l.debug("start bb is too small in function %s" % ff.name)
+                if len(ends) == 0:
+                    l.debug("cannot find any ret in function %s" %ff.name)
+                else:
+                    return int(start),map(int,ends) #avoid "long" problems
             
         l.debug("function %s has problems and cannot be patched" % ff.name)
         return None, None
 
 
-    def apply_to_entire_bin(self):
-        self.add_common_patches()
+    def get_patches(self):
+        common_patches = self.get_common_patches()
 
         cfg = self.patcher.cfg
- 
+
+        patches = []
         for k,ff in cfg.function_manager.functions.iteritems():
             start,ends = self.function_to_canary_locations(ff)
             if start!=None and ends !=None:
-                #TODO fix patch dependencies problem
-                l.info("added canary to function %s (%s -> %s)",ff.name,hex(start),map(hex,ends))
-                self.add_canary_to_function(start,ends)
-
-        #import IPython; IPython.embed()
-
-        
-
-        self.patcher.compile_patches()
-        return self.patcher.get_final_content()
+                new_patches = self.add_shadowstack_to_function(start,ends)
+                l.info("added shadowstack to function %s (%s -> %s)",ff.name,hex(start),map(hex,ends))
+                for p1 in new_patches:
+                    for p2 in common_patches: 
+                        p1.dependencies.append(p2)
+                patches += new_patches
+        return common_patches + patches
 
 
-
-#TODO this should be called by a "patcher" strategy component
-#to do this any patcher class should return a list of patches
-#TODO cfg creation should probably not be in patcherex
-#TODO communicate with "the crs"
+#TODO cfg creation should probably not be in the backend
 if __name__ == "__main__":
     pass
 

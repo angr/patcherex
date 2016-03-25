@@ -91,7 +91,6 @@ class Patcherex(object):
         return self.ncontent[0x34:0x34 + len(self.patched_tag)] == self.patched_tag
 
     def setup_headers(self):
-        self.ncontent = self.ocontent
         if self.is_patched():
             return
 
@@ -221,8 +220,8 @@ class Patcherex(object):
         for patch in patches:
             if isinstance(patch, RawFilePatch):
                 self.ncontent = utils.str_overwrite(self.ncontent,patch.data,patch.file_addr)
-                l.info("Added patch: " + str(patch))
                 added_patches.append(patch)
+                l.info("Added patch: " + str(patch))
         #TODO RawMemPatch
 
 
@@ -234,6 +233,8 @@ class Patcherex(object):
                     self.name_map[patch.name] = curr_data_position
                 curr_data_position += len(patch.data)
                 self.ncontent = utils.str_overwrite(self.ncontent, patch.data)
+                added_patches.append(patch)
+                l.info("Added patch: " + str(patch))
         self.ncontent = utils.pad_str(self.ncontent, 0x10)  # some minimal alignment may be good
 
         # 2) AddCodePatch
@@ -253,6 +254,8 @@ class Patcherex(object):
                 new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                 self.added_code += new_code
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+                added_patches.append(patch)
+                l.info("Added patch: " + str(patch))
 
         # 3) AddEntryPointPatch
         # basically like AddCodePatch but we detour by changing oep
@@ -262,7 +265,7 @@ class Patcherex(object):
             pre_entrypoint_code_position = self.get_current_code_position()
             current_symbol_pos = self.get_current_code_position()
             current_symbol_pos += len(utils.compile_asm_fake_symbol("pusha\npushf\n", current_symbol_pos))
-            for patch in patches:
+            for patch in sorted([p for p in patches if isinstance(p,AddEntryPointPatch)],key=lambda x:x.priority):
                 if isinstance(patch, AddEntryPointPatch):
                     code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
                     if patch.name is not None:
@@ -271,7 +274,7 @@ class Patcherex(object):
             # now compile for real
             new_code = utils.compile_asm("pusha\npushf\n", self.get_current_code_position())
             self.ncontent = utils.str_overwrite(self.ncontent, new_code)
-            for patch in patches:
+            for patch in sorted([p for p in patches if isinstance(p,AddEntryPointPatch)],key=lambda x:x.priority):
                 if isinstance(patch, AddEntryPointPatch):
                     new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                     self.added_code += new_code
@@ -281,6 +284,8 @@ class Patcherex(object):
             oep = self.get_oep()
             self.set_oep(pre_entrypoint_code_position)
             self.ncontent += utils.compile_jmp(self.get_current_code_position(),oep)
+            added_patches.append(patch)
+            l.info("Added patch: " + str(patch))
 
         # 4) InlinePatch
         # we assume the patch never patches the added code
@@ -290,25 +295,51 @@ class Patcherex(object):
                 assert len(new_code) == self.project.factory.block(patch.instruction_addr, num_inst=1).size
                 file_offset = self.project.loader.main_bin.addr_to_offset(patch.instruction_addr)
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code, file_offset)
+                added_patches.append(patch)
+                l.info("Added patch: " + str(patch))
 
         # 5) InsertCodePatch
         # these patches specify an address in some basic block, In general we will move the basic block
         # and fix relative offsets
-        for patch in patches:
-            if isinstance(patch, InsertCodePatch):
-                try:
-                    new_code = self.insert_detour(patch)
-                    self.added_code += new_code
-                    self.ncontent = utils.str_overwrite(self.ncontent, new_code)
-                except DetourException as e:
-                    l.info(e)
-                    pass
+        # With this backend heer we can fail applying a patch, in case, resolve dependencies
+        while True:
+            ncontent_copy = self.ncontent
+            insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
+            for patch in insert_code_patches:
+                    try:
+                        new_code = self.insert_detour(patch)
+                        self.added_code += new_code
+                        self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+                        added_patches.append(patch)
+                        l.info("Added patch: " + str(patch))
+                    except DetourException as e:
+                        l.info(e)
+                        patches = self.handle_remove_patch(patches,patch)
+                        self.ncontent = ncontent_copy
+                        break
+            else:
+                break
                 # TODO symbol name
 
         header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch,AddDataPatch]
         if any([isinstance(p,ins) for ins in header_patches for p in added_patches]):
             self.setup_headers()
             self.set_added_segment_headers()
+
+    def handle_remove_patch(self,patches,patch):
+        l.info("Handling removal of patch: "+str(patch))
+        cleaned_patches = [p for p in patches if p != patch]
+        while True:
+            removed = False
+            for p in cleaned_patches:
+                for d in p.dependencies:
+                    if d not in cleaned_patches:
+                        l.info("Removing depending patch: "+str(p)+" depends from "+str(d))
+                        removed = True
+                        cleaned_patches.remove(p)
+            if removed == False:
+                break
+        return cleaned_patches
 
     @staticmethod
     def check_if_movable(instruction):
