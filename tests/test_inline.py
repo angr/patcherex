@@ -3,7 +3,9 @@
 import os
 import nose
 import subprocess
+
 import patcherex
+from patcherex.backends.basebackend import BaseBackend
 from patcherex.patches import *
 
 
@@ -24,7 +26,7 @@ def test_simple_inline():
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = patcherex.Patcherex(filepath)
+        backend = BaseBackend(filepath)
         p = InlinePatch(0x8048291, "mov DWORD [esp+8], 0x40;", name="asdf")
         backend.apply_patches([p])
         backend.save(tmp_file)
@@ -41,7 +43,7 @@ def test_added_code():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = patcherex.Patcherex(filepath)
+        backend = BaseBackend(filepath)
         added_code = '''
             mov     eax, 1
             mov     ebx, 0x32
@@ -64,7 +66,7 @@ def test_added_code_and_data():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = patcherex.Patcherex(filepath)
+        backend = BaseBackend(filepath)
         test_str = "testtesttest\n\x00"
         added_code = '''
             mov     eax, 2
@@ -95,7 +97,7 @@ def test_detour():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = patcherex.Patcherex(filepath)
+        backend = BaseBackend(filepath)
         test_str = "qwertyuiop\n\x00"
         added_code = '''
             mov     eax, 2
@@ -124,7 +126,7 @@ def test_single_entry_point_patch():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = patcherex.Patcherex(filepath)
+        backend = BaseBackend(filepath)
         added_code = '''
             mov     eax, 2
             mov     ebx, 0
@@ -149,7 +151,7 @@ def test_complex1():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = patcherex.Patcherex(filepath)
+        backend = BaseBackend(filepath)
 
         patches = []
         added_code = '''
@@ -207,7 +209,7 @@ def test_random_canary():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = patcherex.Patcherex(filepath)
+        backend = BaseBackend(filepath)
 
         patches = []
         patches.append(AddDataPatch("0123456789abcdef", "hex_array"))
@@ -354,7 +356,7 @@ def test_shadowstack():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = patcherex.Patcherex(filepath)
+        backend = BaseBackend(filepath)
         cp = ShadowStack(filepath)
         patches = cp.get_patches()
         backend.apply_patches(patches)

@@ -1,14 +1,14 @@
 import angr
-
 import os
-import utils
 import struct
 import bisect
 import logging
 
-from patches import *
+import patcherex
+from patcherex import utils
+from patcherex.patches import *
 
-l = logging.getLogger("patcherex.Patcherex")
+l = logging.getLogger("patcherex.backends.BaseBackend")
 
 
 """
@@ -36,7 +36,7 @@ class InvalidVAddrException(Exception):
 # todo add checks to verify that functions are called in proper order
 
 
-class Patcherex(object):
+class BaseBackend(object):
     # how do we want to design this to track relocations in the blocks...
     def __init__(self, filename):
         # file info
@@ -313,9 +313,10 @@ class Patcherex(object):
                         added_patches.append(patch)
                         l.info("Added patch: " + str(patch))
                     except DetourException as e:
-                        l.info(e)
+                        l.warning(e)
                         patches = self.handle_remove_patch(patches,patch)
                         self.ncontent = ncontent_copy
+                        l.warning("One patch failed, rolling back InsertCodePatch patches. Failed patch: "+str(patch))
                         break
             else:
                 break

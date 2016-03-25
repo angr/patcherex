@@ -5,9 +5,9 @@ import utils
 import traceback
 import timeout_decorator
 
-from techniques.shadowstack import ShadowStack
-from patcherex import Patcherex
-from patches import *
+from patcherex.techniques.shadowstack import ShadowStack
+from patcherex.backends.basebackend import BaseBackend
+from patcherex.patches import *
 
 class PatchMaster():
     
@@ -17,7 +17,7 @@ class PatchMaster():
 
     @timeout_decorator.timeout(60*4)
     def generate_shadow_stack_binary(self):
-        backend = Patcherex(self.infile)
+        backend = BaseBackend(self.infile)
         cp = ShadowStack(self.infile)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -25,7 +25,7 @@ class PatchMaster():
 
 
     def generate_one_byte_patch(self):
-        backend = Patcherex(self.infile)
+        backend = BaseBackend(self.infile)
         #I modify one byte in ci_pad[7]. It is never used or checked, according to:
         #https://github.com/CyberGrandChallenge/linux-source-3.13.11-ckt21-cgc/blob/541cc214fb6eb6994414fb09414f945115ddae81/fs/binfmt_cgc.c
         one_byte_patch = RawFilePatch(14,"S")
@@ -60,8 +60,8 @@ if __name__ == "__main__":
     import os
     import IPython
     #IPython.embed()
-    logging.getLogger("patcherex.ShadowStack").setLevel("INFO")
-    logging.getLogger("patcherex.Patcherex").setLevel("INFO")
+    logging.getLogger("patcherex.techniques.ShadowStack").setLevel("INFO")
+    logging.getLogger("patcherex.backends.BaseBackend").setLevel("INFO")
 
 
     input_fname = sys.argv[1]

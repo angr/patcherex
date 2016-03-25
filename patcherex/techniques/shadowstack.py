@@ -5,15 +5,16 @@ import nose
 import subprocess
 import logging
 from patcherex.patches import *
+from patcherex.backends.basebackend import BaseBackend
 
-l = logging.getLogger("patcherex.ShadowStack")
+l = logging.getLogger("patcherex.techniques.ShadowStack")
 
 #TODO this should be a subclass of a generic patcher class
 class ShadowStack(object):
 
     def __init__(self,binary_fname):
         self.binary_fname = binary_fname
-        self.patcher = patcherex.Patcherex(self.binary_fname)
+        self.patcher = BaseBackend(self.binary_fname)
         self.shadow_stack_size = 0x800
         self.ncanary = 0
 
