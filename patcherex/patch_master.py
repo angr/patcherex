@@ -8,7 +8,7 @@ import timeout_decorator
 from canary_patcher import CanaryPatcher
 
 class PatchMaster():
-    
+
     def __init__(self,infile):
         self.infile = infile
 
@@ -41,7 +41,7 @@ class PatchMaster():
         if shadow_stack_binary != None:
             to_be_submitted.append(shadow_stack_binary)
 
-        return to_be_submitted
+        return [to_be_submitted[-1]]
 
 
 if __name__ == "__main__":
