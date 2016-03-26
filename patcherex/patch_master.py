@@ -4,10 +4,12 @@ import logging
 import utils
 import traceback
 import timeout_decorator
+from collections import OrderedDict
 
 from patcherex.techniques.shadowstack import ShadowStack
 from patcherex.backends.basebackend import BaseBackend
 from patcherex.patches import *
+
 
 class PatchMaster():
     
@@ -33,15 +35,15 @@ class PatchMaster():
         return backend.get_final_content()
 
 
-    def run(self):
+    def run(self,return_dict = False):
         #TODO this should implement all the high level logic of patching
 
-        to_be_submitted = []
+        to_be_submitted = OrderedDict()
         original_binary = open(self.infile).read()
-        to_be_submitted.append(original_binary)
+        to_be_submitted["original"] = original_binary
 
         one_byte_patch_binary = self.generate_one_byte_patch()
-        to_be_submitted.append(one_byte_patch_binary)
+        to_be_submitted["1bytepatch"] = one_byte_patch_binary
 
         shadow_stack_binary = None
         try:
@@ -50,9 +52,12 @@ class PatchMaster():
             print "ERROR","during generation of shadow stack binary, just returning the other patches"
             traceback.print_exc()
         if shadow_stack_binary != None:
-            to_be_submitted.append(shadow_stack_binary)
+            to_be_submitted["shadowstack"] = shadow_stack_binary
 
-        return to_be_submitted
+        if return_dict:
+            return to_be_submitted
+        else:
+            return to_be_submitted.values()
 
 
 if __name__ == "__main__":
@@ -67,15 +72,14 @@ if __name__ == "__main__":
     input_fname = sys.argv[1]
     out = sys.argv[2]
     pm = PatchMaster(input_fname)
-    res = pm.run()
-    for i,b in enumerate(res):
-        output_fname = out+"_"+str(i)
+    res = pm.run(return_dict = True)
+    for k,v in res.iteritems():
+        output_fname = out+"_"+k
         fp = open(output_fname,"wb")
-        fp.write(b)
+        fp.write(v)
         fp.close()
         os.chmod(output_fname, 0755)
 
 
 '''
-rm /tmp/ppp_2; ./patch_master.py ../../binaries-private/cgc_trials/CADET_00003 /tmp/ppp && ../../tracer/bin/tracer-qemu-cgc /tmp/ppp_2
-'''
+`'''
