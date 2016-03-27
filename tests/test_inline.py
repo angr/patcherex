@@ -366,7 +366,7 @@ def test_shadowstack():
         res = p.communicate("\x00"*100+"\n")
         print res, p.returncode
         nose.tools.assert_equal(p.returncode == 68, True)
-
+# TODO test packer
 
 def run_all():
     functions = globals()

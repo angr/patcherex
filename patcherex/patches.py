@@ -70,6 +70,14 @@ class RawMemPatch(Patch):
         self.data = data
 
     def __str__(self):
-        return "RawFilePatch [%s] %08x (%d)" % (self.name,self.addr,len(self.data))
+        return "RawMemPatch [%s] %08x (%d)" % (self.name,self.addr,len(self.data))
+
+class SegmentHeaderPatch(Patch):
+    def __init__(self, segment_headers, name=None):
+        super(SegmentHeaderPatch, self).__init__(name)
+        self.segment_headers = segment_headers
+
+    def __str__(self):
+        return "SegmentHeaderPatch [%s] (%d)" % (self.name,len(self.segment_headers))
 
 

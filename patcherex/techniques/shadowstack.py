@@ -204,9 +204,3 @@ class ShadowStack(object):
                         p1.dependencies.append(p2)
                 patches += new_patches
         return common_patches + patches
-
-
-#TODO cfg creation should probably not be in the backend
-if __name__ == "__main__":
-    pass
-

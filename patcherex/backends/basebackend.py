@@ -16,15 +16,21 @@ symbols will look like {}
 """
 
 
-class MissingBlockException(Exception):
+class PatchingException(Exception):
+    pass
+
+class MissingBlockException(PatchingException):
     pass
 
 
-class DetourException(Exception):
+class DetourException(PatchingException):
     pass
 
 
-class InvalidVAddrException(Exception):
+class InvalidVAddrException(PatchingException):
+    pass
+
+class IncompatiblePatchesException(PatchingException):
     pass
 
 
@@ -70,11 +76,12 @@ class BaseBackend(object):
         self.added_code_file_start = None
         self.added_data_file_start = None
 
-        # Todo ida-like cfg
+        # TODO
+        # 1) ida-like cfg
+        # 2) with some strategies we don't need the cfg, we should be able to apply those strategies even if the cfg fails 
         self.cfg = self.project.analyses.CFG()
         self.cfg.normalize()
-
-        # todo this should be in the cfg
+        # TODO this should be in the cfg
         self.ordered_nodes = self.get_ordered_nodes()
 
     def get_ordered_nodes(self):
@@ -90,11 +97,9 @@ class BaseBackend(object):
     def is_patched(self):
         return self.ncontent[0x34:0x34 + len(self.patched_tag)] == self.patched_tag
 
-    def setup_headers(self):
+    def setup_headers(self,segments):
         if self.is_patched():
             return
-
-        segments = self.dump_segments()
 
         # align size of the entire ELF
         self.ncontent = utils.pad_str(self.ncontent, 0x10)
@@ -183,7 +188,7 @@ class BaseBackend(object):
         return perms
 
     def set_oep(self, new_oep):
-        # set original entry point
+        # get original entry point
         self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<I", new_oep), 0x18)
 
     def get_oep(self):
@@ -222,8 +227,11 @@ class BaseBackend(object):
                 self.ncontent = utils.str_overwrite(self.ncontent,patch.data,patch.file_addr)
                 added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
-        #TODO RawMemPatch
-
+        for patch in patches:
+            if isinstance(patch, RawMemPatch):
+                self.patch_bin(patch.addr,patch.data)
+                added_patches.append(patch)
+                l.info("Added patch: " + str(patch))
 
         # 1) AddDataPatch
         for patch in patches:
@@ -273,6 +281,7 @@ class BaseBackend(object):
                     current_symbol_pos += code_len
             # now compile for real
             new_code = utils.compile_asm("pusha\npushf\n", self.get_current_code_position())
+            self.added_code += new_code
             self.ncontent = utils.str_overwrite(self.ncontent, new_code)
             for patch in sorted([p for p in patches if isinstance(p,AddEntryPointPatch)],key=lambda x:x.priority):
                 if isinstance(patch, AddEntryPointPatch):
@@ -280,10 +289,13 @@ class BaseBackend(object):
                     self.added_code += new_code
                     self.ncontent = utils.str_overwrite(self.ncontent, new_code)
             new_code = utils.compile_asm("popf\npopa\n", self.get_current_code_position())
+            self.added_code += new_code
             self.ncontent = utils.str_overwrite(self.ncontent, new_code)
             oep = self.get_oep()
             self.set_oep(pre_entrypoint_code_position)
-            self.ncontent += utils.compile_jmp(self.get_current_code_position(),oep)
+            new_code = utils.compile_jmp(self.get_current_code_position(),oep)
+            self.added_code += new_code
+            self.ncontent += new_code
             added_patches.append(patch)
             l.info("Added patch: " + str(patch))
 
@@ -323,8 +335,20 @@ class BaseBackend(object):
                 # TODO symbol name
 
         header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch,AddDataPatch]
-        if any([isinstance(p,ins) for ins in header_patches for p in added_patches]):
-            self.setup_headers()
+        if any([isinstance(p,ins) for ins in header_patches for p in added_patches]) or \
+                any([isinstance(p,SegmentHeaderPatch) for p in patches]):
+            # 6) SegmentHeaderPatch
+            segment_header_patches = [p for p in patches if isinstance(p,SegmentHeaderPatch)]
+            if len(segment_header_patches) > 1:
+                msg = "more than one patch tries to change segment headers: " + "|".join([str(p) for p in segment_header_patches])
+                raise IncompatiblePatchesException(msg)
+            elif len(segment_header_patches) == 1:
+                segment_patch = segment_header_patches[0]
+                segments = segment_patch.segment_headers
+                l.info("Added patch: " + str(segment_patch))
+            else:
+                segments = self.dump_segments()
+            self.setup_headers(segments)
             self.set_added_segment_headers()
 
     def handle_remove_patch(self,patches,patch):
@@ -404,6 +428,9 @@ class BaseBackend(object):
         return mem
 
     def get_movable_instructions(self, block):
+        # TODO there are two improvements here:
+        # 1) being able to move the jmp and call at the end of a bb
+        # 2) detect cases like call-pop and dependent instructions (which should not be moved)
         # get movable_instructions in the bb
         original_bbcode = block.bytes
         instructions = utils.decompile(original_bbcode, block.addr)
