@@ -1,8 +1,5 @@
 import patcherex
 
-import os
-import nose
-import subprocess
 import logging
 from patcherex.patches import *
 from patcherex.backends.basebackend import BaseBackend
