@@ -22,10 +22,8 @@ class PatchingException(Exception):
 class MissingBlockException(PatchingException):
     pass
 
-
 class DetourException(PatchingException):
     pass
-
 
 class InvalidVAddrException(PatchingException):
     pass
@@ -324,7 +322,7 @@ class BaseBackend(object):
                         self.ncontent = utils.str_overwrite(self.ncontent, new_code)
                         added_patches.append(patch)
                         l.info("Added patch: " + str(patch))
-                    except DetourException as e:
+                    except (DetourException, MissingBlockException) as e:
                         l.warning(e)
                         patches = self.handle_remove_patch(patches,patch)
                         self.ncontent = ncontent_copy
@@ -350,6 +348,8 @@ class BaseBackend(object):
                 segments = self.dump_segments()
             self.setup_headers(segments)
             self.set_added_segment_headers()
+
+        l.debug("final symbol table: "+ repr([(k,hex(v)) for k,v in self.name_map.iteritems()]))
 
     def handle_remove_patch(self,patches,patch):
         l.info("Handling removal of patch: "+str(patch))
