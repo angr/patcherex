@@ -8,6 +8,8 @@ from collections import OrderedDict
 
 from patcherex.techniques.shadowstack import ShadowStack
 from patcherex.techniques.packer import Packer
+from patcherex.techniques.simplecfi import SimpleCFI
+
 from patcherex.backends.basebackend import BaseBackend
 from patcherex.patches import *
 
@@ -29,10 +31,18 @@ class PatchMaster():
         backend.apply_patches(patches)
         return backend.get_final_content()
 
-    #@timeout_decorator.timeout(60*2)
+    @timeout_decorator.timeout(60*2)
     def generated_packed_binary(self):
         backend = BaseBackend(self.infile)
         cp = Packer(self.infile)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        return backend.get_final_content()
+
+    @timeout_decorator.timeout(60*2)
+    def generated_simplecfi_binary(self):
+        backend = BaseBackend(self.infile)
+        cp = SimpleCFI(self.infile)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         return backend.get_final_content()
@@ -81,6 +91,17 @@ class PatchMaster():
             to_be_submitted["packed"] = packed_binary
         l.info("packed binary created")
 
+        l.info("creating simplecfi binary...")
+        simplecfi_binary = None
+        try:
+            simplecfi_binary = self.generated_simplecfi_binary()
+        except Exception as e:
+            print "ERROR","during generation of packed binary"
+            traceback.print_exc()
+        if simplecfi_binary != None:
+            to_be_submitted["simplecfi"] = simplecfi_binary
+        l.info("simplecfi binary created")
+
         if return_dict:
             return to_be_submitted
         else:
@@ -92,6 +113,7 @@ if __name__ == "__main__":
     import os
     import IPython
     #IPython.embed()
+    logging.getLogger("patcherex.techniques.SimpleCFI").setLevel("INFO")
     logging.getLogger("patcherex.techniques.ShadowStack").setLevel("INFO")
     logging.getLogger("patcherex.backends.BaseBackend").setLevel("INFO")
     logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
