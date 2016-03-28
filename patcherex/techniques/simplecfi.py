@@ -15,13 +15,6 @@ class SimpleCFI(object):
     def get_common_patches(self):
         common_patches = []
 
-        added_code = '''
-            mov     ebx, eax
-            mov     eax, 0x1
-            int     80h
-        '''
-        common_patches.append(AddCodePatch(added_code,name="exit_eax"))
-
         # roughly in order of frequency. x86 encoding is just insane.
         # it assumes that eax points to the "after call" instruction
         added_code = '''
@@ -37,10 +30,16 @@ class SimpleCFI(object):
             je _exit
             cmp BYTE [eax-0x7], 0xFF ; call [eax+edx+0x11223344]
             je _exit
+            cmp BYTE [eax-0x3], 0xE8 ; call 0x1122 (using 0x66 as modifier before E8)
+            je _exit
             cmp BYTE [eax-0x5], 0xFF ; not sure if possible
             je _exit
-            mov eax, 0x45
-            jmp {exit_eax}
+            ; terminate(0x45)
+            xor ebx, ebx
+            mov bl, 0x45
+            xor eax, eax
+            inc eax
+            int 0x80
             _exit:
             ret
         '''
@@ -66,7 +65,8 @@ class SimpleCFI(object):
             pop eax
             ret
         '''
-        common_patches.append(AddCodePatch(added_code,name="simplecfi_test_with_offset"))
+        #TODO disabled for now
+        #common_patches.append(AddCodePatch(added_code,name="simplecfi_test_with_offset"))
 
         return common_patches
 
