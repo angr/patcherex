@@ -1,8 +1,5 @@
 import patcherex
 
-import os
-import nose
-import subprocess
 import logging
 import struct
 from patcherex.patches import *

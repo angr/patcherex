@@ -6,6 +6,7 @@ import traceback
 import timeout_decorator
 from collections import OrderedDict
 
+from patcherex.techniques.qemudetection import QemuDetection
 from patcherex.techniques.shadowstack import ShadowStack
 from patcherex.techniques.packer import Packer
 from patcherex.techniques.simplecfi import SimpleCFI
@@ -55,6 +56,14 @@ class PatchMaster():
         backend.apply_patches([one_byte_patch])
         return backend.get_final_content()
 
+    @timeout_decorator.timeout(60*2)
+    def generated_qemudetection_binary(self):
+        backend = BaseBackend(self.infile)
+        cp = QemuDetection(self.infile)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        return backend.get_final_content()
+
     def run(self,return_dict = False):
         #TODO this should implement all the high level logic of patching
 
@@ -69,6 +78,7 @@ class PatchMaster():
         to_be_submitted["1bytepatch"] = one_byte_patch_binary
         l.info("1byte binary created")
 
+        '''
         l.info("creating shadowstack binary...")
         shadow_stack_binary = None
         try:
@@ -90,6 +100,7 @@ class PatchMaster():
         if packed_binary != None:
             to_be_submitted["packed"] = packed_binary
         l.info("packed binary created")
+        '''
 
         l.info("creating simplecfi binary...")
         simplecfi_binary = None
@@ -101,6 +112,18 @@ class PatchMaster():
         if simplecfi_binary != None:
             to_be_submitted["simplecfi"] = simplecfi_binary
         l.info("simplecfi binary created")
+        
+
+        l.info("creating qemudetection binary...")
+        qemudetection_binary = None
+        try:
+            qemudetection_binary = self.generated_qemudetection_binary()
+        except Exception as e:
+            print "ERROR","during generation of packed binary"
+            traceback.print_exc()
+        if qemudetection_binary != None:
+            to_be_submitted["qemudetection"] = qemudetection_binary
+        l.info("qemudetection_binary binary created")
 
         if return_dict:
             return to_be_submitted
