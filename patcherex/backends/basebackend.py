@@ -287,6 +287,7 @@ class BaseBackend(object):
                     self.added_code += new_code
                     self.ncontent = utils.str_overwrite(self.ncontent, new_code)
             new_code = utils.compile_asm("popf\npopa\n", self.get_current_code_position())
+            #TODO add a way to add patches before and after the original stack save/restore
             self.added_code += new_code
             self.ncontent = utils.str_overwrite(self.ncontent, new_code)
             oep = self.get_oep()

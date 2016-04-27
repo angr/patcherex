@@ -10,7 +10,10 @@ from patcherex.techniques.qemudetection import QemuDetection
 from patcherex.techniques.shadowstack import ShadowStack
 from patcherex.techniques.packer import Packer
 from patcherex.techniques.simplecfi import SimpleCFI
+from patcherex.techniques.cpuid import CpuId
+from patcherex.techniques.randomsyscallloop import RandomSyscallLoop
 
+from patcherex import utils
 from patcherex.backends.basebackend import BaseBackend
 from patcherex.patches import *
 
@@ -48,6 +51,15 @@ class PatchMaster():
         backend.apply_patches(patches)
         return backend.get_final_content()
 
+    @timeout_decorator.timeout(60*2)
+    def generated_cpuid_binary(self):
+        backend = BaseBackend(self.infile)
+        cp = CpuId(self.infile)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        #return utils.str_overwrite(backend.get_final_content(),"ELF",1)
+        return backend.get_final_content()
+
     def generate_one_byte_patch(self):
         backend = BaseBackend(self.infile)
         #I modify one byte in ci_pad[7]. It is never used or checked, according to:
@@ -60,6 +72,14 @@ class PatchMaster():
     def generated_qemudetection_binary(self):
         backend = BaseBackend(self.infile)
         cp = QemuDetection(self.infile)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        return backend.get_final_content()
+
+    @timeout_decorator.timeout(60*2)
+    def generated_randomsyscallloop_binary(self):
+        backend = BaseBackend(self.infile)
+        cp = RandomSyscallLoop(self.infile)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         return backend.get_final_content()
@@ -78,7 +98,6 @@ class PatchMaster():
         to_be_submitted["1bytepatch"] = one_byte_patch_binary
         l.info("1byte binary created")
 
-        '''
         l.info("creating shadowstack binary...")
         shadow_stack_binary = None
         try:
@@ -100,7 +119,6 @@ class PatchMaster():
         if packed_binary != None:
             to_be_submitted["packed"] = packed_binary
         l.info("packed binary created")
-        '''
 
         l.info("creating simplecfi binary...")
         simplecfi_binary = None
@@ -112,7 +130,6 @@ class PatchMaster():
         if simplecfi_binary != None:
             to_be_submitted["simplecfi"] = simplecfi_binary
         l.info("simplecfi binary created")
-        
 
         l.info("creating qemudetection binary...")
         qemudetection_binary = None
@@ -125,6 +142,29 @@ class PatchMaster():
             to_be_submitted["qemudetection"] = qemudetection_binary
         l.info("qemudetection_binary binary created")
 
+        l.info("creating cpuid binary...")
+        cpuid_binary = None
+        try:
+            cpuid_binary = self.generated_cpuid_binary()
+        except Exception as e:
+            print "ERROR","during generation of cpuid binary"
+            traceback.print_exc()
+        if cpuid_binary != None:
+            to_be_submitted["cpuid"] = cpuid_binary
+        l.info("cpuid_binary binary created")
+
+        l.info("creating randomsyscallloop binary...")
+        randomsyscallloop_binary = None
+        try:
+            randomsyscallloop_binary = self.generated_randomsyscallloop_binary()
+        except Exception as e:
+            print "ERROR","during generation of randomsyscallloop binary"
+            traceback.print_exc()
+        if randomsyscallloop_binary != None:
+            to_be_submitted["randomsyscallloop"] = randomsyscallloop_binary
+        l.info("randomsyscallloop_binary binary created")
+
+
         if return_dict:
             return to_be_submitted
         else:
@@ -136,6 +176,10 @@ if __name__ == "__main__":
     import os
     import IPython
     #IPython.embed()
+
+    logging.getLogger("patcherex.techniques.CpuId").setLevel("INFO")
+    logging.getLogger("patcherex.techniques.Packer").setLevel("INFO")
+    logging.getLogger("patcherex.techniques.QemuDetection").setLevel("INFO")
     logging.getLogger("patcherex.techniques.SimpleCFI").setLevel("INFO")
     logging.getLogger("patcherex.techniques.ShadowStack").setLevel("INFO")
     logging.getLogger("patcherex.backends.BaseBackend").setLevel("INFO")
