@@ -9,9 +9,9 @@ l = logging.getLogger("patcherex.techniques.CpudId")
 
 class CpuId(object):
 
-    def __init__(self,binary_fname):
+    def __init__(self,binary_fname,backend):
         self.binary_fname = binary_fname
-        self.patcher = BaseBackend(self.binary_fname)
+        self.patcher = backend
 
     def get_patches(self):
         patches = []

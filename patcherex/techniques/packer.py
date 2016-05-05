@@ -10,9 +10,9 @@ l = logging.getLogger("patcherex.techniques.Packer")
 #TODO this should be a subclass of a generic patcher class
 class Packer(object):
 
-    def __init__(self,binary_fname):
+    def __init__(self,binary_fname,backend):
         self.binary_fname = binary_fname
-        self.patcher = BaseBackend(self.binary_fname)
+        self.patcher = backend
         self.oep = self.patcher.get_oep()
         self.original_segments = self.patcher.dump_segments()
         self.plen = 0x1000

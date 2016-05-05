@@ -9,9 +9,9 @@ l = logging.getLogger("patcherex.techniques.ShadowStack")
 #TODO this should be a subclass of a generic patcher class
 class ShadowStack(object):
 
-    def __init__(self,binary_fname):
+    def __init__(self,binary_fname,backend):
         self.binary_fname = binary_fname
-        self.patcher = BaseBackend(self.binary_fname)
+        self.patcher = backend
         self.shadow_stack_size = 0x800
         self.ncanary = 0
 
@@ -166,9 +166,12 @@ class ShadowStack(object):
         #TODO add more checks for validity
         if not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and not ff.has_unresolved_jumps:
             start = ff.startpoint
+            if start == None:
+                #Not sure if I can just use ff.addr in these cases... I prefer to err on the safe side
+                return None,None
             ends = set()
             for endpoint in ff.endpoints:
-                bb = self.patcher.project.factory.block(endpoint)
+                bb = self.patcher.project.factory.block(endpoint.addr)
                 last_instruction = bb.capstone.insns[-1]
                 if last_instruction.mnemonic != u"ret":
                     l.debug("bb at %s does not terminate with a ret in function %s" % (hex(int(bb.addr)),ff.name))
@@ -179,7 +182,7 @@ class ShadowStack(object):
                 if len(ends) == 0:
                     l.debug("cannot find any ret in function %s" %ff.name)
                 else:
-                    return int(start),map(int,ends) #avoid "long" problems
+                    return int(start.addr),map(int,ends) #avoid "long" problems
             
         l.debug("function %s has problems and cannot be patched" % ff.name)
         return None, None
@@ -191,7 +194,7 @@ class ShadowStack(object):
         cfg = self.patcher.cfg
 
         patches = []
-        for k,ff in cfg.function_manager.functions.iteritems():
+        for k,ff in cfg.functions.iteritems():
             start,ends = self.function_to_canary_locations(ff)
             if start!=None and ends !=None:
                 new_patches = self.add_shadowstack_to_function(start,ends)
