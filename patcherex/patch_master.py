@@ -143,6 +143,7 @@ class PatchMaster():
         if packed_binary != None:
             to_be_submitted["packed"] = packed_binary
         l.info("packed binary created")
+
         l.info("creating qemudetection binary...")
         qemudetection_binary = None
         try:
@@ -176,14 +177,19 @@ class PatchMaster():
             to_be_submitted["randomsyscallloop"] = randomsyscallloop_binary
         l.info("randomsyscallloop_binary binary created")
 
-
         if return_dict:
             return to_be_submitted
         else:
             return to_be_submitted.values()
 
+
 def process_killer():
     cdll['libc.so.6'].prctl(1,9)
+
+
+def shellquote(s):
+    return "'" + s.replace("'", "'\\''") + "'"
+
 
 def exec_cmd(args,cwd=None,shell=False,debug=False,pkill=True):
     #debug = True
@@ -230,9 +236,6 @@ def worker(inq,outq,timeout=60*3):
             outq.put((False,(input_file,technique,output_dir),res))
         else:
             outq.put((True,(input_file,technique,output_dir),res))
-
-def shellquote(s):
-    return "'" + s.replace("'", "'\\''") + "'"
 
 
 if __name__ == "__main__":
