@@ -92,17 +92,7 @@ class PatchMaster():
 
     def run(self,return_dict = False):
         #TODO this should implement all the high level logic of patching
-
-        l.info("creating original binary...")
-        to_be_submitted = OrderedDict()
-        original_binary = open(self.infile).read()
-        to_be_submitted["original"] = original_binary
-        l.info("original binary created")
-
-        l.info("creating 1byte binary...")
-        one_byte_patch_binary = self.generate_one_byte_patch()
-        to_be_submitted["1bytepatch"] = one_byte_patch_binary
-        l.info("1byte binary created")
+        to_be_submitted = {}
 
         l.info("creating shadowstack binary...")
         shadow_stack_binary = None
@@ -115,6 +105,17 @@ class PatchMaster():
             to_be_submitted["shadowstack"] = shadow_stack_binary
         l.info("shadowstack binary created")
 
+        l.info("creating simplecfi binary...")
+        simplecfi_binary = None
+        try:
+            simplecfi_binary = self.generate_simplecfi_binary()
+        except Exception as e:
+            print "ERROR","during generation of simplecfi binary"
+            traceback.print_exc()
+        if simplecfi_binary != None:
+            to_be_submitted["simplecfi"] = simplecfi_binary
+        l.info("simplecfi binary created")
+
         l.info("creating packed binary...")
         packed_binary = None
         try:
@@ -126,23 +127,12 @@ class PatchMaster():
             to_be_submitted["packed"] = packed_binary
         l.info("packed binary created")
 
-        l.info("creating simplecfi binary...")
-        simplecfi_binary = None
-        try:
-            simplecfi_binary = self.generate_simplecfi_binary()
-        except Exception as e:
-            print "ERROR","during generation of packed binary"
-            traceback.print_exc()
-        if simplecfi_binary != None:
-            to_be_submitted["simplecfi"] = simplecfi_binary
-        l.info("simplecfi binary created")
-
         l.info("creating qemudetection binary...")
         qemudetection_binary = None
         try:
             qemudetection_binary = self.generate_qemudetection_binary()
         except Exception as e:
-            print "ERROR","during generation of packed binary"
+            print "ERROR","during generation of qemudetection binary"
             traceback.print_exc()
         if qemudetection_binary != None:
             to_be_submitted["qemudetection"] = qemudetection_binary
@@ -233,7 +223,7 @@ if __name__ == "__main__":
     import IPython
     #IPython.embed()
 
-    if sys.argv[1] == "allpatches":
+    if sys.argv[1] == "run":
         logging.getLogger("patcherex.techniques.CpuId").setLevel("INFO")
         logging.getLogger("patcherex.techniques.Packer").setLevel("INFO")
         logging.getLogger("patcherex.techniques.QemuDetection").setLevel("INFO")
@@ -243,9 +233,12 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
 
         input_fname = sys.argv[2]
-        out = sys.argv[3]
+        out = os.path.join(sys.argv[3],os.path.basename(input_fname))
         pm = PatchMaster(input_fname)
         res = pm.run(return_dict = True)
+        with open(sys.argv[2]) as fp:
+            original_content = fp.read()
+        res["original"] = original_content
         for k,v in res.iteritems():
             output_fname = out+"_"+k
             fp = open(output_fname,"wb")
