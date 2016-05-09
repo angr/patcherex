@@ -77,8 +77,13 @@ class BaseBackend(object):
         # TODO
         # 1) ida-like cfg
         # 2) with some strategies we don't need the cfg, we should be able to apply those strategies even if the cfg fails 
+        l.info("CFG start...")
         self.cfg = self.project.analyses.CFG()
+        l.info("... CFG end")
+        l.info("normalize start...")
         self.cfg.normalize()
+        l.info("... normalize end")
+
         # TODO this should be in the cfg
         self.ordered_nodes = self.get_ordered_nodes()
 

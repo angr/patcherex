@@ -8,9 +8,9 @@ l = logging.getLogger("patcherex.techniques.SimpleCFI")
 
 class SimpleCFI(object):
 
-    def __init__(self,binary_fname):
+    def __init__(self,binary_fname,backend):
         self.binary_fname = binary_fname
-        self.patcher = BaseBackend(self.binary_fname)
+        self.patcher = backend
 
     def get_common_patches(self):
         common_patches = []
@@ -71,7 +71,7 @@ class SimpleCFI(object):
             start = ff.startpoint
             ends = set()
             for endpoint in ff.endpoints:
-                bb = self.patcher.project.factory.block(endpoint)
+                bb = self.patcher.project.factory.block(endpoint.addr)
                 last_instruction = bb.capstone.insns[-1]
                 if last_instruction.mnemonic != u"ret":
                     l.debug("bb at %s does not terminate with a ret in function %s" % (hex(int(bb.addr)),ff.name))
@@ -96,7 +96,7 @@ class SimpleCFI(object):
 
         patches = []
         cfg = self.patcher.cfg
-        for k,ff in cfg.function_manager.functions.iteritems():
+        for k,ff in cfg.functions.iteritems():
             ends = self.function_to_ret_locations(ff)
             for end,offset in ends:
                 #I realize that we do not really care about the offset in the "ret imm16" case

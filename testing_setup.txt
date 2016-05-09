@@ -1,0 +1,17 @@
+VPN
+sudo openvpn team6-udp-client.ovpn
+
+ssh cgc@172.16.7.73
+vm in ~/antoniob/vms
+
+start darpa vm:
+sudo kvm -name justatest -sandbox on -machine pc-i440fx-1.7,accel=kvm,usb=off -cpu SandyBridge  -drive file=recompiled_kernel.uncompressed.qcow2,media=disk -smp cpus=40,threads=2,cores=20,sockets=1 -nographic   -redir tcp:2222::22 -redir tcp:5556::5000
+
+redirect ssh from darpa cloud:
+ssh -L 2223:localhost:2222 cgc@172.16.7.73
+
+connect to darpa vm from outside darpa cloud:
+ssh -p 2223 vagrant@127.0.0.1
+
+
+

@@ -2,6 +2,7 @@
 
 import os
 import nose
+import struct
 import subprocess
 
 import patcherex
@@ -357,7 +358,7 @@ def test_shadowstack():
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
         backend = BaseBackend(filepath)
-        cp = ShadowStack(filepath)
+        cp = ShadowStack(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(tmp_file)
@@ -367,8 +368,67 @@ def test_shadowstack():
         print res, p.returncode
         nose.tools.assert_equal(p.returncode == 68, True)
 
-# TODO test packer
-# TODO test easicfi
+def test_packer():
+    from patcherex.techniques.packer import Packer
+    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    pipe = subprocess.PIPE
+
+    expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = BaseBackend(filepath)
+        cp = Packer(filepath, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+
+        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
+
+def test_simplecfi():
+    from patcherex.techniques.simplecfi import SimpleCFI
+    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    pipe = subprocess.PIPE
+
+    p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+    res = p.communicate("\x00"*1000+"\n")
+    print res, p.returncode
+    nose.tools.assert_equal((p.returncode == -11), True)
+
+    exploiting_input = "AAAA"+"\x00"*80+struct.pack("<I",0x80480a0)*20+"\n"
+    expected1 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tNope, that's not a palindrome\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
+
+    p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+    res = p.communicate(exploiting_input)
+    expected_retcode = 1 #should be -11
+    #TODO fix these two checks when our tracer will be fixed
+    nose.tools.assert_equal((res[0][:200] == expected1[:200] and p.returncode == expected_retcode), True)
+
+    expected2 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+    expected3 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = BaseBackend(filepath)
+        cp = SimpleCFI(filepath, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+
+        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal((res[0] == expected2 and p.returncode == 0), True)
+
+        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(exploiting_input)
+        print res, p.returncode
+        nose.tools.assert_equal((res[0] == expected3 and p.returncode == 0x45), True)
+
+
+# TODO test qemu detection
+# this is tricky unless we have a very precise QEMU or a vm testing (and a not precise QEMU to compare it)
 
 def run_all():
     functions = globals()
