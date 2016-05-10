@@ -1,0 +1,7 @@
+before_script:
+    - angr-test sync hard
+
+rex:
+    script: "angr-test patcherex"
+    tags:
+        - "angr"
