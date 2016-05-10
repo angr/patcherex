@@ -19,27 +19,26 @@ class QemuDetection(object):
             xor eax, eax
             push eax
             mov esi, esp
-
             mov eax, 0x2
+
             mov ebx, 0x2 ;stderr!
             ; it seems that at least one page must exist
             mov ecx,  0xbaaa9001 ;two pages before the end of the stack + 1
             mov edx, 0x10000
             int 0x80
-
             test eax, eax
             je _e1
             mov eax, 0x40
             call {exit_eax}
-
             _e1:
             pop eax
-            ; the fact that this is rounded to half page is very obscure...
-            cmp eax, 0x1800
-            je _e2
+            ; I am just checking that it is different from 0
+            ; from a full discussion of this very complicated matter read:
+            ; https://git.seclab.cs.ucsb.edu/cgc/tracer/issues/3
+            cmp eax, 0
+            jg _e2
             mov eax, 0x41
             call {exit_eax}
-
             _e2:
         '''
         patches.append(AddEntryPointPatch(added_code,name="detect_qemu"))
