@@ -13,13 +13,14 @@ from patcherex.patches import *
 # TODO ideally these tests should be run in the vm
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
+qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../tracer/bin/tracer-qemu-cgc"))
 
 
 def test_simple_inline():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
 
     pipe = subprocess.PIPE
-    p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+    p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate("A"*100)
     print res, p.returncode
     nose.tools.assert_equal((p.returncode != 0), True)
@@ -32,7 +33,7 @@ def test_simple_inline():
         backend.apply_patches([p])
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*100)
         print res, p.returncode
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
@@ -55,7 +56,7 @@ def test_added_code():
         backend.set_oep(backend.name_map["ADDED_CODE_START"])
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
         nose.tools.assert_equal(p.returncode == 0x32, True)
@@ -86,7 +87,7 @@ def test_added_code_and_data():
         backend.set_oep(backend.name_map["ADDED_CODE_START"])
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
         nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
@@ -113,7 +114,7 @@ def test_detour():
         backend.apply_patches([p1,p2])
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
         expected = "qwertyuiop\n\x00\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
@@ -140,7 +141,7 @@ def test_single_entry_point_patch():
         backend.apply_patches([p])
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
         nose.tools.assert_equal("\n\nEASTER EGG!\n\n" in res[0] and p.returncode == 0, True)
@@ -186,7 +187,7 @@ def test_complex1():
         backend.apply_patches(patches)
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
         nose.tools.assert_equal("\n\nEASTER EGG!\n\n"+test_str in res[0] and p.returncode == 52, True)
@@ -339,7 +340,7 @@ def test_random_canary():
         backend.apply_patches(patches)
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n"+"\x00"*100)
         print res, p.returncode
         nose.tools.assert_equal(check_output(res[0]) and p.returncode == 0x44, True)
@@ -350,7 +351,7 @@ def test_shadowstack():
     filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
     pipe = subprocess.PIPE
 
-    p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+    p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate("\x00"*1000+"\n")
     print res, p.returncode
     nose.tools.assert_equal((p.returncode == -11), True)
@@ -363,7 +364,7 @@ def test_shadowstack():
         backend.apply_patches(patches)
         backend.save(tmp_file)
 
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("\x00"*100+"\n")
         print res, p.returncode
         nose.tools.assert_equal(p.returncode == 68, True)
@@ -382,7 +383,7 @@ def test_packer():
         backend.apply_patches(patches)
         backend.save(tmp_file)
 
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
@@ -392,7 +393,7 @@ def test_simplecfi():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pipe = subprocess.PIPE
 
-    p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+    p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate("\x00"*1000+"\n")
     print res, p.returncode
     nose.tools.assert_equal((p.returncode == -11), True)
@@ -400,7 +401,7 @@ def test_simplecfi():
     exploiting_input = "AAAA"+"\x00"*80+struct.pack("<I",0x80480a0)*20+"\n"
     expected1 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tNope, that's not a palindrome\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
 
-    p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+    p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(exploiting_input)
     expected_retcode = 1 #should be -11
     #TODO fix these two checks when our tracer will be fixed
@@ -416,12 +417,12 @@ def test_simplecfi():
         backend.apply_patches(patches)
         backend.save(tmp_file)
 
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
         nose.tools.assert_equal((res[0] == expected2 and p.returncode == 0), True)
 
-        p = subprocess.Popen(["../../tracer/bin/tracer-qemu-cgc", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(exploiting_input)
         print res, p.returncode
         nose.tools.assert_equal((res[0] == expected3 and p.returncode == 0x45), True)
