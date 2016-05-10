@@ -8,5 +8,7 @@ setup(
     install_requires=[
         'angr',
         'capstone',
-    ],
+        'psutil',
+        'timeout-decorator',
+   ],
 )
