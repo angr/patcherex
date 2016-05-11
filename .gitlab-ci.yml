@@ -1,7 +1,16 @@
 before_script:
-    - angr-test sync hard
+    - which angr-test && angr-test sync hard
 
 patcherex:
     script: "angr-test patcherex"
     tags:
         - "angr"
+
+build_image:
+    only: ["master"]
+    stage: deploy
+    script:
+    - angr-build angr
+    - angr-build angr-ci
+    - angr-build worker
+    tags: ["docker-builder"]
