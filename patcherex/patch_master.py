@@ -238,6 +238,13 @@ def worker(inq,outq,timeout=60*3):
             outq.put((True,(input_file,technique,output_dir),res))
 
 
+def ftodir(f,out):
+    dname = os.path.split(os.path.split(f)[-2])[-1]
+    res = os.path.join(out,dname)
+    #print "-->",out,dname,res
+    return res
+
+
 if __name__ == "__main__":
     import IPython
     #IPython.embed()
@@ -290,12 +297,24 @@ if __name__ == "__main__":
         os.chmod(output_fname, 0755)
         print "="*50,"process ended at",str(datetime.datetime.now())
 
-    elif sys.argv[1] == "multi":
+    elif sys.argv[1] == "multi" or sys.argv[1] == "multi_name":
         out = sys.argv[2]
         techniques = sys.argv[3].split(",")
         files = sys.argv[7:]
 
-        tasks = [(f,t,out) for f,t in list(itertools.product(files,techniques))]
+        if sys.argv[1] == "multi_name":
+            tasks = []
+            for f in files:
+                for t in techniques:
+                    outdir = ftodir(f,out)
+                    try:
+                        os.mkdir(outdir)
+                    except OSError:
+                        pass
+                    tasks.append((f,t,outdir))
+        else:
+            tasks = [(f,t,out) for f,t in list(itertools.product(files,techniques))]
+
         print tasks
         res_dict = {}
 
