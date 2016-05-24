@@ -6,11 +6,11 @@ patcherex:
     tags:
         - "angr"
 
-build_image:
+build_images:
     only: ["master"]
     stage: deploy
     script:
     - angr-build angr
     - angr-build angr-ci
-    - angr-build worker
+    - cgc-build worker
     tags: ["docker-builder"]
