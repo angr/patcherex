@@ -246,8 +246,7 @@ def ftodir(f,out):
 
 
 if __name__ == "__main__":
-    import IPython
-    #IPython.embed()
+
 
     if sys.argv[1] == "run":
         logging.getLogger("patcherex.techniques.CpuId").setLevel("INFO")
@@ -261,6 +260,10 @@ if __name__ == "__main__":
         input_fname = sys.argv[2]
         out = os.path.join(sys.argv[3],os.path.basename(input_fname))
         pm = PatchMaster(input_fname)
+
+        import IPython; IPython.embed()
+
+
         res = pm.run(return_dict = True)
         with open(sys.argv[2]) as fp:
             original_content = fp.read()
