@@ -11,7 +11,7 @@ from patcherex.backends.basebackend import BaseBackend
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import *
 
-l = logging.getLogger("patcherex.test.test_techniques")
+l = logging.getLogger("patcherex.test.test_techniques_detourbackend")
 
 # TODO ideally these tests should be run in the vm
 
@@ -269,7 +269,7 @@ def run_all():
 if __name__ == "__main__":
     import sys
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
-    logging.getLogger("patcherex.test.test_detourbackend").setLevel("INFO")
+    logging.getLogger("patcherex.test.test_techniques_detourbackend").setLevel("INFO")
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
     else:
