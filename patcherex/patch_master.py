@@ -24,9 +24,10 @@ from patcherex.techniques.packer import Packer
 from patcherex.techniques.simplecfi import SimpleCFI
 from patcherex.techniques.cpuid import CpuId
 from patcherex.techniques.randomsyscallloop import RandomSyscallLoop
+from patcherex.techniques.stackretencryption import StackRetEncryption
 
 from patcherex import utils
-from patcherex.backends.basebackend import BaseBackend
+from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import *
 
 
@@ -40,72 +41,54 @@ class PatchMaster():
         self.infile = infile
 
     def generate_shadow_stack_binary(self):
-        backend = BaseBackend(self.infile)
+        backend = DetourBackend(self.infile)
         cp = ShadowStack(self.infile,backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         return backend.get_final_content()
 
     def generate_packed_binary(self):
-        backend = BaseBackend(self.infile)
+        backend = DetourBackend(self.infile)
         cp = Packer(self.infile,backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         return backend.get_final_content()
 
     def generate_simplecfi_binary(self):
-        backend = BaseBackend(self.infile)
+        backend = DetourBackend(self.infile)
         cp = SimpleCFI(self.infile,backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         return backend.get_final_content()
 
     def generate_cpuid_binary(self):
-        backend = BaseBackend(self.infile)
+        backend = DetourBackend(self.infile)
         cp = CpuId(self.infile,backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
-        #return utils.str_overwrite(backend.get_final_content(),"ELF",1)
-        return backend.get_final_content()
-
-    @timeout_decorator.timeout(60*2)
-    def generated_cpuid_binary(self):
-        backend = BaseBackend(self.infile)
-        cp = CpuId(self.infile)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        #return utils.str_overwrite(backend.get_final_content(),"ELF",1)
-        return backend.get_final_content()
-
-    def generate_one_byte_patch(self):
-        backend = BaseBackend(self.infile)
-        #I modify one byte in ci_pad[7]. It is never used or checked, according to:
-        #https://github.com/CyberGrandChallenge/linux-source-3.13.11-ckt21-cgc/blob/541cc214fb6eb6994414fb09414f945115ddae81/fs/binfmt_cgc.c
-        one_byte_patch = RawFilePatch(14,"S")
-        backend.apply_patches([one_byte_patch])
         return backend.get_final_content()
 
     def generate_qemudetection_binary(self):
-        backend = BaseBackend(self.infile)
+        backend = DetourBackend(self.infile)
         cp = QemuDetection(self.infile,backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         return backend.get_final_content()
 
     def generate_randomsyscallloop_binary(self):
-        backend = BaseBackend(self.infile)
+        backend = DetourBackend(self.infile)
         cp = RandomSyscallLoop(self.infile,backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         return backend.get_final_content()
 
-    @timeout_decorator.timeout(60*2)
-    def generated_randomsyscallloop_binary(self):
-        backend = BaseBackend(self.infile)
-        cp = RandomSyscallLoop(self.infile)
+    def generate_stackretencryption_binary(self):
+        backend = DetourBackend(self.infile)
+        cp = StackRetEncryption(self.infile,backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         return backend.get_final_content()
+
 
     def run(self,return_dict = False):
         #TODO this should implement all the high level logic of patching
@@ -254,7 +237,8 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.techniques.QemuDetection").setLevel("INFO")
         logging.getLogger("patcherex.techniques.SimpleCFI").setLevel("INFO")
         logging.getLogger("patcherex.techniques.ShadowStack").setLevel("INFO")
-        logging.getLogger("patcherex.backends.BaseBackend").setLevel("INFO")
+        logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
+        logging.getLogger("patcherex.backends.StackRetEncryption").setLevel("INFO")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
 
         input_fname = sys.argv[2]
@@ -285,7 +269,8 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.techniques.QemuDetection").setLevel("INFO")
         logging.getLogger("patcherex.techniques.SimpleCFI").setLevel("INFO")
         logging.getLogger("patcherex.techniques.ShadowStack").setLevel("INFO")
-        logging.getLogger("patcherex.backends.BaseBackend").setLevel("INFO")
+        logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
+        logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("INFO")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
 
         input_fname = sys.argv[2]
@@ -363,4 +348,5 @@ if __name__ == "__main__":
 ./patch_master.py multi /tmp/cgc shadow_stack,packed,simplecfi  /tmp/cgc/res.pickle 0 300 ../../bnaries-private/cgc_qualifier_event/cgc/002ba801_01
 unbuffer ./patch_master.py multi  ~/antonio/tmp/cgc1/ shadow_stack,packed,simplecfi   ~/antonio/tmp/cgc1/res.pickle 40 300 ../../binaries-private/cgc_qualifier_event/cgc/002ba801_01 | tee ~/antonio/tmp/cgc1/log.txt
 find /home/cgc/antonio/shared/patcher_dataset/bin/original_selected  -type f -executable -print | xargs -P1 ./patch_master.py multi_name /home/cgc/antonio/shared/patcher_dataset/bin/packed/  packed  /home/cgc/antonio/shared/patcher_dataset/bin/packed/res.pickle 40 300
+./patch_master.py single ../../binaries-private/cgc_trials/CADET_00003 stackretencryption  ../../vm/shared/patched
 '''
