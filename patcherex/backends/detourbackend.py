@@ -119,9 +119,8 @@ class DetourBackend(object):
             # but it is present in the file (e.g., segment headers)
             # we need to account for that
             self.real_size_last_segment = len(self.ncontent) - last_segment[1]  
-            # this is the start in memory
-            self.name_map["ADDED_DATA_START"] = last_segment[2] + self.real_size_last_segment
-
+            # this is the start in memory of RWData
+            self.name_map["ADDED_DATA_START"] = last_segment[2] + last_segment[5]
 
     def get_ordered_nodes(self):
         prev_addr = None
@@ -265,11 +264,13 @@ class DetourBackend(object):
         # for now any added code will be executed by jumping out and back ie CGRex
         # apply all add code patches
         added_patches = []
-        self.added_data = ""
+        self.added_rwdata_len = 0
+        self.added_rwinitdata_len = 0
+        self.to_init_data = ""
         self.added_code = ""
-        curr_data_position = self.name_map["ADDED_DATA_START"]
-        self.added_data_file_start = len(self.ncontent)
 
+        self.added_code_file_start = len(self.ncontent)
+        self.name_map["ADDED_CODE_START"] = (len(self.ncontent) % 0x1000) + self.added_code_segment
 
         # 0) RawPatch:
         for patch in patches:
@@ -282,23 +283,73 @@ class DetourBackend(object):
                 self.patch_bin(patch.addr,patch.data)
                 added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
+        #TODO file cutter patch
 
-        # 1) AddDataPatch
-        for patch in patches:
-            if isinstance(patch, AddDataPatch):
-                self.added_data += patch.data
-                if patch.name is not None:
-                    self.name_map[patch.name] = curr_data_position
-                curr_data_position += len(patch.data)
-                self.ncontent = utils.str_overwrite(self.ncontent, patch.data)
-                added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
-        self.ncontent = utils.pad_str(self.ncontent, 0x10)  # some minimal alignment may be good
+        if self.data_fallback:
+            # 1) 
+            for patch in patches:
+                if isinstance(patch, AddRWDataPatch) or isinstance(patch, AddRODataPatch) or \
+                        isinstance(patch, AddDRWInitataPatch):
+                    if hasattr(patch,data):
+                        self.added_data += patch.data
+                    else:
+                        self.added_data += "\x00"*patch.len
+                    if patch.name is not None:
+                        self.name_map[patch.name] = curr_data_position
+                    curr_data_position += len(patch.data)
+                    self.ncontent = utils.str_overwrite(self.ncontent, patch.data)
+                    added_patches.append(patch)
+                    l.info("Added patch: " + str(patch))
+            self.ncontent = utils.pad_str(self.ncontent, 0x10)  # some minimal alignment may be good
+        else:
+            # 1.1) AddRWDataPatch
+            for patch in patches:
+                if isinstance(patch, AddRWDataPatch):
+                    if patch.name is not None:
+                        self.name_map[patch.name] = self.name_map["ADDED_DATA_START"] + self.added_rwdata_len
+                    self.added_rwdata_len += patch.len
+                    added_patches.append(patch)
+                    l.info("Added patch: " + str(patch))
+
+            # 1.2) AddRWInitDataPatch
+            for patch in patches:
+                if isinstance(patch, AddRWInitDataPatch):
+                    self.to_init_data += patch.data
+                    if patch.name is not None:
+                        self.name_map[patch.name] = self.name_map["ADDED_DATA_START"] + self.added_rwdata_len + \
+                                self.added_rwinitdata_len
+                    self.added_rwinitdata_len += len(patch.data)
+                    added_patches.append(patch)
+                    l.info("Added patch: " + str(patch))
+            if self.to_init_data != "":
+                code = '''
+                jmp _skip_data
+                _to_init_data:
+                    db %s
+                _skip_data:
+                    mov esi, _to_init_data
+                    mov edi, %s
+                    mov ecx, %d
+                    cld 
+                    rep movsb
+                ''' % (",".join([hex(ord(x)) for x in self.to_init_data]), \
+                        hex(self.name_map["ADDED_DATA_START"] + self.added_rwdata_len), \
+                        self.added_rwinitdata_len)
+                patches.append(AddEntryPointPatch(code,priority=1000,name="INIT_DATA"))
+
+            # 1.3) AddRODataPatch
+            for patch in patches:
+                if isinstance(patch, AddRODataPatch):
+                    self.to_init_data += patch.data
+                    if patch.name is not None:
+                        self.name_map[patch.name] = self.get_current_code_position()
+                    self.added_code += patch.data
+                    self.ncontent = utils.str_overwrite(self.ncontent, patch.data)
+                    added_patches.append(patch)
+                    l.info("Added patch: " + str(patch))
 
         # 2) AddCodePatch
         # resolving symbols
-        self.added_code_file_start = len(self.ncontent)
-        self.name_map["ADDED_CODE_START"] = (len(self.ncontent) % 0x1000) + self.added_code_segment
         current_symbol_pos = self.get_current_code_position()
         for patch in patches:
             if isinstance(patch, AddCodePatch):
@@ -323,21 +374,19 @@ class DetourBackend(object):
             pre_entrypoint_code_position = self.get_current_code_position()
             current_symbol_pos = self.get_current_code_position()
             current_symbol_pos += len(utils.compile_asm_fake_symbol("pusha\npushf\n", current_symbol_pos))
-            for patch in sorted([p for p in patches if isinstance(p,AddEntryPointPatch)],key=lambda x:x.priority):
-                if isinstance(patch, AddEntryPointPatch):
-                    code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
-                    if patch.name is not None:
-                        self.name_map[patch.name] = current_symbol_pos
-                    current_symbol_pos += code_len
+            for patch in sorted([p for p in patches if isinstance(p,AddEntryPointPatch)],key=lambda x:-1*x.priority):
+                code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
+                if patch.name is not None:
+                    self.name_map[patch.name] = current_symbol_pos
+                current_symbol_pos += code_len
             # now compile for real
             new_code = utils.compile_asm("pusha\npushf\n", self.get_current_code_position())
             self.added_code += new_code
             self.ncontent = utils.str_overwrite(self.ncontent, new_code)
-            for patch in sorted([p for p in patches if isinstance(p,AddEntryPointPatch)],key=lambda x:x.priority):
-                if isinstance(patch, AddEntryPointPatch):
-                    new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
-                    self.added_code += new_code
-                    self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+            for patch in sorted([p for p in patches if isinstance(p,AddEntryPointPatch)],key=lambda x:-1*x.priority):
+                new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
+                self.added_code += new_code
+                self.ncontent = utils.str_overwrite(self.ncontent, new_code)
             new_code = utils.compile_asm("popf\npopa\n", self.get_current_code_position())
             #TODO add a way to add patches before and after the original stack save/restore
             self.added_code += new_code
@@ -385,7 +434,8 @@ class DetourBackend(object):
                 break
                 # TODO symbol name
 
-        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch,AddDataPatch]
+        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
+                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
         if any([isinstance(p,ins) for ins in header_patches for p in added_patches]) or \
                 any([isinstance(p,SegmentHeaderPatch) for p in patches]):
             # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers 
@@ -403,11 +453,10 @@ class DetourBackend(object):
                 segments = self.dump_segments()
 
             if not self.data_fallback:
-                last_segment_final_size = self.real_size_last_segment + len(self.added_data)
                 last_segment = segments[-1]
                 p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align = last_segment
                 last_segment =  p_type, p_offset, p_vaddr, p_paddr, \
-                       last_segment_final_size, last_segment_final_size, p_flags, p_align
+                       p_filesz, p_memsz + self.added_rwdata_len + self.added_rwinitdata_len, p_flags, p_align
                 segments[-1] = last_segment
 
             self.setup_headers(segments)

@@ -15,14 +15,30 @@ class InlinePatch(Patch):
         return "InlinePatch [%s] %08x (%d)" % (self.name,self.instruction_addr,len(self.new_asm))
 
 
-class AddDataPatch(Patch):
+class AddRODataPatch(Patch):
     def __init__(self, data, name=None):
-        super(AddDataPatch, self).__init__(name)
+        super(AddRODataPatch, self).__init__(name)
         self.data = data
 
     def __str__(self):
-        return "AddDataPatch [%s] (%d)" % (self.name,len(self.data))
+        return "AddRODataPatch [%s] (%d)" % (self.name,len(self.data))
 
+class AddRWDataPatch(Patch):
+    def __init__(self, tlen, name=None):
+        super(AddRWDataPatch, self).__init__(name)
+        assert type(tlen) == int
+        self.len = tlen
+
+    def __str__(self):
+        return "AddRWDataPatch [%s] (%d)" % (self.name,self.len)
+
+class AddRWInitDataPatch(Patch):
+    def __init__(self, data, name=None):
+        super(AddRWInitDataPatch, self).__init__(name)
+        self.data = data
+
+    def __str__(self):
+        return "AddRWInitDataPatch [%s] (%d)" % (self.name,len(self.data))
 
 class AddCodePatch(Patch):
     def __init__(self, asm_code, name=None):

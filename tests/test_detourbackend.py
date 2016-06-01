@@ -82,7 +82,7 @@ def test_added_code_and_data():
             int     80h
         ''' % (len(test_str))
         p1 = AddCodePatch(added_code, "aaa")
-        p2 = AddDataPatch(test_str, "added_data")
+        p2 = AddRODataPatch(test_str, "added_data")
         backend.apply_patches([p1,p2])
         backend.set_oep(backend.name_map["ADDED_CODE_START"])
         backend.save(tmp_file)
@@ -92,6 +92,119 @@ def test_added_code_and_data():
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
         nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
+
+
+def test_added_code_and_data_complex():
+    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
+    #TODO test with CADET, test with fallback, adapt all techinques, remove basebackend, full test detour backend with fallback (duplicate code in each function)
+    pipe = subprocess.PIPE
+
+    common_patches = []
+    patches = []
+    common_patches.append(AddRODataPatch("ro1ro1ro1\n\x00", "added_data_ro1"))
+    common_patches.append(AddRWDataPatch(10, "added_data_rw1"))
+    common_patches.append(AddRWInitDataPatch("ri1ri1ri1\n\x00", "added_data_rwinit1"))
+    common_patches.append(AddRODataPatch("ro2ro2ro2\n\x00", "added_data_ro2"))
+    common_patches.append(AddRWDataPatch(10, "added_data_rw2"))
+    common_patches.append(AddRWInitDataPatch("ri2ri2ri2\n\x00", "added_data_rwinit2"))
+    common_patches.append(AddRODataPatch("ro3ro3ro3\n\x00", "added_data_ro3"))
+    common_patches.append(AddRWDataPatch(10, "added_data_rw3"))
+    common_patches.append(AddRWInitDataPatch("ri3ri3ri3\n\x00", "added_data_rwinit3"))
+    added_code = '''
+        ; eax=buf,ebx=len
+        pusha
+        mov ecx,eax
+        mov edx,ebx
+        mov eax,0x2
+        mov ebx,0x1
+        mov esi,0x0
+        int 0x80
+        popa
+        ret
+    '''
+    common_patches.append(AddCodePatch(added_code,"print"))
+    added_code='''
+        mov eax, {added_data_ro1}
+        mov ebx, 10
+        call {print}
+        mov eax, {added_data_rw1}
+        mov ebx, 10
+        call {print}
+        mov eax, {added_data_rwinit1}
+        mov ebx, 10
+        call {print}
+        mov eax, {added_data_ro2}
+        mov ebx, 10
+        call {print}
+        mov eax, {added_data_rw2}
+        mov ebx, 10
+        call {print}
+        mov eax, {added_data_rwinit2}
+        mov ebx, 10
+        call {print}
+        mov eax, {added_data_ro3}
+        mov ebx, 10
+        call {print}
+        mov eax, {added_data_rw3}
+        mov ebx, 10
+        call {print}
+        mov eax, {added_data_rwinit3}
+        mov ebx, 10
+        call {print}
+        ret
+    '''
+    common_patches.append(AddCodePatch(added_code,"dump"))
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched1")
+        backend = DetourBackend(filepath)
+        patches = [p for p in common_patches]
+        added_code = '''
+            call {dump}
+            mov DWORD [{added_data_rw1}], 0x41424344
+            mov DWORD [{added_data_rw2}], 0x45464748
+            mov DWORD [{added_data_rw3}], 0x494a4b4c
+            call {dump}
+            mov DWORD [{added_data_rwinit1}], 0x41424344
+            mov DWORD [{added_data_rwinit2}], 0x45464748
+            mov DWORD [{added_data_rwinit3}], 0x494a4b4c
+            call {dump}
+        '''
+        patches.append(AddEntryPointPatch(added_code))
+
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        for k,v in backend.name_map.iteritems():
+            print k,hex(v)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+        print res, p.returncode
+        #nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
+
+        tmp_file = os.path.join(td, "patched2")
+        backend = DetourBackend(filepath)
+        patches = [p for p in common_patches]
+        added_code = '''
+            call {dump}
+            mov DWORD [{added_data_rw1}], 0x41424344
+            mov DWORD [{added_data_rwinit2}], 0x45464748
+            mov DWORD [{added_data_rw3}], 0x494a4b4c
+            call {dump}
+            mov DWORD [{added_data_ro2}], 0x41424344 ;segfault
+        '''
+        patches.append(AddEntryPointPatch(added_code))
+
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        for k,v in backend.name_map.iteritems():
+            print k,hex(v)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+        print res, p.returncode
+        #nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
+
 
 
 def test_added_code_and_data_big():
@@ -114,7 +227,7 @@ def test_added_code_and_data_big():
             int     80h
         ''' % (len(test_str))
         p1 = AddCodePatch(added_code, "aaa")
-        p2 = AddDataPatch(test_str, "added_data")
+        p2 = AddRODataPatch(test_str, "added_data")
         backend.apply_patches([p1,p2])
         backend.set_oep(backend.name_map["ADDED_CODE_START"])
         backend.save(tmp_file)
@@ -146,7 +259,7 @@ def test_added_code_and_data_fallback():
             int     80h
         ''' % (len(test_str))
         p1 = AddCodePatch(added_code, "aaa")
-        p2 = AddDataPatch(test_str, "added_data")
+        p2 = AddRODataPatch(test_str, "added_data")
         backend.apply_patches([p1,p2])
         backend.set_oep(backend.name_map["ADDED_CODE_START"])
         backend.save(tmp_file)
@@ -178,7 +291,7 @@ def test_added_code_and_data_big_fallback():
             int     80h
         ''' % (len(test_str))
         p1 = AddCodePatch(added_code, "aaa")
-        p2 = AddDataPatch(test_str, "added_data")
+        p2 = AddRODataPatch(test_str, "added_data")
         backend.apply_patches([p1,p2])
         backend.set_oep(backend.name_map["ADDED_CODE_START"])
         backend.save(tmp_file)
@@ -207,7 +320,7 @@ def test_detour():
             int     80h
         ''' % (len(test_str))
         p1 = InsertCodePatch(0x80480A6, added_code)
-        p2 = AddDataPatch(test_str, "qq")
+        p2 = AddRODataPatch(test_str, "qq")
         backend.apply_patches([p1,p2])
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
@@ -280,7 +393,7 @@ def test_complex1():
             ret
         ''' % (len(test_str))
         patches.append(AddCodePatch(added_code, "added_function"))
-        patches.append(AddDataPatch(test_str, "added_data"))
+        patches.append(AddRODataPatch(test_str, "added_data"))
         backend.apply_patches(patches)
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
@@ -311,12 +424,12 @@ def test_random_canary():
         backend = DetourBackend(filepath)
 
         patches = []
-        patches.append(AddDataPatch("0123456789abcdef", "hex_array"))
-        patches.append(AddDataPatch("\n", "new_line"))
-        patches.append(AddDataPatch("X"*4, "saved_canary"))
-        patches.append(AddDataPatch("base canary value: \x00","str_bcanary"))
-        patches.append(AddDataPatch("canary failure: \x00","str_fcanary"))
-        patches.append(AddDataPatch(" vs \x00","str_vs"))
+        patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
+        patches.append(AddRODataPatch("\n", "new_line"))
+        patches.append(AddRODataPatch("X"*4, "saved_canary"))
+        patches.append(AddRODataPatch("base canary value: \x00","str_bcanary"))
+        patches.append(AddRODataPatch("canary failure: \x00","str_fcanary"))
+        patches.append(AddRODataPatch(" vs \x00","str_vs"))
 
         added_code = '''
             ; print eax as hex
