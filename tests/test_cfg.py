@@ -6,8 +6,9 @@ import struct
 import subprocess
 
 import patcherex
-from patcherex.backends.basebackend import BaseBackend
 from patcherex.patches import *
+from patcherex.backends.detourbackend import DetourBackend
+
 
 # these tests only verify that the cfg interface did not change much
 # large scale testing of the CFGs is an open problem  
@@ -21,7 +22,7 @@ def is_sane_function(ff):
 
 def test_CADET_00003():
     filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
-    backend = BaseBackend(filepath)
+    backend = DetourBackend(filepath)
     cfg = backend.cfg
 
     #how to get the list of functions from the IDA list:
@@ -78,7 +79,7 @@ def test_CADET_00003():
 
 def test_0b32aa01_01():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
-    backend = BaseBackend(filepath)
+    backend = DetourBackend(filepath)
     cfg = backend.cfg
 
     legittimate_functions = [
