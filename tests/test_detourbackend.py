@@ -40,8 +40,6 @@ def test_simple_inline():
     print res, p.returncode
     nose.tools.assert_equal((p.returncode != 0), True)
 
-    nose.tools.assert_equal((global_data_fallback == None), True)
-
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
