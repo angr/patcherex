@@ -19,7 +19,7 @@ qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".
 global_data_fallback = None
 
 def add_fallback_strategy(f):
-    @wraps
+    @wraps(f)
     def wrapper():
         global global_data_fallback
         global_data_fallback = None
@@ -28,6 +28,7 @@ def add_fallback_strategy(f):
         f()
     return wrapper
 
+@add_fallback_strategy
 def test_simple_inline():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
 
@@ -53,7 +54,7 @@ def test_simple_inline():
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
 
 
-@add_fallback_strategy
+
 def test_added_code():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pipe = subprocess.PIPE
