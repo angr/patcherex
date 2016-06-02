@@ -17,7 +17,16 @@ qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".
 
 global_data_fallback = None
 
+def add_fallback_test(f):
+    def wrapper():
+        global global_data_fallback
+        global_data_fallback = None
+        f()
+        global_data_fallback = True
+        f()
+    return wrapper
 
+@add_fallback_test
 def test_simple_inline():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
 
@@ -41,6 +50,7 @@ def test_simple_inline():
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
 
 
+@add_fallback_test
 def test_added_code():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pipe = subprocess.PIPE
@@ -64,6 +74,7 @@ def test_added_code():
         nose.tools.assert_equal(p.returncode == 0x32, True)
 
 
+@add_fallback_test
 def test_added_code_and_data():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pipe = subprocess.PIPE
@@ -96,9 +107,9 @@ def test_added_code_and_data():
         nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
 
 
+@add_fallback_test
 def test_added_code_and_data_complex():
     filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
-    #TODO test with CADET, test with fallback, adapt all techinques, remove basebackend, full test detour backend with fallback (duplicate code in each function)
     pipe = subprocess.PIPE
 
     common_patches = []
@@ -184,8 +195,8 @@ def test_added_code_and_data_complex():
         backend.apply_patches(patches)
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
-        for k,v in backend.name_map.iteritems():
-            print k,hex(v)
+        #for k,v in backend.name_map.iteritems():
+            #print k,hex(v)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
         print res, p.returncode
@@ -225,6 +236,7 @@ def test_added_code_and_data_complex():
             nose.tools.assert_equal(expected == res[0] and p.returncode == -11, True)
 
 
+@add_fallback_test
 def test_added_code_and_data_big():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pipe = subprocess.PIPE
@@ -257,6 +269,7 @@ def test_added_code_and_data_big():
         nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
 
 
+@add_fallback_test
 def test_detour():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pipe = subprocess.PIPE
@@ -286,6 +299,7 @@ def test_detour():
         nose.tools.assert_equal(res[0], expected)
 
 
+@add_fallback_test
 def test_single_entry_point_patch():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pipe = subprocess.PIPE
@@ -311,6 +325,7 @@ def test_single_entry_point_patch():
         nose.tools.assert_equal("\n\nEASTER EGG!\n\n" in res[0] and p.returncode == 0, True)
 
 
+@add_fallback_test
 def test_complex1():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pipe = subprocess.PIPE
@@ -357,6 +372,7 @@ def test_complex1():
         nose.tools.assert_equal("\n\nEASTER EGG!\n\n"+test_str in res[0] and p.returncode == 52, True)
 
 
+@add_fallback_test
 def test_random_canary():
     def check_output(tstr):
         expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: canary failure: 00000000 vs "
@@ -510,6 +526,8 @@ def test_random_canary():
         nose.tools.assert_equal(check_output(res[0]) and p.returncode == 0x44, True)
 
 
+# TODO add stackretencryption test on CROMU_00070
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
@@ -518,16 +536,6 @@ def run_all():
             l.info("testing %s" % str(f))
             all_functions[f]()
 
-
-def run_all_with_fallback():
-    global global_data_fallback
-    l.info("Running all tests with no fallback")
-    run_all()
-    global_data_fallback = True
-    l.info("Running all tests with fallback")
-    run_all()
-
-
 if __name__ == "__main__":
     import sys
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
@@ -535,4 +543,4 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
     else:
-        run_all_with_fallback()
+        run_all()
