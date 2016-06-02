@@ -5,6 +5,7 @@ import nose
 import struct
 import subprocess
 import logging
+from functools import wraps
 
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
@@ -18,6 +19,7 @@ qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".
 global_data_fallback = None
 
 def add_fallback_strategy(f):
+    @wraps
     def wrapper():
         global global_data_fallback
         global_data_fallback = None
