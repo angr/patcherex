@@ -242,7 +242,7 @@ def test_stackretencryption():
     with patcherex.utils.tempdir() as td:
         original_file = os.path.join(td, "original")
         shutil.copy(filepath2,original_file)
-        os.chmod(777,original_file)
+        os.chmod(original_file,777)
 
         tmp_file = os.path.join(td, "patched1")
         backend = DetourBackend(filepath1,global_data_fallback)
