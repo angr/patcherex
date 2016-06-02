@@ -3,7 +3,6 @@ import patcherex
 import logging
 import struct
 from patcherex.patches import *
-from patcherex.backends.basebackend import BaseBackend
 
 l = logging.getLogger("patcherex.techniques.Packer")
 
