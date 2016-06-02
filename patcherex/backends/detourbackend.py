@@ -95,7 +95,7 @@ class DetourBackend(object):
                 max_file_start = max([s[1] for s in segments[:-1]])
                 max_file_end = max([s[1]+s[4] for s in segments[:-1]])
                 if max_file_start < last_segment[1] and max_file_end <= last_segment[1]+last_segment[4]:
-                    l.info("Using standard method for RW memory." \
+                    l.info("Using standard method for RW memory. " \
                             "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x" % \
                             (last_segment[1],last_segment[1]+last_segment[4],max_file_start,max_file_end))
                     self.data_fallback = False
@@ -286,21 +286,27 @@ class DetourBackend(object):
         #TODO file cutter patch
 
         if self.data_fallback:
-            # 1) 
+            # 1)
+            self.added_data_file_start = len(self.ncontent)
+            curr_data_position = self.name_map["ADDED_DATA_START"]
             for patch in patches:
                 if isinstance(patch, AddRWDataPatch) or isinstance(patch, AddRODataPatch) or \
-                        isinstance(patch, AddDRWInitataPatch):
-                    if hasattr(patch,data):
-                        self.added_data += patch.data
+                        isinstance(patch, AddRWInitDataPatch):
+                    if hasattr(patch,"data"):
+                        final_patch_data = patch.data
                     else:
-                        self.added_data += "\x00"*patch.len
+                        final_patch_data = "\x00"*patch.len
+                    self.added_data += final_patch_data
                     if patch.name is not None:
                         self.name_map[patch.name] = curr_data_position
-                    curr_data_position += len(patch.data)
-                    self.ncontent = utils.str_overwrite(self.ncontent, patch.data)
+                    curr_data_position += len(final_patch_data)
+                    self.ncontent = utils.str_overwrite(self.ncontent, final_patch_data)
                     added_patches.append(patch)
                     l.info("Added patch: " + str(patch))
             self.ncontent = utils.pad_str(self.ncontent, 0x10)  # some minimal alignment may be good
+
+            self.added_code_file_start = len(self.ncontent)
+            self.name_map["ADDED_CODE_START"] = (len(self.ncontent) % 0x1000) + self.added_code_segment
         else:
             # 1.1) AddRWDataPatch
             for patch in patches:

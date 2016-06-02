@@ -15,6 +15,8 @@ l = logging.getLogger("patcherex.test.test_detourbackend")
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
 qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../tracer/bin/tracer-qemu-cgc"))
 
+global_data_fallback = None
+
 
 def test_simple_inline():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
@@ -28,7 +30,7 @@ def test_simple_inline():
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
         p = InlinePatch(0x8048291, "mov DWORD [esp+8], 0x40;", name="asdf")
         backend.apply_patches([p])
         backend.save(tmp_file)
@@ -45,7 +47,7 @@ def test_added_code():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
         added_code = '''
             mov     eax, 1
             mov     ebx, 0x32
@@ -53,7 +55,7 @@ def test_added_code():
         '''
         p = AddCodePatch(added_code, "aaa")
         backend.apply_patches([p])
-        backend.set_oep(backend.name_map["ADDED_CODE_START"])
+        backend.set_oep(backend.name_map["aaa"])
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -68,7 +70,7 @@ def test_added_code_and_data():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
         test_str = "testtesttest\n\x00"
         added_code = '''
             mov     eax, 2
@@ -84,10 +86,10 @@ def test_added_code_and_data():
         p1 = AddCodePatch(added_code, "aaa")
         p2 = AddRODataPatch(test_str, "added_data")
         backend.apply_patches([p1,p2])
-        backend.set_oep(backend.name_map["ADDED_CODE_START"])
+        backend.set_oep(backend.name_map["aaa"])
         backend.save(tmp_file)
 
-        # backend.save("../../vm/shared/patched")
+        backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
@@ -156,8 +158,15 @@ def test_added_code_and_data_complex():
     common_patches.append(AddCodePatch(added_code,"dump"))
 
     with patcherex.utils.tempdir() as td:
+        expected = "ro1ro1ro1\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00ri1ri1ri1\nro2ro2ro2\n\x00" \
+                        "\x00\x00\x00\x00\x00\x00\x00\x00\x00ri2ri2ri2\nro3ro3ro3\n\x00\x00\x00\x00" \
+                        "\x00\x00\x00\x00\x00\x00ri3ri3ri3\nro1ro1ro1\nDCBA\x00\x00\x00\x00\x00\x00" \
+                        "ri1ri1ri1\nro2ro2ro2\nHGFE\x00\x00\x00\x00\x00\x00ri2ri2ri2\nro3ro3ro3\nLKJI" \
+                        "\x00\x00\x00\x00\x00\x00ri3ri3ri3\nro1ro1ro1\nDCBA\x00\x00\x00\x00\x00\x00DCBA" \
+                        "i1ri1\nro2ro2ro2\nHGFE\x00\x00\x00\x00\x00\x00HGFEi2ri2\nro3ro3ro3\nLKJI\x00\x00" \
+                        "\x00\x00\x00\x00LKJIi3ri3\n\x00\x02\x00\x00\x02"
         tmp_file = os.path.join(td, "patched1")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
         patches = [p for p in common_patches]
         added_code = '''
             call {dump}
@@ -174,16 +183,21 @@ def test_added_code_and_data_complex():
 
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        #backend.save("../../vm/shared/patched")
+        backend.save("../../vm/shared/patched")
         for k,v in backend.name_map.iteritems():
             print k,hex(v)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
         print res, p.returncode
-        #nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
+        nose.tools.assert_equal(expected == res[0] and p.returncode == 255, True)
 
+        expected = "ro1ro1ro1\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00ri1ri1ri1\nro2ro2ro2\n\x00\x00\x00" \
+                            "\x00\x00\x00\x00\x00\x00\x00ri2ri2ri2\nro3ro3ro3\n\x00\x00\x00\x00\x00\x00\x00" \
+                            "\x00\x00\x00ri3ri3ri3\nro1ro1ro1\nDCBA\x00\x00\x00\x00\x00\x00ri1ri1ri1\nro2ro2ro2" \
+                            "\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00HGFEi2ri2\nro3ro3ro3\nLKJI\x00\x00\x00\x00" \
+                            "\x00\x00ri3ri3ri3\n"
         tmp_file = os.path.join(td, "patched2")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
         patches = [p for p in common_patches]
         added_code = '''
             call {dump}
@@ -191,20 +205,24 @@ def test_added_code_and_data_complex():
             mov DWORD [{added_data_rwinit2}], 0x45464748
             mov DWORD [{added_data_rw3}], 0x494a4b4c
             call {dump}
-            mov DWORD [{added_data_ro2}], 0x41424344 ;segfault
+            mov DWORD [{added_data_ro2}], 0x41424344 ;segfault with no fallback
         '''
         patches.append(AddEntryPointPatch(added_code))
 
         backend.apply_patches(patches)
         backend.save(tmp_file)
         #backend.save("../../vm/shared/patched")
-        for k,v in backend.name_map.iteritems():
-            print k,hex(v)
+        #for k,v in backend.name_map.iteritems():
+        #    print k,hex(v)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
         print res, p.returncode
-        #nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
 
+        # this is a special case in which fallback we get different results if data_fallback is used!
+        if global_data_fallback==True:
+            nose.tools.assert_equal(res[0].startswith(expected) and p.returncode == 255, True)
+        else:
+            nose.tools.assert_equal(expected == res[0] and p.returncode == -11, True)
 
 
 def test_added_code_and_data_big():
@@ -213,7 +231,7 @@ def test_added_code_and_data_big():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
         test_str = "".join([chr(x) for x in xrange(256)])*40
         added_code = '''
             mov     eax, 2
@@ -229,71 +247,7 @@ def test_added_code_and_data_big():
         p1 = AddCodePatch(added_code, "aaa")
         p2 = AddRODataPatch(test_str, "added_data")
         backend.apply_patches([p1,p2])
-        backend.set_oep(backend.name_map["ADDED_CODE_START"])
-        backend.save(tmp_file)
-
-        # backend.save("../../vm/shared/patched")
-        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
-        #print res, p.returncode
-        nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
-
-
-def test_added_code_and_data_fallback():
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
-    pipe = subprocess.PIPE
-
-    with patcherex.utils.tempdir() as td:
-        tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=True)
-        test_str = "testtesttest\n\x00"
-        added_code = '''
-            mov     eax, 2
-            mov     ebx, 0
-            mov     ecx, {added_data}
-            mov     edx, %d
-            mov     esi, 0
-            int     80h
-            mov     eax, 1
-            mov     ebx, 0x33
-            int     80h
-        ''' % (len(test_str))
-        p1 = AddCodePatch(added_code, "aaa")
-        p2 = AddRODataPatch(test_str, "added_data")
-        backend.apply_patches([p1,p2])
-        backend.set_oep(backend.name_map["ADDED_CODE_START"])
-        backend.save(tmp_file)
-
-        # backend.save("../../vm/shared/patched")
-        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
-        print res, p.returncode
-        nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
-
-
-def test_added_code_and_data_big_fallback():
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
-    pipe = subprocess.PIPE
-
-    with patcherex.utils.tempdir() as td:
-        tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=True)
-        test_str = "".join([chr(x) for x in xrange(256)])*40
-        added_code = '''
-            mov     eax, 2
-            mov     ebx, 0
-            mov     ecx, {added_data}
-            mov     edx, %d
-            mov     esi, 0
-            int     80h
-            mov     eax, 1
-            mov     ebx, 0x33
-            int     80h
-        ''' % (len(test_str))
-        p1 = AddCodePatch(added_code, "aaa")
-        p2 = AddRODataPatch(test_str, "added_data")
-        backend.apply_patches([p1,p2])
-        backend.set_oep(backend.name_map["ADDED_CODE_START"])
+        backend.set_oep(backend.name_map["aaa"])
         backend.save(tmp_file)
 
         # backend.save("../../vm/shared/patched")
@@ -309,7 +263,7 @@ def test_detour():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
         test_str = "qwertyuiop\n\x00"
         added_code = '''
             mov     eax, 2
@@ -326,7 +280,7 @@ def test_detour():
         # backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
-        print res, p.returncode
+        #print res, p.returncode
         expected = "qwertyuiop\n\x00\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
                    "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
@@ -338,7 +292,7 @@ def test_single_entry_point_patch():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
         added_code = '''
             mov     eax, 2
             mov     ebx, 0
@@ -363,7 +317,7 @@ def test_complex1():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
 
         patches = []
         added_code = '''
@@ -421,7 +375,7 @@ def test_random_canary():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
 
         patches = []
         patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
@@ -565,6 +519,15 @@ def run_all():
             all_functions[f]()
 
 
+def run_all_with_fallback():
+    global global_data_fallback
+    l.info("Running all tests with no fallback")
+    run_all()
+    global_data_fallback = True
+    l.info("Running all tests with fallback")
+    run_all()
+
+
 if __name__ == "__main__":
     import sys
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
@@ -572,4 +535,4 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
     else:
-        run_all()
+        run_all_with_fallback()
