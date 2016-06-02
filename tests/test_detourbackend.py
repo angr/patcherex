@@ -89,7 +89,7 @@ def test_added_code_and_data():
         backend.set_oep(backend.name_map["aaa"])
         backend.save(tmp_file)
 
-        backend.save("../../vm/shared/patched")
+        # backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
@@ -183,7 +183,7 @@ def test_added_code_and_data_complex():
 
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        backend.save("../../vm/shared/patched")
+        # backend.save("../../vm/shared/patched")
         for k,v in backend.name_map.iteritems():
             print k,hex(v)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -211,7 +211,7 @@ def test_added_code_and_data_complex():
 
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        #backend.save("../../vm/shared/patched")
+        # backend.save("../../vm/shared/patched")
         #for k,v in backend.name_map.iteritems():
         #    print k,hex(v)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
