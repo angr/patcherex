@@ -18,6 +18,7 @@ qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".
 
 global_data_fallback = None
 
+
 def add_fallback_strategy(f):
     @wraps(f)
     def wrapper():
@@ -27,6 +28,7 @@ def add_fallback_strategy(f):
         global_data_fallback = True
         f()
     return wrapper
+
 
 @add_fallback_strategy
 def test_simple_inline():
@@ -54,7 +56,7 @@ def test_simple_inline():
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
 
 
-
+@add_fallback_strategy
 def test_added_code():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pipe = subprocess.PIPE
@@ -529,8 +531,6 @@ def test_random_canary():
         print res, p.returncode
         nose.tools.assert_equal(check_output(res[0]) and p.returncode == 0x44, True)
 
-
-# TODO add stackretencryption test on CROMU_00070
 
 def run_all():
     functions = globals()

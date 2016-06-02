@@ -5,6 +5,7 @@ import nose
 import struct
 import subprocess
 import logging
+from functools import wraps
 
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
@@ -31,6 +32,18 @@ old_qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__))
 global_data_fallback = None
 
 
+def add_fallback_strategy(f):
+    @wraps(f)
+    def wrapper():
+        global global_data_fallback
+        global_data_fallback = None
+        f()
+        global_data_fallback = True
+        f()
+    return wrapper
+
+
+@add_fallback_strategy
 def test_shadowstack():
     from patcherex.techniques.shadowstack import ShadowStack
     filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
@@ -54,6 +67,8 @@ def test_shadowstack():
         print res, p.returncode
         nose.tools.assert_equal(p.returncode == 68, True)
 
+
+@add_fallback_strategy
 def test_packer():
     from patcherex.techniques.packer import Packer
     filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
@@ -73,6 +88,8 @@ def test_packer():
         print res, p.returncode
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
 
+
+@add_fallback_strategy
 def test_simplecfi():
     from patcherex.techniques.simplecfi import SimpleCFI
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
@@ -114,6 +131,7 @@ def test_simplecfi():
         nose.tools.assert_equal((res[0] == expected3 and p.returncode == 0x45), True)
 
 
+@add_fallback_strategy
 def test_qemudetection():
     from patcherex.techniques.qemudetection import QemuDetection
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
@@ -144,6 +162,7 @@ def test_qemudetection():
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
 
 
+@add_fallback_strategy
 def test_randomsyscallloop():
     from patcherex.techniques.randomsyscallloop import RandomSyscallLoop
     filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
@@ -169,6 +188,7 @@ def test_randomsyscallloop():
         nose.tools.assert_equal(p.returncode == -11, True)
 
 
+@add_fallback_strategy
 def test_cpuid():
     from patcherex.techniques.cpuid import CpuId
     filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
@@ -193,6 +213,8 @@ def test_cpuid():
         nose.tools.assert_equal(res[0].endswith("\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "), True)
         nose.tools.assert_equal(len(res[0]) > 500, True)
         nose.tools.assert_equal(p.returncode == -11, True)
+
+# TODO add stackretencryption test on CROMU_00070
 
 
 def run_all():
