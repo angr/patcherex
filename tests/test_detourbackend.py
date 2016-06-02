@@ -28,7 +28,6 @@ def add_fallback_strategy(f):
         f()
     return wrapper
 
-@add_fallback_strategy
 def test_simple_inline():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
 
