@@ -15,8 +15,8 @@ class StackRetEncryption(object):
 
     def get_common_patches(self):
         common_patches = []
-        common_patches.append(AddDataPatch("AbCd","rnd_xor_canary"))
-        common_patches.append(AddDataPatch("XXXX","saved_reg"))
+        common_patches.append(AddRWDataPatch(4,"rnd_xor_canary"))
+        common_patches.append(AddRWDataPatch(4,"saved_reg"))
 
         added_code = '''
             mov DWORD [{saved_reg}], ecx

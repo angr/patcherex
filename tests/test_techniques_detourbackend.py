@@ -215,6 +215,64 @@ def test_cpuid():
         nose.tools.assert_equal(p.returncode == -11, True)
 
 # TODO add stackretencryption test on CROMU_00070
+@add_fallback_strategy
+def test_stackretencryption():
+    from patcherex.techniques.stackretencryption import StackRetEncryption
+    filepath1 = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath2 = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
+    pipe = subprocess.PIPE
+
+    p = subprocess.Popen([qemu_location, filepath1], stdin=pipe, stdout=pipe, stderr=pipe)
+    res = p.communicate("\x00"*1000+"\n")
+    print res, p.returncode
+    nose.tools.assert_equal((p.returncode == -11), True)
+
+    #0x80480a0 is the binary entry point
+    exploiting_input = "AAAA"+"\x00"*80+struct.pack("<I",0x80480a0)*20+"\n"
+    expected1 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: " \
+            "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tNope,"
+    p = subprocess.Popen([qemu_location, filepath1], stdin=pipe, stdout=pipe, stderr=pipe)
+    res = p.communicate(exploiting_input)
+    print res, p.returncode
+    nose.tools.assert_equal(p.returncode != -11, True)
+    nose.tools.assert_equal(res[0].startswith(expected1),True)
+
+    expected2 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+    with patcherex.utils.tempdir() as td:
+        original_file = os.path.join(td, "original")
+        os.copy(filepath2,original_file)
+
+        tmp_file = os.path.join(td, "patched1")
+        backend = DetourBackend(filepath1,global_data_fallback)
+        cp = StackRetEncryption(filepath1, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal((res[0] == expected2 and p.returncode == 0), True)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(exploiting_input)
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode == -11, True)
+
+        tmp_file = os.path.join(td, "patched2")
+        backend = DetourBackend(filepath2,global_data_fallback)
+        cp = StackRetEncryption(filepath2, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        p = subprocess.Popen([qemu_location, original_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+        print res
+        sane_stdout, sane_retcode = res[0], p.returncode
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+        print res
+        nose.tools.assert_equal(res[0] == sane_stdout, True)
+        nose.tools.assert_equal(p.returncode == sane_retcode, True)
 
 
 def run_all():
@@ -226,15 +284,6 @@ def run_all():
             all_functions[f]()
 
 
-def run_all_with_fallback():
-    global global_data_fallback
-    l.info("Running all tests with no fallback")
-    run_all()
-    global_data_fallback = True
-    l.info("Running all tests with fallback")
-    run_all()
-
-
 if __name__ == "__main__":
     import sys
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
@@ -242,5 +291,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
     else:
-        run_all_with_fallback()
+        run_all()
 
