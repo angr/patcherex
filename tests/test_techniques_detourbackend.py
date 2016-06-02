@@ -5,6 +5,7 @@ import nose
 import struct
 import subprocess
 import logging
+import shutil
 from functools import wraps
 
 import patcherex
@@ -240,7 +241,7 @@ def test_stackretencryption():
     expected2 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         original_file = os.path.join(td, "original")
-        os.copy(filepath2,original_file)
+        shutil.copy(filepath2,original_file)
 
         tmp_file = os.path.join(td, "patched1")
         backend = DetourBackend(filepath1,global_data_fallback)
