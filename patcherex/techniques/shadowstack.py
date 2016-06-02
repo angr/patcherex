@@ -2,7 +2,6 @@ import patcherex
 
 import logging
 from patcherex.patches import *
-from patcherex.backends.basebackend import BaseBackend
 
 l = logging.getLogger("patcherex.techniques.ShadowStack")
 
@@ -18,14 +17,14 @@ class ShadowStack(object):
 
     def get_common_patches(self):
         common_patches = []
-        common_patches.append(AddDataPatch("0123456789abcdef",name="hex_array"))
-        common_patches.append(AddDataPatch("X"*4,name="saved_canary"))
-        common_patches.append(AddDataPatch("p"*4,name="shadow_stack_pointer"))
-        common_patches.append(AddDataPatch("t"*4,name="tmp_reg1"))
-        common_patches.append(AddDataPatch("t"*4,name="tmp_reg2"))
-        common_patches.append(AddDataPatch("s"*self.shadow_stack_size,name="shadow_stack"))
-        common_patches.append(AddDataPatch("canary failure: \x00",name="str_fcanary"))
-        common_patches.append(AddDataPatch(" vs \x00",name="str_vs"))
+        common_patches.append(AddRODataPatch("0123456789abcdef",name="hex_array"))
+        common_patches.append(AddRWDataPatch(4,name="saved_canary"))
+        common_patches.append(AddRWDataPatch(4,name="shadow_stack_pointer"))
+        common_patches.append(AddRWDataPatch(4,name="tmp_reg1"))
+        common_patches.append(AddRWDataPatch(4,name="tmp_reg2"))
+        common_patches.append(AddRWDataPatch(self.shadow_stack_size,name="shadow_stack"))
+        common_patches.append(AddRODataPatch("canary failure: \x00",name="str_fcanary"))
+        common_patches.append(AddRODataPatch(" vs \x00",name="str_vs"))
 
         added_code = '''
             ; print eax as hex

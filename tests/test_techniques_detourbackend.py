@@ -7,7 +7,6 @@ import subprocess
 import logging
 
 import patcherex
-from patcherex.backends.basebackend import BaseBackend
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import *
 
@@ -29,6 +28,8 @@ Date:   Fri Feb 5 14:26:30 2016 -0800
 '''
 old_qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "old_tracer-qemu-cgc"))
 
+global_data_fallback = None
+
 
 def test_shadowstack():
     from patcherex.techniques.shadowstack import ShadowStack
@@ -42,7 +43,7 @@ def test_shadowstack():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = BaseBackend(filepath)
+        backend = DetourBackend(filepath,global_data_fallback)
         cp = ShadowStack(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -61,7 +62,7 @@ def test_packer():
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = BaseBackend(filepath)
+        backend = DetourBackend(filepath,global_data_fallback)
         cp = Packer(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -96,7 +97,7 @@ def test_simplecfi():
     expected3 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = BaseBackend(filepath)
+        backend = DetourBackend(filepath,global_data_fallback)
         cp = SimpleCFI(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -126,7 +127,7 @@ def test_qemudetection():
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = BaseBackend(filepath)
+        backend = DetourBackend(filepath,global_data_fallback)
         cp = QemuDetection(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -143,6 +144,57 @@ def test_qemudetection():
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
 
 
+def test_randomsyscallloop():
+    from patcherex.techniques.randomsyscallloop import RandomSyscallLoop
+    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    pipe = subprocess.PIPE
+
+    p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+    res = p.communicate("\x00"*1000+"\n")
+    print res, p.returncode
+    nose.tools.assert_equal((p.returncode == -11), True)
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,global_data_fallback)
+        cp = RandomSyscallLoop(filepath, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("\x00"*100+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(res[0] == "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: ", True)
+        nose.tools.assert_equal(p.returncode == -11, True)
+
+
+def test_cpuid():
+    from patcherex.techniques.cpuid import CpuId
+    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    pipe = subprocess.PIPE
+
+    p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+    res = p.communicate("\x00"*1000+"\n")
+    print res, p.returncode
+    nose.tools.assert_equal((p.returncode == -11), True)
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,global_data_fallback)
+        cp = CpuId(filepath, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("\x00"*100+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(res[0].endswith("\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "), True)
+        nose.tools.assert_equal(len(res[0]) > 500, True)
+        nose.tools.assert_equal(p.returncode == -11, True)
+
+
 def test_shadowstack_detour():
     from patcherex.techniques.shadowstack import ShadowStack
     filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
@@ -155,7 +207,7 @@ def test_shadowstack_detour():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,global_data_fallback)
         cp = ShadowStack(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -166,6 +218,7 @@ def test_shadowstack_detour():
         print res, p.returncode
         nose.tools.assert_equal(p.returncode == 68, True)
 
+
 def test_packer_detour():
     from patcherex.techniques.packer import Packer
     filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
@@ -174,7 +227,7 @@ def test_packer_detour():
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,global_data_fallback)
         cp = Packer(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -184,6 +237,7 @@ def test_packer_detour():
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
+
 
 def test_simplecfi_detour():
     from patcherex.techniques.simplecfi import SimpleCFI
@@ -209,7 +263,7 @@ def test_simplecfi_detour():
     expected3 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,global_data_fallback)
         cp = SimpleCFI(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -239,7 +293,7 @@ def test_qemudetection_detour():
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath)
+        backend = DetourBackend(filepath,global_data_fallback)
         cp = QemuDetection(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -266,6 +320,15 @@ def run_all():
             all_functions[f]()
 
 
+def run_all_with_fallback():
+    global global_data_fallback
+    l.info("Running all tests with no fallback")
+    run_all()
+    global_data_fallback = True
+    l.info("Running all tests with fallback")
+    run_all()
+
+
 if __name__ == "__main__":
     import sys
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
@@ -273,5 +336,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
     else:
-        run_all()
+        run_all_with_fallback()
 

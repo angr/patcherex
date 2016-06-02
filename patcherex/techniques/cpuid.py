@@ -180,10 +180,10 @@ class CpuId(object):
             ret
         '''
         patches.append(AddCodePatch(added_code,name="print"))
-        patches.append(AddDataPatch("0123456789abcdef",name="hex_array"))
-        patches.append(AddDataPatch("\n",name="new_line"))
-        patches.append(AddDataPatch("XXXX",name="allocate_result"))
-        patches.append(AddDataPatch("XXXXXXXXXXXXXXXXXXXX",name="space"))
+        patches.append(AddRODataPatch("0123456789abcdef",name="hex_array"))
+        patches.append(AddRODataPatch("\n",name="new_line"))
+        patches.append(AddRWDataPatch(len("XXXX"),name="allocate_result"))
+        patches.append(AddRWDataPatch(len("XXXXXXXXXXXXXXXXXXXX"),name="space"))
 
         return patches
 

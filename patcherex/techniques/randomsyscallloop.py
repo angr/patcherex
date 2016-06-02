@@ -31,8 +31,8 @@ class RandomSyscallLoop(object):
             ;
         '''
         patches.append(AddEntryPointPatch(added_code,name="random_loop"))
-        patches.append(AddDataPatch("XXXXXXXXXXXXXXXXXXXX",name="space"))
-        patches.append(AddDataPatch("XXXX",name="random_result"))
+        patches.append(AddRWDataPatch(len("XXXXXXXXXXXXXXXXXXXX"),name="space"))
+        patches.append(AddRWDataPatch(len("XXXX"),name="random_result"))
 
         return patches
 

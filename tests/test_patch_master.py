@@ -22,6 +22,7 @@ def test_run():
     fname = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pm = PatchMaster(fname)
     patches = pm.run()
+    nose.tools.assert_equal(len(patches) == 6, True)
 
     nose.tools.assert_equal(len(patches)>1, True)
     nose.tools.assert_equal(no_duplicate(patches), True)
