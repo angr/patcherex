@@ -17,7 +17,7 @@ bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..
 
 
 def is_sane_function(ff):
-    return not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and not ff.has_unresolved_jumps
+    return not ff.is_syscall and not ff.has_unresolved_calls and not ff.has_unresolved_jumps
 
 
 def test_CADET_00003():
@@ -59,9 +59,7 @@ def test_CADET_00003():
 
     for ff in syscalls:
         bb1 = cfg.get_any_node(ff.addr)
-        if bb1.addr == 0x08048618: #TODO remove this when issue angr/angr/issues/178 is solved
-            continue
-        nose.tools.assert_equal(len(bb1.predecessors) == 1, True)
+        nose.tools.assert_equal(len(bb1.predecessors) >= 1, True)
         bb2 = bb1.predecessors[0]
         bb = backend.project.factory.block(bb2.addr)
         ii = bb.capstone.insns[-1]
@@ -112,9 +110,7 @@ def test_0b32aa01_01():
 
     for ff in syscalls:
         bb1 = cfg.get_any_node(ff.addr)
-        if bb1.addr == 0x08048613: #TODO remove this when issue angr/angr/issues/178 is solved
-            continue
-        nose.tools.assert_equal(len(bb1.predecessors) == 1, True)
+        nose.tools.assert_equal(len(bb1.predecessors) >= 1, True)
         bb2 = bb1.predecessors[0]
         bb = backend.project.factory.block(bb2.addr)
         ii = bb.capstone.insns[-1]
