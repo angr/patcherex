@@ -243,42 +243,43 @@ def test_stackretencryption():
     nose.tools.assert_equal(res[0].startswith(expected1),True)
 
     expected2 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
-    with patcherex.utils.tempdir() as td:
-        original_file = os.path.join(td, "original")
-        shutil.copy(filepath2,original_file)
-        os.chmod(original_file,777)
+    for allow_reg_reuse in [True,False]:
+        with patcherex.utils.tempdir() as td:
+            original_file = os.path.join(td, "original")
+            shutil.copy(filepath2,original_file)
+            os.chmod(original_file,777)
 
-        tmp_file = os.path.join(td, "patched1")
-        backend = DetourBackend(filepath1,global_data_fallback)
-        cp = StackRetEncryption(filepath1, backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        backend.save(tmp_file)
+            tmp_file = os.path.join(td, "patched1")
+            backend = DetourBackend(filepath1,global_data_fallback)
+            cp = StackRetEncryption(filepath1, backend, allow_reg_reuse=allow_reg_reuse)
+            patches = cp.get_patches()
+            backend.apply_patches(patches)
+            backend.save(tmp_file)
 
-        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
-        print res, p.returncode
-        nose.tools.assert_equal((res[0] == expected2 and p.returncode == 0), True)
-        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate(exploiting_input)
-        print res, p.returncode
-        nose.tools.assert_equal(p.returncode == -11, True)
+            p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+            res = p.communicate("A"*10+"\n")
+            print res, p.returncode
+            nose.tools.assert_equal((res[0] == expected2 and p.returncode == 0), True)
+            p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+            res = p.communicate(exploiting_input)
+            print res, p.returncode
+            nose.tools.assert_equal(p.returncode == -11, True)
 
-        tmp_file = os.path.join(td, "patched2")
-        backend = DetourBackend(filepath2,global_data_fallback)
-        cp = StackRetEncryption(filepath2, backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        backend.save(tmp_file)
-        p = subprocess.Popen([qemu_location, original_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
-        print res
-        sane_stdout, sane_retcode = res[0], p.returncode
-        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
-        print res
-        nose.tools.assert_equal(res[0] == sane_stdout, True)
-        nose.tools.assert_equal(p.returncode == sane_retcode, True)
+            tmp_file = os.path.join(td, "patched2")
+            backend = DetourBackend(filepath2,global_data_fallback)
+            cp = StackRetEncryption(filepath2, backend, allow_reg_reuse=allow_reg_reuse)
+            patches = cp.get_patches()
+            backend.apply_patches(patches)
+            backend.save(tmp_file)
+            p = subprocess.Popen([qemu_location, original_file], stdin=pipe, stdout=pipe, stderr=pipe)
+            res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+            print res
+            sane_stdout, sane_retcode = res[0], p.returncode
+            p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+            res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+            print res
+            nose.tools.assert_equal(res[0] == sane_stdout, True)
+            nose.tools.assert_equal(p.returncode == sane_retcode, True)
 
 
 def run_all():

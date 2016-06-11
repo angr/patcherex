@@ -79,7 +79,7 @@ class StackRetEncryption(object):
             return set()
 
         # a reg is free if
-        # 1) an instructioin in the current bb writes on it before any other read, or
+        # 1) an instruction in the current bb writes on it before any other read, or
         if not ignore_current_bb:
             if not addr in self.reg_free_map:
                 # we reached some weird bb
@@ -243,7 +243,6 @@ class StackRetEncryption(object):
         common_patches = self.get_common_patches()
 
         cfg = self.patcher.cfg
-        import IPython; IPython.embed()
         patches = []
         for k,ff in cfg.functions.iteritems():
             start,ends = self.function_to_patch_locations(ff)
