@@ -46,6 +46,7 @@ def add_fallback_strategy(f):
 
 @add_fallback_strategy
 def test_shadowstack():
+    logging.getLogger("patcherex.techniques.ShadowStack").setLevel("DEBUG")
     from patcherex.techniques.shadowstack import ShadowStack
     filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
     pipe = subprocess.PIPE
@@ -92,6 +93,7 @@ def test_packer():
 
 @add_fallback_strategy
 def test_simplecfi():
+    logging.getLogger("patcherex.techniques.SimpleCFI").setLevel("DEBUG")
     from patcherex.techniques.simplecfi import SimpleCFI
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pipe = subprocess.PIPE
@@ -134,6 +136,7 @@ def test_simplecfi():
 
 @add_fallback_strategy
 def test_qemudetection():
+    logging.getLogger("patcherex.techniques.QemuDetection").setLevel("DEBUG")
     from patcherex.techniques.qemudetection import QemuDetection
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     pipe = subprocess.PIPE
@@ -218,6 +221,7 @@ def test_cpuid():
 # TODO add stackretencryption test on CROMU_00070
 @add_fallback_strategy
 def test_stackretencryption():
+    logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
     from patcherex.techniques.stackretencryption import StackRetEncryption
     filepath1 = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     filepath2 = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")

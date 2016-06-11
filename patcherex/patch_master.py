@@ -270,7 +270,7 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.techniques.SimpleCFI").setLevel("INFO")
         logging.getLogger("patcherex.techniques.ShadowStack").setLevel("INFO")
         logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
-        logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("INFO")
+        logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
 
         input_fname = sys.argv[2]

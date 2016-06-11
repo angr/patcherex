@@ -132,3 +132,4 @@ if __name__ == "__main__":
     else:
         run_all()
 
+#TODO: CADET_00003, bb 80485EC should be 1 instruction
