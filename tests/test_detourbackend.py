@@ -377,6 +377,103 @@ def test_complex1():
 
 
 @add_fallback_strategy
+def test_double_patch_collision():
+    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    pipe = subprocess.PIPE
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        test_str1 = "1111111111\n\x00"
+        test_str2 = "2222222222\n\x00"
+        added_code1 = '''
+            pusha
+            mov     eax, 2
+            mov     ebx, 0
+            mov     ecx, {str1}
+            mov     edx, %d
+            mov     esi, 0
+            int     80h
+            popa
+        ''' % (len(test_str1))
+        added_code2 = '''
+            pusha
+            mov     eax, 2
+            mov     ebx, 0
+            mov     ecx, {str2}
+            mov     edx, %d
+            mov     esi, 0
+            int     80h
+            popa
+        ''' % (len(test_str2))
+
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p1 = InsertCodePatch(0x080480A0, added_code1, name="p1", priority=100)
+        p2 = InsertCodePatch(0x080480A0, added_code2, name="p2", priority=1)
+        p3 = AddRODataPatch(test_str1, "str1")
+        p4 = AddRODataPatch(test_str2, "str2")
+        backend.apply_patches([p1,p2,p3,p4])
+        backend.save(tmp_file)
+        nose.tools.assert_equal(p1 in backend.added_patches, True)
+        nose.tools.assert_equal(p2 in backend.added_patches, False)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        expected = test_str1 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
+                   "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+        nose.tools.assert_equal(res[0], expected)
+
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p1 = InsertCodePatch(0x080480A0, added_code1, name="p1", priority=1)
+        p2 = InsertCodePatch(0x080480A0, added_code2, name="p2", priority=100)
+        p3 = AddRODataPatch(test_str1, "str1")
+        p4 = AddRODataPatch(test_str2, "str2")
+        backend.apply_patches([p1,p2,p3,p4])
+        backend.save(tmp_file)
+        nose.tools.assert_equal(p1 in backend.added_patches, False)
+        nose.tools.assert_equal(p2 in backend.added_patches, True)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        expected = test_str2 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
+                   "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+        nose.tools.assert_equal(res[0], expected)
+
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p1 = InsertCodePatch(0x080480A0, added_code1, name="p1", priority=1)
+        #partial overlap
+        p2 = InsertCodePatch(0x080480A0+3, added_code2, name="p2", priority=100)
+        p3 = AddRODataPatch(test_str1, "str1")
+        p4 = AddRODataPatch(test_str2, "str2")
+        backend.apply_patches([p1,p2,p3,p4])
+        backend.save(tmp_file)
+        nose.tools.assert_equal(p1 in backend.added_patches, False)
+        nose.tools.assert_equal(p2 in backend.added_patches, True)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        expected = test_str2 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
+                   "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+        nose.tools.assert_equal(res[0], expected)
+
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p1 = InsertCodePatch(0x080480A0, added_code1, name="p1", priority=1)
+        #no overlap
+        p2 = InsertCodePatch(0x080480A0+0x11, added_code2, name="p2", priority=100)
+        p3 = AddRODataPatch(test_str1, "str1")
+        p4 = AddRODataPatch(test_str2, "str2")
+        backend.apply_patches([p1,p2,p3,p4])
+        backend.save(tmp_file)
+        nose.tools.assert_equal(p1 in backend.added_patches, True)
+        nose.tools.assert_equal(p2 in backend.added_patches, True)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        expected = test_str1 + test_str2 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
+                   "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+        nose.tools.assert_equal(res[0], expected)
+
+
+@add_fallback_strategy
 def test_random_canary():
     def check_output(tstr):
         expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: canary failure: 00000000 vs "

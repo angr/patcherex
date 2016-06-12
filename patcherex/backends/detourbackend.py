@@ -26,6 +26,9 @@ class MissingBlockException(PatchingException):
 class DetourException(PatchingException):
     pass
 
+class DoubleDetourException(PatchingException):
+    pass
+
 class InvalidVAddrException(PatchingException):
     pass
 
@@ -67,10 +70,15 @@ class DetourBackend(object):
 
         self.added_code = ""
         self.added_data = ""
-
         self.added_code_file_start = None
         self.added_data_file_start = None
+        self.added_patches = []
+        self.added_rwdata_len = 0
+        self.added_rwinitdata_len = 0
+        self.to_init_data = ""
 
+        # not all the touched bytes are bad, they are only a serious problem in case of InsertCodePatch
+        self.touched_bytes = set()
 
         # TODO
         # 1) ida-like cfg
@@ -263,12 +271,6 @@ class DetourBackend(object):
     def apply_patches(self,patches):
         # for now any added code will be executed by jumping out and back ie CGRex
         # apply all add code patches
-        added_patches = []
-        self.added_rwdata_len = 0
-        self.added_rwinitdata_len = 0
-        self.to_init_data = ""
-        self.added_code = ""
-
         self.added_code_file_start = len(self.ncontent)
         self.name_map["ADDED_CODE_START"] = (len(self.ncontent) % 0x1000) + self.added_code_segment
 
@@ -276,12 +278,12 @@ class DetourBackend(object):
         for patch in patches:
             if isinstance(patch, RawFilePatch):
                 self.ncontent = utils.str_overwrite(self.ncontent,patch.data,patch.file_addr)
-                added_patches.append(patch)
+                self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
         for patch in patches:
             if isinstance(patch, RawMemPatch):
                 self.patch_bin(patch.addr,patch.data)
-                added_patches.append(patch)
+                self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
         #TODO file cutter patch
 
@@ -301,7 +303,7 @@ class DetourBackend(object):
                         self.name_map[patch.name] = curr_data_position
                     curr_data_position += len(final_patch_data)
                     self.ncontent = utils.str_overwrite(self.ncontent, final_patch_data)
-                    added_patches.append(patch)
+                    self.added_patches.append(patch)
                     l.info("Added patch: " + str(patch))
             self.ncontent = utils.pad_str(self.ncontent, 0x10)  # some minimal alignment may be good
 
@@ -314,7 +316,7 @@ class DetourBackend(object):
                     if patch.name is not None:
                         self.name_map[patch.name] = self.name_map["ADDED_DATA_START"] + self.added_rwdata_len
                     self.added_rwdata_len += patch.len
-                    added_patches.append(patch)
+                    self.added_patches.append(patch)
                     l.info("Added patch: " + str(patch))
 
             # 1.2) AddRWInitDataPatch
@@ -325,7 +327,7 @@ class DetourBackend(object):
                         self.name_map[patch.name] = self.name_map["ADDED_DATA_START"] + self.added_rwdata_len + \
                                 self.added_rwinitdata_len
                     self.added_rwinitdata_len += len(patch.data)
-                    added_patches.append(patch)
+                    self.added_patches.append(patch)
                     l.info("Added patch: " + str(patch))
             if self.to_init_data != "":
                 code = '''
@@ -351,7 +353,7 @@ class DetourBackend(object):
                         self.name_map[patch.name] = self.get_current_code_position()
                     self.added_code += patch.data
                     self.ncontent = utils.str_overwrite(self.ncontent, patch.data)
-                    added_patches.append(patch)
+                    self.added_patches.append(patch)
                     l.info("Added patch: " + str(patch))
 
         # 2) AddCodePatch
@@ -369,7 +371,7 @@ class DetourBackend(object):
                 new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                 self.added_code += new_code
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code)
-                added_patches.append(patch)
+                self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
 
         # 3) AddEntryPointPatch
@@ -402,7 +404,7 @@ class DetourBackend(object):
             new_code = utils.compile_jmp(self.get_current_code_position(),oep)
             self.added_code += new_code
             self.ncontent += new_code
-            added_patches.append(patch)
+            self.added_patches.append(patch)
             l.info("Added patch: " + str(patch))
 
         # 4) InlinePatch
@@ -413,7 +415,7 @@ class DetourBackend(object):
                 assert len(new_code) == self.project.factory.block(patch.instruction_addr, num_inst=1).size
                 file_offset = self.project.loader.main_bin.addr_to_offset(patch.instruction_addr)
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code, file_offset)
-                added_patches.append(patch)
+                self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
 
         # 5) InsertCodePatch
@@ -422,18 +424,20 @@ class DetourBackend(object):
         # With this backend heer we can fail applying a patch, in case, resolve dependencies
         while True:
             ncontent_copy = self.ncontent
+            touched_bytes_copy = set(self.touched_bytes)
             insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
-            for patch in insert_code_patches:
+            for patch in sorted([p for p in insert_code_patches],key=lambda x:-1*x.priority):
                     try:
                         new_code = self.insert_detour(patch)
                         self.added_code += new_code
                         self.ncontent = utils.str_overwrite(self.ncontent, new_code)
-                        added_patches.append(patch)
+                        self.added_patches.append(patch)
                         l.info("Added patch: " + str(patch))
-                    except (DetourException, MissingBlockException) as e:
+                    except (DetourException, MissingBlockException, DoubleDetourException) as e:
                         l.warning(e)
                         patches = self.handle_remove_patch(patches,patch)
                         self.ncontent = ncontent_copy
+                        self.touched_bytes = touched_bytes_copy
                         l.warning("One patch failed, rolling back InsertCodePatch patches. Failed patch: "+str(patch))
                         break
             else:
@@ -442,7 +446,7 @@ class DetourBackend(object):
 
         header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
-        if any([isinstance(p,ins) for ins in header_patches for p in added_patches]) or \
+        if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
                 any([isinstance(p,SegmentHeaderPatch) for p in patches]):
             # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers 
 
@@ -653,6 +657,11 @@ class DetourBackend(object):
         # replace overwritten instructions with nops
         for i in movable_instructions:
             if i.overwritten != "out":
+                for b in xrange(i.address, i.address+len(i.bytes)):
+                    if b in self.touched_bytes:
+                        raise DoubleDetourException("byte has been already touched: %08x" % b)
+                    else:
+                        self.touched_bytes.add(b)
                 self.patch_bin(i.address, one_byte_nop*len(i.bytes))
 
         # insert the jump detour

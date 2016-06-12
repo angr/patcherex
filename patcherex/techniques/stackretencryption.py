@@ -130,13 +130,15 @@ class StackRetEncryption(object):
 
     # TODO check if it is possible to do insane trick to always overwrite the same stuff and merge things
     def add_shadowstack_to_function(self,start,ends):
-        headp = InsertCodePatch(start,self.add_patch_at_bb(start),name="stackretencryption_head_%d"%self.npatch)
+        # in the grand-plane these patches have higher priority than, for instance, indirect jump ones
+        # this only matters in case of conflicts
+        headp = InsertCodePatch(start,self.add_patch_at_bb(start),name="stackretencryption_head_%d"%self.npatch,priority=100)
 
         tailp = []
         for i,e in enumerate(ends):
             bb_addr = self.patcher.cfg.get_any_node(e,anyaddr=True).addr
             code = self.add_patch_at_bb(bb_addr,is_tail=True)
-            tailp.append(InsertCodePatch(e,code,name="stackretencryption_tail_%d_%d"%(self.npatch,i)))
+            tailp.append(InsertCodePatch(e,code,name="stackretencryption_tail_%d_%d"%(self.npatch,i),priority=100))
             for p in tailp:
                 headp.dependencies.append(p)
                 p.dependencies.append(headp)

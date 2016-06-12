@@ -56,17 +56,18 @@ class AddEntryPointPatch(Patch):
         self.priority = priority
 
     def __str__(self):
-        return "AddEntryPointPatch [%s] (%d), %d" % (self.name,len(self.asm_code),self.priority)
+        return "AddEntryPointPatch [%s] (%d), priority: %d" % (self.name,len(self.asm_code),self.priority)
 
 
 class InsertCodePatch(Patch):
-    def __init__(self, addr, code, name=None):
+    def __init__(self, addr, code, name=None, priority=1):
         super(InsertCodePatch, self).__init__(name)
         self.addr = addr
         self.code = code
+        self.priority = priority
 
     def __str__(self):
-        return "InsertCodePatch [%s] %08x (%d)" % (self.name,self.addr,len(self.code))
+        return "InsertCodePatch [%s] %08x (%d), priority: %d" % (self.name,self.addr,len(self.code),self.priority)
 
 
 class RawFilePatch(Patch):
