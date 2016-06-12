@@ -418,6 +418,7 @@ def test_double_patch_collision():
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
+        print map(hex,backend.touched_bytes)
         expected = test_str1 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
                    "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
@@ -434,6 +435,7 @@ def test_double_patch_collision():
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
+        print map(hex,backend.touched_bytes)
         expected = test_str2 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
                    "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
@@ -451,6 +453,7 @@ def test_double_patch_collision():
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
+        print map(hex,backend.touched_bytes)
         expected = test_str2 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
                    "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
@@ -468,6 +471,7 @@ def test_double_patch_collision():
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
+        print map(hex,backend.touched_bytes)
         expected = test_str1 + test_str2 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
                    "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
