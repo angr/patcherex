@@ -19,7 +19,7 @@ class StackRetEncryption(object):
         self.npatch = 0
         self.flag_page = 0x4347c000
         self.allow_reg_reuse = allow_reg_reuse
-        self.cfg_explorion_depth = 7
+        self.cfg_exploration_depth = 7
 
         self.relevant_registers = set(["eax","ebx","ecx","edx","esi","edi","ebp"])
         self.reg_free_map, self.reg_not_free_map = self.get_reg_free_map()
@@ -74,7 +74,7 @@ class StackRetEncryption(object):
 
     def get_free_regs(self,addr,ignore_current_bb=False,level=0,debug=False):
         if debug: print "\t"*level,"--------",hex(addr)
-        if level >= self.cfg_explorion_depth:
+        if level >= self.cfg_exploration_depth:
             # we reached max depth: we assume that everything else may use any reg
             return set()
 
@@ -130,7 +130,7 @@ class StackRetEncryption(object):
 
     # TODO check if it is possible to do insane trick to always overwrite the same stuff and merge things
     def add_shadowstack_to_function(self,start,ends):
-        # in the grand-plane these patches have higher priority than, for instance, indirect jump ones
+        # in the grand-plan these patches have higher priority than, for instance, indirect jump ones
         # this only matters in case of conflicts
         headp = InsertCodePatch(start,self.add_patch_at_bb(start),name="stackretencryption_head_%d"%self.npatch,priority=100)
 
