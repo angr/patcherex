@@ -281,6 +281,7 @@ def test_stackretencryption():
             nose.tools.assert_equal(res[0] == sane_stdout, True)
             nose.tools.assert_equal(p.returncode == sane_retcode, True)
 
+# TODO add test for indirectcfi
 
 def run_all():
     functions = globals()

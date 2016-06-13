@@ -111,6 +111,14 @@ def capstone_to_nasm(instruction):
         return tstr
 
 
+def bytes_to_asm(in_str, comment=None):
+        tstr = "db "
+        tstr += ",".join([hex(ord(b)) for b in in_str])
+        if comment != None:
+            tstr += " ; "+comment
+        return tstr
+
+
 def decompile(code, offset=0x0):
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
     return list(md.disasm(code, offset))

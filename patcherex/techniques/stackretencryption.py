@@ -41,14 +41,15 @@ class StackRetEncryption(object):
         ''' % hex(self.flag_page + 0x123)
         self.encrypt_using_edx_patch = AddCodePatch(added_code,name="encrypt_using_edx")
         added_code = '''
-            mov DWORD [{saved_reg}], ecx
+            mov DWORD [{saved_reg_for_stackretencryption}], ecx
             mov ecx, DWORD [esp+4]
             xor cx, WORD [%s]
             xor ecx, DWORD [{rnd_xor_key}]
             mov DWORD [esp+4], ecx
-            mov ecx, [{saved_reg}]
+            mov ecx, [{saved_reg_for_stackretencryption}]
             ret
         ''' % hex(self.flag_page + 0x123)
+        # TODO check if push/pop is faster
         self.safe_encrypt_patch = AddCodePatch(added_code,name="safe_encrypt")
 
         self.used_ecx_patch = False
@@ -69,7 +70,7 @@ class StackRetEncryption(object):
             xor edx, edx
             int 0x80
         '''
-        common_patches.append(AddEntryPointPatch(added_code,name="set_shadowstack_pointer"))
+        common_patches.append(AddEntryPointPatch(added_code,name="set_rnd_xor_key"))
         return common_patches
 
     def get_free_regs(self,addr,ignore_current_bb=False,level=0,debug=False):
@@ -258,7 +259,7 @@ class StackRetEncryption(object):
 
         if self.used_safe_patch:
             patches.append(self.safe_encrypt_patch)
-            patches.append(AddRWDataPatch(4,"saved_reg"))
+            patches.append(AddRWDataPatch(4,"saved_reg_for_stackretencryption"))
         if self.used_ecx_patch:
             patches.append(self.encrypt_using_ecx_patch)
         if self.used_edx_patch:
