@@ -1,6 +1,6 @@
 import patcherex
 import angr
-import utils
+import patcherex.utils as utils
 
 import capstone
 import logging

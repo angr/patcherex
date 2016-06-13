@@ -40,6 +40,8 @@ class PatchMaster():
     
     def __init__(self,infile):
         self.infile = infile
+        # to ease autotesting:
+        self.ngenerated_patches = 3
 
     def generate_shadow_stack_binary(self):
         backend = DetourBackend(self.infile)
@@ -97,76 +99,52 @@ class PatchMaster():
         backend.apply_patches(patches)
         return backend.get_final_content()
 
+    def generate_final_binary(self):
+        backend = DetourBackend(self.infile)
+        cp = StackRetEncryption(self.infile,backend)
+        patches1 = cp.get_patches()
+        cp = IndirectCFI(self.infile,backend)
+        patches2 = cp.get_patches()
+        backend.apply_patches(patches1+patches2)
+        return backend.get_final_content()
+
 
     def run(self,return_dict = False):
         #TODO this should implement all the high level logic of patching
         to_be_submitted = {}
 
-        l.info("creating shadowstack binary...")
-        shadow_stack_binary = None
+        l.info("creating stackretencryption_binary...")
+        stackretencryption_binary = None
         try:
-            shadow_stack_binary = self.generate_shadow_stack_binary()
+            stackretencryption_binary = self.generate_stackretencryption_binary()
         except Exception as e:
-            print "ERROR","during generation of shadow stack binary"
+            print "ERROR","during generation of stackretencryption_binary"
             traceback.print_exc()
-        if shadow_stack_binary != None:
-            to_be_submitted["shadowstack"] = shadow_stack_binary
-        l.info("shadowstack binary created")
+        if stackretencryption_binary != None:
+            to_be_submitted["stackretencryption"] = stackretencryption_binary
+        l.info("stackretencryption_binary created")
 
-        l.info("creating simplecfi binary...")
-        simplecfi_binary = None
+        l.info("creating indirectcfi_binary...")
+        indirectcfi_binary = None
         try:
-            simplecfi_binary = self.generate_simplecfi_binary()
+            indirectcfi_binary = self.generate_indirectcfi_binary()
         except Exception as e:
-            print "ERROR","during generation of simplecfi binary"
+            print "ERROR","during generation of indirectcfi_binary"
             traceback.print_exc()
-        if simplecfi_binary != None:
-            to_be_submitted["simplecfi"] = simplecfi_binary
-        l.info("simplecfi binary created")
+        if indirectcfi_binary != None:
+            to_be_submitted["indirectcfi"] = indirectcfi_binary
+        l.info("indirectcfi_binary created")
 
-        l.info("creating packed binary...")
-        packed_binary = None
+        l.info("creating final binary...")
+        final_binary = None
         try:
-            packed_binary = self.generate_packed_binary()
+            final_binary = self.generate_final_binary()
         except Exception as e:
-            print "ERROR","during generation of packed binary"
+            print "ERROR","during generation of final_binary"
             traceback.print_exc()
-        if packed_binary != None:
-            to_be_submitted["packed"] = packed_binary
-        l.info("packed binary created")
-
-        l.info("creating qemudetection binary...")
-        qemudetection_binary = None
-        try:
-            qemudetection_binary = self.generate_qemudetection_binary()
-        except Exception as e:
-            print "ERROR","during generation of qemudetection binary"
-            traceback.print_exc()
-        if qemudetection_binary != None:
-            to_be_submitted["qemudetection"] = qemudetection_binary
-        l.info("qemudetection_binary binary created")
-
-        l.info("creating cpuid binary...")
-        cpuid_binary = None
-        try:
-            cpuid_binary = self.generate_cpuid_binary()
-        except Exception as e:
-            print "ERROR","during generation of cpuid binary"
-            traceback.print_exc()
-        if cpuid_binary != None:
-            to_be_submitted["cpuid"] = cpuid_binary
-        l.info("cpuid_binary binary created")
-
-        l.info("creating randomsyscallloop binary...")
-        randomsyscallloop_binary = None
-        try:
-            randomsyscallloop_binary = self.generate_randomsyscallloop_binary()
-        except Exception as e:
-            print "ERROR","during generation of randomsyscallloop binary"
-            traceback.print_exc()
-        if randomsyscallloop_binary != None:
-            to_be_submitted["randomsyscallloop"] = randomsyscallloop_binary
-        l.info("randomsyscallloop_binary binary created")
+        if final_binary != None:
+            to_be_submitted["final"] = final_binary
+        l.info("final_binary created")
 
         if return_dict:
             return to_be_submitted
@@ -252,9 +230,6 @@ if __name__ == "__main__":
         input_fname = sys.argv[2]
         out = os.path.join(sys.argv[3],os.path.basename(input_fname))
         pm = PatchMaster(input_fname)
-
-        import IPython; IPython.embed()
-
 
         res = pm.run(return_dict = True)
         with open(sys.argv[2]) as fp:
