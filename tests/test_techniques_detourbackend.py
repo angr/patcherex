@@ -21,12 +21,13 @@ qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), ".
 
 '''
 This "old" version of QEMU works like a "normal" QEMU, failing to transmit partially invalid memory regions.
-This is the commit I used (from cgc/tracer):
-
-commit 46df5a786f0db52f0eb8c3524dc16732e58f204a
-Merge: 9c1b3f3 d859fd7
-Author: Nick Stephens <nick.d.stephens@gmail.com>
-Date:   Fri Feb 5 14:26:30 2016 -0800
+It is generated using the branch 'detectable' in the cgc QEMU repository:
+git clone git@git.seclab.cs.ucsb.edu:cgc/qemu.git
+cd qemu
+git checkout detectable
+./cgc_configure_debug
+make -j4
+cp i386-linux-user/qemu-i386 <patcherex>/tests/old_tracer-qemu-cgc
 '''
 old_qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "old_tracer-qemu-cgc"))
 
