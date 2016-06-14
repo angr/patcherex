@@ -26,8 +26,8 @@ def test_CADET_00003():
     cfg = backend.cfg
 
     #how to get the list of functions from the IDA list:
-    #print "["+",\n".join(map(hex,[int(l.split()[2],16) for l in a.split("\n") if l.strip()]))+"]"
-    legittimate_functions = [
+    #print "["+",\n".join(map(hex,hex,[int(l.split()[2],16) for l in a.split("\n") if l.strip()]))+"]"
+    legittimate_functions = set([
         0x80480a0,
         0x8048230,
         0x8048400,
@@ -37,19 +37,39 @@ def test_CADET_00003():
         0x804861a,
         0x804863a,
         0x8048705,
-        0x8048735]
+        0x8048735,
+        0x8048680L,
+        0x80486e3L,
+        0x80486c8L,
+        0x80486aeL,
+        0x8048618L,
+        0x804865aL,
+        0x804869aL])
 
     non_syscall_functions = [v for k,v in cfg.functions.iteritems() if not v.is_syscall]
     #check startpoints, I know that sometimes they could be None, but this should not happen in CADET_00003
-    function_entrypoints = [f.startpoint.addr for f in non_syscall_functions]
+    function_entrypoints = set([f.startpoint.addr for f in non_syscall_functions])
+    print "additional:",map(hex,function_entrypoints-legittimate_functions)
+    print "skipped:",map(hex,legittimate_functions-function_entrypoints)
     nose.tools.assert_equal(function_entrypoints == legittimate_functions, True)
 
     sane_functions = [v for k,v in cfg.functions.iteritems() if is_sane_function(v)]
-    function_entrypoints = [f.startpoint.addr for f in sane_functions]
+    function_entrypoints = set([f.startpoint.addr for f in sane_functions])
+    print "additional:",map(hex,function_entrypoints-legittimate_functions)
+    print "skipped:",map(hex,legittimate_functions-function_entrypoints)
     nose.tools.assert_equal(function_entrypoints == legittimate_functions, True)
 
     #all sane functions ends with ret in CADET_00003
     for ff in sane_functions:
+        node = cfg.get_any_node(ff.addr, is_syscall=False)
+        nose.tools.assert_equal(node!=None,True)
+        nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
+        node = cfg.get_any_node(ff.addr+1, is_syscall=False,anyaddr=True)
+        nose.tools.assert_equal(node!=None,True)
+        nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
+        nose.tools.assert_equal(ff.startpoint!=None,True)
+        nose.tools.assert_equal(ff.endpoints!=None,True)
+        nose.tools.assert_equal(len(ff.endpoints)>0,True)
         for endpoint in ff.endpoints:
             bb = backend.project.factory.block(endpoint.addr)
             last_instruction = bb.capstone.insns[-1]
@@ -59,9 +79,6 @@ def test_CADET_00003():
 
     for ff in syscalls:
         bb1 = cfg.get_any_node(ff.addr)
-        # TODO remove after switching to CFGFast
-        if bb1.addr == 0x8048618:
-            continue
         nose.tools.assert_equal(len(bb1.predecessors) >= 1, True)
         bb2 = bb1.predecessors[0]
         bb = backend.project.factory.block(bb2.addr)
@@ -83,7 +100,7 @@ def test_0b32aa01_01():
     backend = DetourBackend(filepath)
     cfg = backend.cfg
 
-    legittimate_functions = [
+    legittimate_functions = set([
         0x80480a0,
         0x8048230,
         0x8048400,
@@ -91,19 +108,39 @@ def test_0b32aa01_01():
         0x80485fc,
         0x8048607,
         0x8048615,
-        0x8048635]
+        0x8048635,
+        0x80486c3,
+        0x80486a9L,
+        0x8048613L,
+        0x8048655L,
+        0x804867bL,
+        0x80486deL,
+        0x8048695L])
 
     non_syscall_functions = [v for k,v in cfg.functions.iteritems() if not v.is_syscall]
     #check startpoints, I know that sometimes they could be None, but this should not happen in CADET_00003
-    function_entrypoints = [f.startpoint.addr for f in non_syscall_functions]
+    function_entrypoints = set([f.startpoint.addr for f in non_syscall_functions])
+    print "additional:",map(hex,function_entrypoints-legittimate_functions)
+    print "skipped:",map(hex,legittimate_functions-function_entrypoints)
     nose.tools.assert_equal(function_entrypoints == legittimate_functions, True)
 
     sane_functions = [v for k,v in cfg.functions.iteritems() if is_sane_function(v)]
-    function_entrypoints = [f.startpoint.addr for f in sane_functions]
+    function_entrypoints = set([f.startpoint.addr for f in sane_functions])
+    print "additional:",map(hex,function_entrypoints-legittimate_functions)
+    print "skipped:",map(hex,legittimate_functions-function_entrypoints)
     nose.tools.assert_equal(function_entrypoints == legittimate_functions, True)
 
     #all sane functions ends with ret in CADET_00003
     for ff in sane_functions:
+        node = cfg.get_any_node(ff.addr, is_syscall=False)
+        nose.tools.assert_equal(node!=None,True)
+        nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
+        node = cfg.get_any_node(ff.addr+1, is_syscall=False,anyaddr=True)
+        nose.tools.assert_equal(node!=None,True)
+        nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
+        nose.tools.assert_equal(ff.startpoint!=None,True)
+        nose.tools.assert_equal(ff.endpoints!=None,True)
+        nose.tools.assert_equal(len(ff.endpoints)>0,True)
         for endpoint in ff.endpoints:
             bb = backend.project.factory.block(endpoint.addr)
             last_instruction = bb.capstone.insns[-1]
@@ -113,9 +150,6 @@ def test_0b32aa01_01():
 
     for ff in syscalls:
         bb1 = cfg.get_any_node(ff.addr)
-        # TODO remove after switching to CFGFast
-        if bb1.addr == 0x8048613:
-            continue
         nose.tools.assert_equal(len(bb1.predecessors) >= 1, True)
         bb2 = bb1.predecessors[0]
         bb = backend.project.factory.block(bb2.addr)
