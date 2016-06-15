@@ -53,7 +53,7 @@ class AddEntryPointPatch(Patch):
     def __init__(self, asm_code, name=None, priority=1):
         super(AddEntryPointPatch, self).__init__(name)
         self.asm_code = asm_code
-        self.pr = priority
+        self.priority = priority
 
     def __str__(self):
         return "AddEntryPointPatch [%s] (%d), pr: %d" % (self.name,len(self.asm_code),self.priority)
