@@ -1,6 +1,7 @@
 import patcherex
 
 import logging
+import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
 
 l = logging.getLogger("patcherex.techniques.ShadowStack")
@@ -162,12 +163,8 @@ class ShadowStack(object):
             return True
 
     def function_to_canary_locations(self,ff):
-        #TODO add more checks for validity
-        if not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and not ff.has_unresolved_jumps:
+        if cfg_utils.is_sane_function(ff):
             start = ff.startpoint
-            if start == None:
-                #Not sure if I can just use ff.addr in these cases... I prefer to err on the safe side
-                return None,None
             ends = set()
             for endpoint in ff.endpoints:
                 bb = self.patcher.project.factory.block(endpoint.addr)

@@ -1,6 +1,7 @@
 import patcherex
 
 import logging
+import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
 
 l = logging.getLogger("patcherex.techniques.SimpleCFI")
@@ -65,8 +66,7 @@ class SimpleCFI(object):
         return [patch]
 
     def function_to_ret_locations(self,ff):
-        #TODO add more checks for validity
-        if not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and not ff.has_unresolved_jumps:
+        if cfg_utils.is_sane_function(ff):
             start = ff.startpoint
             ends = set()
             for endpoint in ff.endpoints:

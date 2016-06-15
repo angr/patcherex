@@ -440,6 +440,7 @@ class DetourBackend(object):
                         self.touched_bytes = touched_bytes_copy
                         l.warning("One patch failed, rolling back InsertCodePatch patches. Failed patch: "+str(patch))
                         break
+                        # TODO: right now rollback goes back to 0 patches, we may want to go back less
             else:
                 break
                 # TODO symbol name

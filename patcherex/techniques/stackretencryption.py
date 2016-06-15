@@ -2,6 +2,7 @@ import patcherex
 import angr
 
 import logging
+import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
 
 l = logging.getLogger("patcherex.techniques.StackRetEncryption")
@@ -148,11 +149,8 @@ class StackRetEncryption(object):
             return [headp]+tailp
 
     def function_to_patch_locations(self,ff):
-        if not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and not ff.has_unresolved_jumps:
+        if cfg_utils.is_sane_function(ff):
             start = ff.startpoint
-            if start == None:
-                #Not sure if I can just use ff.addr in these cases... I prefer to err on the safe side
-                return None,None
             ends = set()
             for endpoint in ff.endpoints:
                 bb = self.patcher.project.factory.block(endpoint.addr)

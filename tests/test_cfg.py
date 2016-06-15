@@ -21,6 +21,7 @@ def is_sane_function(ff):
 
 
 def test_CADET_00003():
+    print "Testing test_CADET_00003..."
     filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
@@ -69,7 +70,10 @@ def test_CADET_00003():
         nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
         nose.tools.assert_equal(ff.startpoint!=None,True)
         nose.tools.assert_equal(ff.endpoints!=None,True)
-        nose.tools.assert_equal(len(ff.endpoints)>0,True)
+        if ff.addr == 0x080485FC or ff.addr==0x804860C:
+            nose.tools.assert_equal(ff.returning==False,True)
+        if ff.returning:
+            nose.tools.assert_equal(len(ff.endpoints)>0,True)
         for endpoint in ff.endpoints:
             bb = backend.project.factory.block(endpoint.addr)
             last_instruction = bb.capstone.insns[-1]
@@ -96,6 +100,7 @@ def test_CADET_00003():
 
 
 def test_0b32aa01_01():
+    print "Testing test_0b32aa01_01..."
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
@@ -140,7 +145,10 @@ def test_0b32aa01_01():
         nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
         nose.tools.assert_equal(ff.startpoint!=None,True)
         nose.tools.assert_equal(ff.endpoints!=None,True)
-        nose.tools.assert_equal(len(ff.endpoints)>0,True)
+        if ff.addr == 0x080485FC or ff.addr==0x8048607:
+            nose.tools.assert_equal(ff.returning==False,True)
+        if ff.returning:
+            nose.tools.assert_equal(len(ff.endpoints)>0,True)
         for endpoint in ff.endpoints:
             bb = backend.project.factory.block(endpoint.addr)
             last_instruction = bb.capstone.insns[-1]
