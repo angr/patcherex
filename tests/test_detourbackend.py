@@ -478,6 +478,44 @@ def test_double_patch_collision():
 
 
 @add_fallback_strategy
+def test_conflicting_symbols():
+    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+
+    patches = []
+    backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+    patches.append(AddRODataPatch("0123456789abcdef", "aaa"))
+    patches.append(AddRODataPatch("\n", "aaa"))
+    exc = False
+    try:
+        backend.apply_patches(patches)
+    except ValueError:
+        exc = True
+    nose.tools.assert_true(exc)
+
+    patches = []
+    backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+    patches.append(AddRODataPatch("0123456789abcdef", "aaa"))
+    added_code = '''
+        ; put 4 random bytes in eax
+        pusha
+        mov ebx, eax
+        mov eax,7
+        mov ecx,4
+        mov edx, {aaa}
+        int 0x80
+        popa
+        ret
+    '''
+    patches.append(AddCodePatch(added_code,"aaa"))
+    exc = False
+    try:
+        backend.apply_patches(patches)
+    except ValueError:
+        exc = True
+    nose.tools.assert_true(exc)
+
+
+@add_fallback_strategy
 def test_random_canary():
     def check_output(tstr):
         expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: canary failure: 00000000 vs "
@@ -647,3 +685,7 @@ if __name__ == "__main__":
         globals()['test_' + sys.argv[1]]()
     else:
         run_all()
+
+
+# TODO add int 80 move test
+# TODO add patch conflict over transmit

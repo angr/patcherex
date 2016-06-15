@@ -13,8 +13,17 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 """
 symbols will look like {}
-use local labels (starting with .)
 """
+
+class RejectingDict(dict):
+    def __setitem__(self, k, v):
+        if k in self:
+            raise ValueError("Key is already present: " + repr(k))
+        else:
+            return super(RejectingDict, self).__setitem__(k, v)
+
+    def force_insert(self, k, v):
+        return super(RejectingDict, self).__setitem__(k, v)
 
 
 class PatchingException(Exception):
@@ -36,14 +45,6 @@ class IncompatiblePatchesException(PatchingException):
     pass
 
 
-
-# todo check that patches do not pile up
-# todo check for symbol name collisions
-# todo allow simple pile ups, maybe we want to iterate through functions/basic_blocks not through patches
-# todo asserts maybe should be exceptions
-# todo add checks to verify that functions are called in proper order
-
-
 class DetourBackend(object):
     # how do we want to design this to track relocations in the blocks...
     def __init__(self, filename, data_fallback=None):
@@ -61,7 +62,7 @@ class DetourBackend(object):
         # tag to track if already patched
         self.patched_tag = "SHELLPHISH\x00"  # should not be longer than 0x20
 
-        self.name_map = dict()
+        self.name_map = RejectingDict()
 
         # where to put the segments
         self.added_code_segment = 0x09100000
@@ -272,7 +273,7 @@ class DetourBackend(object):
         # for now any added code will be executed by jumping out and back ie CGRex
         # apply all add code patches
         self.added_code_file_start = len(self.ncontent)
-        self.name_map["ADDED_CODE_START"] = (len(self.ncontent) % 0x1000) + self.added_code_segment
+        self.name_map.force_insert("ADDED_CODE_START",(len(self.ncontent) % 0x1000) + self.added_code_segment)
 
         # 0) RawPatch:
         for patch in patches:
@@ -308,7 +309,7 @@ class DetourBackend(object):
             self.ncontent = utils.pad_str(self.ncontent, 0x10)  # some minimal alignment may be good
 
             self.added_code_file_start = len(self.ncontent)
-            self.name_map["ADDED_CODE_START"] = (len(self.ncontent) % 0x1000) + self.added_code_segment
+            self.name_map.force_insert("ADDED_CODE_START",(len(self.ncontent) % 0x1000) + self.added_code_segment)
         else:
             # 1.1) AddRWDataPatch
             for patch in patches:
@@ -441,6 +442,8 @@ class DetourBackend(object):
                         l.warning("One patch failed, rolling back InsertCodePatch patches. Failed patch: "+str(patch))
                         break
                         # TODO: right now rollback goes back to 0 patches, we may want to go back less
+                        # the solution is to save touched_bytes and ncontent indexed by applied patfch
+                        # and go back to the biggest compatible list of patches
             else:
                 break
                 # TODO symbol name
