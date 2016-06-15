@@ -250,9 +250,6 @@ class StackRetEncryption(object):
             if start!=None and ends !=None:
                 new_patches = self.add_shadowstack_to_function(start,ends)
                 l.info("added StackRetEncryption to function %s (%s -> %s)",ff.name,hex(start),map(hex,ends))
-                for p1 in new_patches:
-                    for p2 in common_patches: 
-                        p1.dependencies.append(p2)
                 patches += new_patches
 
         if self.used_safe_patch:

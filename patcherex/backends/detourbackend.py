@@ -3,6 +3,7 @@ import os
 import struct
 import bisect
 import logging
+from collections import OrderedDict
 
 import patcherex
 from patcherex import utils
@@ -78,6 +79,7 @@ class DetourBackend(object):
         self.added_rwinitdata_len = 0
         self.to_init_data = ""
 
+        self.saved_states = OrderedDict()
         # not all the touched bytes are bad, they are only a serious problem in case of InsertCodePatch
         self.touched_bytes = set()
 
@@ -269,6 +271,29 @@ class DetourBackend(object):
     def get_current_code_position(self):
         return self.name_map["ADDED_CODE_START"] + (len(self.ncontent) - self.added_code_file_start)
 
+    def save_state(self,applied_patches):
+        #print "inserting", tuple(applied_patches)
+        self.saved_states[tuple(applied_patches)] = (self.ncontent,set(self.touched_bytes))
+
+    def restore_state(self,applied_patches,removed_patches):
+        # find longest sequence of patches for which we have a save state
+        if len(removed_patches)>0:
+            cut = min([len(applied_patches)]+[applied_patches.index(p) for p in removed_patches if p in applied_patches])
+            applied_patches = applied_patches[:cut]
+        current_longest = self.saved_states[tuple(applied_patches)]
+        self.ncontent, self.touched_bytes = current_longest
+        #print "retrieving",applied_patches
+
+        # cut dictionary to the current state
+        todict = OrderedDict()
+        for i,(k,v) in enumerate(self.saved_states.iteritems()):
+            if i > self.saved_states.keys().index(tuple(applied_patches)):
+                break
+            todict[k]=v
+        self.saved_states = todict
+
+        return applied_patches
+
     def apply_patches(self,patches):
         # for now any added code will be executed by jumping out and back ie CGRex
         # apply all add code patches
@@ -423,30 +448,33 @@ class DetourBackend(object):
         # these patches specify an address in some basic block, In general we will move the basic block
         # and fix relative offsets
         # With this backend heer we can fail applying a patch, in case, resolve dependencies
+        insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
+        insert_code_patches = sorted([p for p in insert_code_patches],key=lambda x:-1*x.priority)
+        applied_patches = []
         while True:
-            ncontent_copy = self.ncontent
-            touched_bytes_copy = set(self.touched_bytes)
-            insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
-            for patch in sorted([p for p in insert_code_patches],key=lambda x:-1*x.priority):
+            assert all([a == b for a,b in zip(applied_patches,insert_code_patches)])
+            for patch in insert_code_patches[len(applied_patches):]:
+                    self.save_state(applied_patches)
                     try:
                         new_code = self.insert_detour(patch)
                         self.added_code += new_code
                         self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+                        applied_patches.append(patch)
                         self.added_patches.append(patch)
                         l.info("Added patch: " + str(patch))
                     except (DetourException, MissingBlockException, DoubleDetourException) as e:
                         l.warning(e)
-                        patches = self.handle_remove_patch(patches,patch)
-                        self.ncontent = ncontent_copy
-                        self.touched_bytes = touched_bytes_copy
+                        insert_code_patches, removed = self.handle_remove_patch(insert_code_patches,patch)
+                        #print map(str,removed)
+                        applied_patches = self.restore_state(applied_patches, removed)
                         l.warning("One patch failed, rolling back InsertCodePatch patches. Failed patch: "+str(patch))
                         break
                         # TODO: right now rollback goes back to 0 patches, we may want to go back less
                         # the solution is to save touched_bytes and ncontent indexed by applied patfch
                         # and go back to the biggest compatible list of patches
             else:
-                break
-                # TODO symbol name
+                break #at this point we applied everything in current insert_code_patches
+                # TODO symbol name, for now no name_map for InsertCode patches
 
         header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
@@ -480,6 +508,7 @@ class DetourBackend(object):
     def handle_remove_patch(self,patches,patch):
         l.info("Handling removal of patch: "+str(patch))
         cleaned_patches = [p for p in patches if p != patch]
+        removed_patches = [patch]
         while True:
             removed = False
             for p in cleaned_patches:
@@ -487,10 +516,13 @@ class DetourBackend(object):
                     if d not in cleaned_patches:
                         l.info("Removing depending patch: "+str(p)+" depends from "+str(d))
                         removed = True
-                        cleaned_patches.remove(p)
+                        if p in cleaned_patches:
+                            cleaned_patches.remove(p)
+                        if p not in removed_patches:
+                            removed_patches.append(p)
             if removed == False:
                 break
-        return cleaned_patches
+        return cleaned_patches,removed_patches
 
     @staticmethod
     def check_if_movable(instruction):
@@ -626,6 +658,8 @@ class DetourBackend(object):
         return compiled_code
 
     def insert_detour(self, patch):
+        # TODO allow special case to patch syscall wrapper epilogue
+        # (not that important since we do not want to patch epilogue in syscall wrapper)
         block_addr = self.get_block_containing_inst(patch.addr)
         block = self.project.factory.block(block_addr)
 

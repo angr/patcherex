@@ -10,3 +10,6 @@ def is_sane_function(ff):
             if get_function_size(ff) >= 10: # this is the size of two detours
                 return True
     return False
+
+    # TODO check and exclude floating point functions in: https://github.com/CyberGrandChallenge/libcgc/blob/master/maths.s
+    # TODO remove syscall wrapper
