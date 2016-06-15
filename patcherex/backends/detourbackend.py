@@ -452,10 +452,12 @@ class DetourBackend(object):
         insert_code_patches = sorted([p for p in insert_code_patches],key=lambda x:-1*x.priority)
         applied_patches = []
         while True:
+            l.info("applied_patches is: |" + "-".join([p.name for p in applied_patches])+"|")
             assert all([a == b for a,b in zip(applied_patches,insert_code_patches)])
             for patch in insert_code_patches[len(applied_patches):]:
                     self.save_state(applied_patches)
                     try:
+                        l.info("Trying to add patch: " + str(patch))
                         new_code = self.insert_detour(patch)
                         self.added_code += new_code
                         self.ncontent = utils.str_overwrite(self.ncontent, new_code)
@@ -506,13 +508,17 @@ class DetourBackend(object):
         l.debug("final symbol table: "+ repr([(k,hex(v)) for k,v in self.name_map.iteritems()]))
 
     def handle_remove_patch(self,patches,patch):
+        # note the patches contains also "future" patches
         l.info("Handling removal of patch: "+str(patch))
         cleaned_patches = [p for p in patches if p != patch]
         removed_patches = [patch]
         while True:
             removed = False
+            #print "---"
             for p in cleaned_patches:
+                #print p.name
                 for d in p.dependencies:
+                    #print "\t",d.name, map(lambda x:x.name,cleaned_patches)
                     if d not in cleaned_patches:
                         l.info("Removing depending patch: "+str(p)+" depends from "+str(d))
                         removed = True

@@ -669,6 +669,322 @@ def test_random_canary():
         nose.tools.assert_equal(check_output(res[0]) and p.returncode == 0x44, True)
 
 
+@add_fallback_strategy
+def test_patch_conflicts():
+    def create_dpatch(tstr,addr,p):
+        code = '''
+            push ecx
+            mov ecx, {s%s}
+            call {print}
+            pop ecx
+        ''' % tstr
+        return InsertCodePatch(addr,code,tstr,priority=p)
+
+    def expected_str(plist):
+        tstr = ""
+        for p in plist:
+            tstr += p.name + "\n\x00"
+        return tstr + base_str
+
+    def create_patches():
+        p11=create_dpatch("11",0x08049920,2)
+        p12=create_dpatch("12",0x08049920+1,1)
+        p21=create_dpatch("21",0x0804992F,2)
+        p22=create_dpatch("22",0x0804992F+0,1)
+        p31=create_dpatch("31",0x08049947,2)
+        p32=create_dpatch("32",0x08049947+0,1)
+        p41=create_dpatch("41",0x08049953,2)
+        p42=create_dpatch("42",0x08049953+3,1)
+        return p11,p12,p21,p22,p31,p32,p41,p42
+
+    logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
+    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00071")
+    pipe = subprocess.PIPE
+    base_str = "Database checksum: "
+
+    cpatches = []
+    cpatches.append(AddRODataPatch("11\n\x00", "s11"))
+    cpatches.append(AddRODataPatch("12\n\x00", "s12"))
+    cpatches.append(AddRODataPatch("21\n\x00", "s21"))
+    cpatches.append(AddRODataPatch("22\n\x00", "s22"))
+    cpatches.append(AddRODataPatch("31\n\x00", "s31"))
+    cpatches.append(AddRODataPatch("32\n\x00", "s32"))
+    cpatches.append(AddRODataPatch("41\n\x00", "s41"))
+    cpatches.append(AddRODataPatch("42\n\x00", "s42"))
+    added_code = '''
+        pusha
+        mov     eax, 2
+        mov     ebx, 0
+        mov     edx, 4
+        mov     esi, 0
+        int     80h
+        popa
+        ret
+    '''
+    cpatches.append(AddCodePatch(added_code,"print"))
+
+    with patcherex.utils.tempdir() as td:
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend.apply_patches(cpatches)
+        backend.save(tmp_file)
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend.apply_patches(cpatches+[p11])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p11])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend.apply_patches(cpatches+[p11,p21,p31,p41])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p11,p21,p31,p41])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend.apply_patches(cpatches+[p12,p22,p32,p42])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p12,p22,p32,p42])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p11,p21,p31,p41])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p31.dependencies = [p12]
+        backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p11,p21,p41])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p11.dependencies = [p12]
+        p21.dependencies = [p12]
+        p31.dependencies = [p12]
+        p41.dependencies = [p12]
+        backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p31.dependencies = [p12]
+        p12.dependencies = [p22]
+        p22.dependencies = [p31]
+        backend.apply_patches(cpatches+[p31,p12,p22])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p12,p22,p31])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p31.dependencies = [p12]
+        p12.dependencies = [p22]
+        p22.dependencies = [p31]
+        backend.apply_patches(cpatches+[p31,p12,p22,p11])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p11])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p11.dependencies = [p12]
+        backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p21,p31,p41])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p21.dependencies = [p12]
+        backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p11,p31,p41])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p31.dependencies = [p12]
+        backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p11,p21,p41])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p41.dependencies = [p12]
+        backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p11,p21,p31])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p31.dependencies = [p12]
+        p21.dependencies = [p42]
+        backend.apply_patches(cpatches+[p11,p21,p31,p12,p42])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p11,p21,p42])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p31.dependencies = [p12]
+        p21.dependencies = [p42]
+        backend.apply_patches(cpatches+[p11,p21,p31,p12,p42,p41])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p11,p41])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p11.dependencies = [p42]
+        p31.dependencies = [p12]
+        p21.dependencies = [p42]
+        backend.apply_patches(cpatches+[p11,p21,p31,p12,p42,p41])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p41])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+        p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        p11.dependencies = [p21,p32]
+        backend.apply_patches(cpatches+[p11,p21,p31,p32])
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode,1)
+        estr = expected_str([p21,p31])
+        print repr(estr)
+        nose.tools.assert_true(res[0].startswith(estr))
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
