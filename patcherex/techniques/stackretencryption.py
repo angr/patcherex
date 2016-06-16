@@ -20,7 +20,7 @@ class StackRetEncryption(object):
         self.npatch = 0
         self.flag_page = 0x4347c000
         self.allow_reg_reuse = allow_reg_reuse
-        self.cfg_exploration_depth = 7
+        self.cfg_exploration_depth = 8
 
         self.relevant_registers = set(["eax","ebx","ecx","edx","esi","edi","ebp"])
         self.reg_free_map, self.reg_not_free_map = self.get_reg_free_map()
@@ -99,6 +99,7 @@ class StackRetEncryption(object):
             succ = self.get_all_succ(addr)
             if debug: print "\t"*level,map(hex,succ)
         except CfgError:
+            l.warning("CFGError detected at %#x" % addr)
             # something weird is happening in the cfg, let's assume no reg is free
             return set()
         free_regs_in_succ_list = []
@@ -113,7 +114,7 @@ class StackRetEncryption(object):
         if debug: print "\t"*level,hex(addr),free_regs
         return free_regs
 
-    #TODO recheck cfg after switch to CFGFast (no more than 1 bb at addr!)
+
     def add_patch_at_bb(self,addr,is_tail=False):
         free_regs = self.get_free_regs(addr,ignore_current_bb=is_tail)
         if "ecx" in free_regs and self.allow_reg_reuse:
@@ -134,13 +135,13 @@ class StackRetEncryption(object):
     def add_shadowstack_to_function(self,start,ends):
         # in the grand-plan these patches have higher priority than, for instance, indirect jump ones
         # this only matters in case of conflicts
-        headp = InsertCodePatch(start,self.add_patch_at_bb(start),name="stackretencryption_head_%d"%self.npatch,priority=100)
+        headp = InsertCodePatch(start,self.add_patch_at_bb(start),name="stackretencryption_head_%d_%#x"%(self.npatch,start),priority=100)
 
         tailp = []
         for i,e in enumerate(ends):
             bb_addr = self.patcher.cfg.get_any_node(e,anyaddr=True).addr
             code = self.add_patch_at_bb(bb_addr,is_tail=True)
-            tailp.append(InsertCodePatch(e,code,name="stackretencryption_tail_%d_%d"%(self.npatch,i),priority=100))
+            tailp.append(InsertCodePatch(e,code,name="stackretencryption_tail_%d_%d_%#x"%(self.npatch,i,start),priority=100))
             for p in tailp:
                 headp.dependencies.append(p)
                 p.dependencies.append(headp)
@@ -149,7 +150,8 @@ class StackRetEncryption(object):
             return [headp]+tailp
 
     def function_to_patch_locations(self,ff):
-        if cfg_utils.is_sane_function(ff):
+        if cfg_utils.is_sane_function(ff) and cfg_utils.detect_syscall_wrapper(self.patcher,ff) == None \
+                and not cfg_utils.is_floatingpoint_function(self.patcher,ff):
             start = ff.startpoint
             ends = set()
             for endpoint in ff.endpoints:
@@ -175,7 +177,6 @@ class StackRetEncryption(object):
         :param reg_offset: Tries to find the name of a register given the offset in the registers.
         :return: The register name
         """
-        # todo does this make sense
         if reg_offset is None:
             return None
 
@@ -194,12 +195,8 @@ class StackRetEncryption(object):
         reg_free_map = dict()
         reg_not_free_map = dict()
         for n in self.patcher.cfg.nodes():
-            # TODO this should not happen
-            if n.addr in reg_free_map:
-                continue
-            # TODO what is this?
-            if n.addr == 0:
-                continue
+            assert n.addr not in reg_free_map #no duplicated nodes
+            assert n.addr != 0 #no weird nodes
 
             bl = self.patcher.project.factory.block(n.addr)
             used_regs = set()
@@ -225,19 +222,12 @@ class StackRetEncryption(object):
     def get_all_succ(self,addr):
         cfg = self.patcher.cfg
         all_nodes = cfg.get_all_nodes(addr)
-        # TODO with proper CFG all_nodes will be only one, add the following check and remove the for loop
-        '''
         if len(all_nodes) != 1:
             raise CfgError()
         n = all_nodes[0]
-        '''
         all_succ = set()
-        for n in all_nodes:
-            for s, jk in cfg.get_successors_and_jumpkind(n, excluding_fakeret=False):
-                all_succ.add(s.addr)
-        # TODO why successor of CADET_0003:0x08048619 is not an empty set (but something crazy)
-        # TODO this should not happen with a sane cfg, but it happens (CADET_00003:0x08048635)
-        all_succ = all_succ - set([addr])
+        for s, jk in cfg.get_successors_and_jumpkind(n, excluding_fakeret=False):
+            all_succ.add(s.addr)
         return all_succ
 
     def get_patches(self):

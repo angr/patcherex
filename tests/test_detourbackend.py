@@ -697,7 +697,6 @@ def test_patch_conflicts():
         p42=create_dpatch("42",0x08049953+3,1)
         return p11,p12,p21,p22,p31,p32,p41,p42
 
-    logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
     filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00071")
     pipe = subprocess.PIPE
     base_str = "Database checksum: "
