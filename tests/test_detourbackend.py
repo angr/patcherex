@@ -112,6 +112,280 @@ def test_added_code_and_data():
 
 
 @add_fallback_strategy
+def test_rw_memory():
+    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
+    pipe = subprocess.PIPE
+
+    tlen=1
+    lenlist = []
+    while(tlen<1000000):
+        lenlist.append(tlen)
+        tlen = int(round(tlen*2.5))
+    lenlist.append(0)
+    lenlist.append(0x1000)
+    lenlist.append(0x1000-1)
+    lenlist.append(0x1000+1)
+    lenlist.append(0x2000)
+    lenlist.append(0x2000-1)
+    lenlist.append(0x2000+1)
+
+    for tlen in lenlist:
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        patches = []
+        patches.append(AddRWDataPatch(tlen, "added_data_rw"))
+
+        patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
+        added_code = '''
+            ; eax=buf,ebx=len
+            pusha
+            mov ecx,eax
+            mov edx,ebx
+            mov eax,0x2
+            mov ebx,0x1
+            mov esi,0x0
+            int 0x80
+            popa
+            ret
+        '''
+        patches.append(AddCodePatch(added_code,"print"))
+        added_code = '''
+            ; print eax as hex
+            pusha
+            mov ecx,32
+            mov ebx,eax
+            _print_reg_loop:
+                rol ebx,4
+                mov edi,ebx
+                and edi,0x0000000f
+                lea eax,[{hex_array}+edi]
+                mov ebp,ebx
+                mov ebx,0x1
+                call {print}
+                mov ebx,ebp
+                sub ecx,4
+                jnz _print_reg_loop
+            popa
+            ret
+        '''
+        patches.append(AddCodePatch(added_code,"print_hex_eax"))
+        added_code = '''
+            xor eax, eax
+            mov edx, {added_data_rw}
+            mov ecx, edx
+            add ecx, %d
+            _loop:
+                cmp edx,ecx
+                je _exit
+                xor ebx, ebx
+                mov bl, BYTE [edx]
+                add eax, ebx
+                mov BYTE [edx], 0x3
+                add edx, 1
+                jmp _loop
+            _exit
+            call {print_hex_eax}
+        ''' % tlen
+        patches.append(AddEntryPointPatch(added_code,"sum"))
+
+        with patcherex.utils.tempdir() as td:
+            tmp_file = os.path.join(td, "patched")
+            backend.apply_patches(patches)
+            backend.save(tmp_file)
+            backend.save("../../vm/shared/patched")
+            p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+            res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+            print str(tlen)+":"
+            print res, p.returncode
+
+        nose.tools.assert_true(p.returncode==255)
+        nose.tools.assert_true(res[0].startswith("00000000"))
+
+
+@add_fallback_strategy
+def test_ro_memory():
+    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
+    pipe = subprocess.PIPE
+
+    tlen=1
+    lenlist = []
+    while(tlen<1000000):
+        lenlist.append(tlen)
+        tlen = int(round(tlen*2.5))
+    lenlist.append(0)
+    lenlist.append(0x1000)
+    lenlist.append(0x1000-1)
+    lenlist.append(0x1000+1)
+    lenlist.append(0x2000)
+    lenlist.append(0x2000-1)
+    lenlist.append(0x2000+1)
+
+    for tlen in lenlist:
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        patches = []
+        patches.append(AddRODataPatch("\x01"*tlen, "added_data_rw"))
+
+        patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
+        added_code = '''
+            ; eax=buf,ebx=len
+            pusha
+            mov ecx,eax
+            mov edx,ebx
+            mov eax,0x2
+            mov ebx,0x1
+            mov esi,0x0
+            int 0x80
+            popa
+            ret
+        '''
+        patches.append(AddCodePatch(added_code,"print"))
+        added_code = '''
+            ; print eax as hex
+            pusha
+            mov ecx,32
+            mov ebx,eax
+            _print_reg_loop:
+                rol ebx,4
+                mov edi,ebx
+                and edi,0x0000000f
+                lea eax,[{hex_array}+edi]
+                mov ebp,ebx
+                mov ebx,0x1
+                call {print}
+                mov ebx,ebp
+                sub ecx,4
+                jnz _print_reg_loop
+            popa
+            ret
+        '''
+        patches.append(AddCodePatch(added_code,"print_hex_eax"))
+        added_code = '''
+            xor eax, eax
+            mov edx, {added_data_rw}
+            mov ecx, edx
+            add ecx, %d
+            _loop:
+                cmp edx,ecx
+                je _exit
+                xor ebx, ebx
+                mov bl, BYTE [edx]
+                add eax, ebx
+                ; mov BYTE [edx], 0x3
+                add edx, 1
+                jmp _loop
+            _exit
+            call {print_hex_eax}
+        ''' % tlen
+        patches.append(AddEntryPointPatch(added_code,"sum"))
+
+        with patcherex.utils.tempdir() as td:
+            tmp_file = os.path.join(td, "patched")
+            backend.apply_patches(patches)
+            backend.save(tmp_file)
+            backend.save("../../vm/shared/patched")
+            p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+            res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+            print str(tlen)+":"
+            print res, p.returncode
+
+        nose.tools.assert_true(p.returncode==255)
+        expected = struct.pack(">I",tlen).encode('hex')
+        print expected
+        nose.tools.assert_true(res[0].startswith(expected))
+
+
+@add_fallback_strategy
+def test_rwinit_memory():
+    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
+    pipe = subprocess.PIPE
+
+    tlen=1
+    lenlist = []
+    while(tlen<50000): # I add to lower this because of NASM problems with too large .db
+        lenlist.append(tlen)
+        tlen = int(round(tlen*2.5))
+    lenlist.append(0)
+    lenlist.append(0x1000)
+    lenlist.append(0x1000-1)
+    lenlist.append(0x1000+1)
+    lenlist.append(0x2000)
+    lenlist.append(0x2000-1)
+    lenlist.append(0x2000+1)
+
+    for tlen in lenlist:
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        patches = []
+        patches.append(AddRWInitDataPatch("\x02"*tlen, "added_data_rwinit"))
+
+        patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
+        added_code = '''
+            ; eax=buf,ebx=len
+            pusha
+            mov ecx,eax
+            mov edx,ebx
+            mov eax,0x2
+            mov ebx,0x1
+            mov esi,0x0
+            int 0x80
+            popa
+            ret
+        '''
+        patches.append(AddCodePatch(added_code,"print"))
+        added_code = '''
+            ; print eax as hex
+            pusha
+            mov ecx,32
+            mov ebx,eax
+            _print_reg_loop:
+                rol ebx,4
+                mov edi,ebx
+                and edi,0x0000000f
+                lea eax,[{hex_array}+edi]
+                mov ebp,ebx
+                mov ebx,0x1
+                call {print}
+                mov ebx,ebp
+                sub ecx,4
+                jnz _print_reg_loop
+            popa
+            ret
+        '''
+        patches.append(AddCodePatch(added_code,"print_hex_eax"))
+        added_code = '''
+            xor eax, eax
+            mov edx, {added_data_rwinit}
+            mov ecx, edx
+            add ecx, %d
+            _loop:
+                cmp edx,ecx
+                je _exit
+                xor ebx, ebx
+                mov bl, BYTE [edx]
+                add eax, ebx
+                mov BYTE [edx], 0x3
+                add edx, 1
+                jmp _loop
+            _exit
+            call {print_hex_eax}
+        ''' % tlen
+        patches.append(AddEntryPointPatch(added_code,"sum"))
+
+        with patcherex.utils.tempdir() as td:
+            tmp_file = os.path.join(td, "patched")
+            backend.apply_patches(patches)
+            backend.save(tmp_file)
+            backend.save("../../vm/shared/patched")
+            p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+            res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+            print str(tlen)+":"
+            print res, p.returncode
+
+        nose.tools.assert_true(p.returncode==255)
+        expected = struct.pack(">I",tlen*2).encode('hex')
+        print expected
+        nose.tools.assert_true(res[0].startswith(expected))
+
+
+@add_fallback_strategy
 def test_added_code_and_data_complex():
     filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
     pipe = subprocess.PIPE

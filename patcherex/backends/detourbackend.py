@@ -66,7 +66,7 @@ class DetourBackend(object):
         self.name_map = RejectingDict()
 
         # where to put the segments
-        self.added_code_segment = 0x09100000
+        self.added_code_segment = 0x0a000000
         self.single_segment_header_size = 32
         self.additional_headers_size = 2*self.single_segment_header_size
 
