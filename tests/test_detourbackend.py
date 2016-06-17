@@ -191,7 +191,7 @@ def test_rw_memory():
             tmp_file = os.path.join(td, "patched")
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            backend.save("../../vm/shared/patched")
+            #backend.save("../../vm/shared/patched")
             p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
             res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
             print str(tlen)+":"
@@ -281,7 +281,7 @@ def test_ro_memory():
             tmp_file = os.path.join(td, "patched")
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            backend.save("../../vm/shared/patched")
+            #backend.save("../../vm/shared/patched")
             p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
             res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
             print str(tlen)+":"
@@ -373,7 +373,7 @@ def test_rwinit_memory():
             tmp_file = os.path.join(td, "patched")
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            backend.save("../../vm/shared/patched")
+            #backend.save("../../vm/shared/patched")
             p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
             res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
             print str(tlen)+":"

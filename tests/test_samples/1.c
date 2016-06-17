@@ -11,6 +11,11 @@ typedef long long int64_t;
 typedef unsigned long long uint64_t;
 
 
+uint8_t* working_code_on_stack;
+uint8_t* working_code_on_heap;
+
+char* cstr = (char*)"cccccccc\n";
+
 void *memcpy(void *dst, const void *src, size_t n) {
    char *d = (char*)dst;
    const char *s = (const char *)src;
@@ -128,7 +133,9 @@ void int_to_str(int i,unsigned char* tmp){
 }
 
 void sprint(){
-  send_str((unsigned char*)"cccccccc\n");
+  void (*fpointer)(unsigned char*);
+  fpointer = send_str;
+  fpointer((unsigned char*)cstr);
 }
 
 void vul_fpointer_main(){
@@ -141,24 +148,27 @@ void vul_fpointer_main(){
 void vul_fpointer_stack(){
   void (*fpointer)();
   fpointer = sprint;
+  fpointer = (void (*)()) working_code_on_stack;
   fpointer();
+
   fpointer = (void (*)()) receive_int_nl();
   fpointer();
 }
 void vul_fpointer_heap(){
   void (*fpointer)();
   fpointer = sprint;
+  fpointer = (void (*)()) working_code_on_heap;
   fpointer();
+
   fpointer = (void (*)()) receive_int_nl();
   fpointer();
 }
 void vul_fpointer_unknown(){
   void (*fpointer)();
-  fpointer = sprint;
-  fpointer();
   fpointer = (void (*)()) receive_int_nl();
   fpointer();
 }
+
 void sane_fpointer(){
   ;
 }
@@ -166,11 +176,28 @@ void stable(){
   ;
 }
 
+void setup(){
+  void (*fpointer)();
+  fpointer = sprint;
+  int i;
+  allocate(0x1000, 1,(void**) &working_code_on_heap);
+  working_code_on_stack = (uint8_t*) 0xbaaaa000;
+
+  for(i=0;i<100;i++){
+    uint8_t b = *(((uint8_t*) fpointer)+i);
+    working_code_on_heap[i] = b;
+    working_code_on_stack[i] = b;
+  }
+
+}
+
 
 int main() {
   send_str((unsigned char*)"hello\n");
   uint32_t option;
   unsigned char tmp[9];
+
+  setup();
 
   option = receive_int_nl();
   switch(option){
@@ -191,4 +218,6 @@ int main() {
   return 0;
 }
 
-
+/*
+~/git/cgc/compilerex $ PP=../vm/shared/; rm $PP/1; ./compile.sh ../patcherex/tests/test_samples/1.c -o $PP/1
+*/
