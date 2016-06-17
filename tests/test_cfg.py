@@ -39,11 +39,10 @@ def test_CADET_00003():
     filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
-    import IPython; IPython.embed()
 
     #how to get the list of functions from the IDA list:
     #print "["+",\n".join(map(hex,hex,[int(l.split()[2],16) for l in a.split("\n") if l.strip()]))+"]"
-    legittimate_functions = set([
+    legitimate_functions = set([
         0x80480a0,
         0x8048230,
         0x8048400,
@@ -65,15 +64,15 @@ def test_CADET_00003():
     non_syscall_functions = [v for k,v in cfg.functions.iteritems() if not v.is_syscall]
     #check startpoints, I know that sometimes they could be None, but this should not happen in CADET_00003
     function_entrypoints = set([f.startpoint.addr for f in non_syscall_functions])
-    print "additional:",map(hex,function_entrypoints-legittimate_functions)
-    print "skipped:",map(hex,legittimate_functions-function_entrypoints)
-    nose.tools.assert_equal(function_entrypoints == legittimate_functions, True)
+    print "additional:",map(hex,function_entrypoints-legitimate_functions)
+    print "skipped:",map(hex,legitimate_functions-function_entrypoints)
+    nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
 
     sane_functions = [v for k,v in cfg.functions.iteritems() if is_sane_function(v)]
     function_entrypoints = set([f.startpoint.addr for f in sane_functions])
-    print "additional:",map(hex,function_entrypoints-legittimate_functions)
-    print "skipped:",map(hex,legittimate_functions-function_entrypoints)
-    nose.tools.assert_equal(function_entrypoints == legittimate_functions, True)
+    print "additional:",map(hex,function_entrypoints-legitimate_functions)
+    print "skipped:",map(hex,legitimate_functions-function_entrypoints)
+    nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
 
     #something which was wrong in the past
     n = cfg.get_any_node(0x80485EC)
@@ -125,7 +124,7 @@ def test_0b32aa01_01():
     backend = DetourBackend(filepath)
     cfg = backend.cfg
 
-    legittimate_functions = set([
+    legitimate_functions = set([
         0x80480a0,
         0x8048230,
         0x8048400,
@@ -145,15 +144,15 @@ def test_0b32aa01_01():
     non_syscall_functions = [v for k,v in cfg.functions.iteritems() if not v.is_syscall]
     #check startpoints, I know that sometimes they could be None, but this should not happen in CADET_00003
     function_entrypoints = set([f.startpoint.addr for f in non_syscall_functions])
-    print "additional:",map(hex,function_entrypoints-legittimate_functions)
-    print "skipped:",map(hex,legittimate_functions-function_entrypoints)
-    nose.tools.assert_equal(function_entrypoints == legittimate_functions, True)
+    print "additional:",map(hex,function_entrypoints-legitimate_functions)
+    print "skipped:",map(hex,legitimate_functions-function_entrypoints)
+    nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
 
     sane_functions = [v for k,v in cfg.functions.iteritems() if is_sane_function(v)]
     function_entrypoints = set([f.startpoint.addr for f in sane_functions])
-    print "additional:",map(hex,function_entrypoints-legittimate_functions)
-    print "skipped:",map(hex,legittimate_functions-function_entrypoints)
-    nose.tools.assert_equal(function_entrypoints == legittimate_functions, True)
+    print "additional:",map(hex,function_entrypoints-legitimate_functions)
+    print "skipped:",map(hex,legitimate_functions-function_entrypoints)
+    nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
 
     #all sane functions ends with ret in CADET_00003
     for ff in sane_functions:
@@ -189,7 +188,7 @@ def test_detect_syscall_wrapper():
     filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00071")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
-    legittimate_syscall_wrappers = set([
+    legitimate_syscall_wrappers = set([
         (0x804d483,1),
         (0x804d491,2),
         (0x804d4b1,3),
@@ -203,12 +202,12 @@ def test_detect_syscall_wrapper():
             for ff in cfg.functions.values() if cfg_utils.detect_syscall_wrapper(backend,ff)!=None])
     print "syscall wrappers in CROMU_00071:"
     print map(lambda x:(hex(x[0]),x[1]),syscall_wrappers)
-    nose.tools.assert_equal(syscall_wrappers,legittimate_syscall_wrappers)
+    nose.tools.assert_equal(syscall_wrappers,legitimate_syscall_wrappers)
 
     filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
-    legittimate_syscall_wrappers = set([
+    legitimate_syscall_wrappers = set([
         (0x804d690, 5),
         (0x804d66a, 4),
         (0x804d6be, 7),
@@ -222,7 +221,7 @@ def test_detect_syscall_wrapper():
             for ff in cfg.functions.values() if cfg_utils.detect_syscall_wrapper(backend,ff)!=None])
     print "syscall wrappers in CROMU_00070:"
     print map(lambda x:(hex(x[0]),x[1]),syscall_wrappers)
-    nose.tools.assert_equal(syscall_wrappers,legittimate_syscall_wrappers)
+    nose.tools.assert_equal(syscall_wrappers,legitimate_syscall_wrappers)
 
 
 def test_is_floatingpoint_function():
