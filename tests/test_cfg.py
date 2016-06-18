@@ -4,6 +4,7 @@ import os
 import nose
 import struct
 import subprocess
+from collections import defaultdict
 
 import patcherex
 import patcherex.cfg_utils as cfg_utils
@@ -21,17 +22,57 @@ def is_sane_function(ff):
     return not ff.is_syscall and not ff.has_unresolved_calls and not ff.has_unresolved_jumps
 
 
+def map_callsites(cfg):
+    callsites = dict()
+    for f in cfg.functions.values():
+        for callsite in f.get_call_sites():
+            if f.get_call_target(callsite) is None:
+                continue
+            callsites[callsite] = f.get_call_target(callsite)
+
+    # create inverse callsite map
+    inv_callsites = defaultdict(set)
+    for c, f in callsites.iteritems():
+        inv_callsites[f].add(c)
+    return inv_callsites
+
+
+def last_block_to_callers(addr,cfg,inv_callsites):
+    node = cfg.get_any_node(addr)
+    if node == None:
+        return []
+    function = cfg.functions[node.function_address]
+    if node.addr not in [n.addr for n in function.endpoints]:
+        return []
+
+    return_locations = []
+    for site in inv_callsites[function.addr]:
+        node = cfg.get_any_node(site)
+        nlist = cfg.get_successors_and_jumpkind(node, excluding_fakeret=False)
+        return_locations.extend([n[0] for n in nlist if n[1]=='Ijk_FakeRet'])
+    return return_locations
+
+
 def test_EAGLE_00005_bb():
     filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/EAGLE_00005")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
 
     bbs = [(0x0804A73C,3),(0x0804BB3D,1),(0x0804A0E5,6),(0x0804A101,3),(0x0804B145,1),(0x0804BB42,2)]
-
     for addr,ni in bbs:
         n = cfg.get_any_node(addr)
         nose.tools.assert_true(n != None)
         nose.tools.assert_true(len(n.instruction_addrs) == ni)
+
+    caller_map = [
+        (0x8048D28,set([0x8048685,0x804877b])),
+        (0x8048FEA,set([0x80483d2])),
+    ]
+    inv_callsites = map_callsites(cfg)
+    for b,clist in caller_map:
+        node_addresses = set([n.addr for n in last_block_to_callers(b,cfg,inv_callsites)])
+        print hex(b),"<--",map(hex,node_addresses)
+        nose.tools.assert_equal(clist,node_addresses)
 
 
 def test_CADET_00003():
