@@ -37,6 +37,18 @@ def map_callsites(cfg):
     return inv_callsites
 
 
+def is_last_returning_block(addr,cfg,project):
+    node = cfg.get_any_node(addr)
+    function = cfg.functions[node.function_address]
+    if not function.returning:
+        return False
+    bb = project.factory.block(addr)
+    last_instruction = bb.capstone.insns[-1]
+    if last_instruction.mnemonic != u"ret":
+        return False
+    return True
+
+
 def last_block_to_callers(addr,cfg,inv_callsites):
     node = cfg.get_any_node(addr)
     if node == None:
@@ -70,6 +82,7 @@ def test_EAGLE_00005_bb():
     ]
     inv_callsites = map_callsites(cfg)
     for b,clist in caller_map:
+        nose.tools.assert_true(is_last_returning_block(b,cfg,backend.project))
         node_addresses = set([n.addr for n in last_block_to_callers(b,cfg,inv_callsites)])
         print hex(b),"<--",map(hex,node_addresses)
         nose.tools.assert_equal(clist,node_addresses)

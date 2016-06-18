@@ -1,7 +1,8 @@
 import patcherex
 import angr
-
 import logging
+from collections import defaultdict
+
 import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
 
@@ -56,6 +57,21 @@ class StackRetEncryption(object):
         self.used_ecx_patch = False
         self.used_edx_patch = False
         self.used_safe_patch = False
+        self.inv_callsites = self.map_callsites()
+
+    def map_callsites(self):
+        callsites = dict()
+        for f in self.patcher.cfg.functions.values():
+            for callsite in f.get_call_sites():
+                if f.get_call_target(callsite) is None:
+                    continue
+                callsites[callsite] = f.get_call_target(callsite)
+
+        # create inverse callsite map
+        inv_callsites = defaultdict(set)
+        for c, f in callsites.iteritems():
+            inv_callsites[f].add(c)
+        return inv_callsites
 
     def get_common_patches(self):
         common_patches = []
@@ -171,6 +187,32 @@ class StackRetEncryption(object):
         l.debug("function %s has problems and cannot be patched" % ff.name)
         return None, None
 
+    def is_last_returning_block(self,addr):
+        node = self.patcher.cfg.get_any_node(addr)
+        function = self.patcher.cfg.functions[node.function_address]
+        if not function.returning:
+            return False
+        bb = self.patcher.project.factory.block(addr)
+        last_instruction = bb.capstone.insns[-1]
+        if last_instruction.mnemonic != u"ret":
+            return False
+        return True
+
+    def last_block_to_callers(self,addr):
+        node = self.patcher.cfg.get_any_node(addr)
+        if node == None:
+            return []
+        function = self.patcher.cfg.functions[node.function_address]
+        if node.addr not in [n.addr for n in function.endpoints]:
+            return []
+
+        return_locations = []
+        for site in self.inv_callsites[function.addr]:
+            node = self.patcher.cfg.get_any_node(site)
+            nlist = self.patcher.cfg.get_successors_and_jumpkind(node, excluding_fakeret=False)
+            return_locations.extend([n[0] for n in nlist if n[1]=='Ijk_FakeRet'])
+        return return_locations
+
     @staticmethod
     def get_reg_name(arch, reg_offset):
         """
@@ -225,8 +267,12 @@ class StackRetEncryption(object):
         if len(all_nodes) != 1:
             raise CfgError()
         n = all_nodes[0]
+
+        if self.is_last_returning_block(addr):
+            return [n.addr for n in self.last_block_to_callers(addr)]
+
         all_succ = set()
-        for s, jk in cfg.get_successors_and_jumpkind(n, excluding_fakeret=False):
+        for s, jk in cfg.get_successors_and_jumpkind(n):
             all_succ.add(s.addr)
         return all_succ
 
