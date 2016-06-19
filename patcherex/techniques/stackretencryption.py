@@ -43,15 +43,14 @@ class StackRetEncryption(object):
         ''' % hex(self.flag_page + 0x123)
         self.encrypt_using_edx_patch = AddCodePatch(added_code,name="encrypt_using_edx")
         added_code = '''
-            mov DWORD [{saved_reg_for_stackretencryption}], ecx
-            mov ecx, DWORD [esp+4]
+            push ecx
+            mov ecx, DWORD [esp+8]
             xor cx, WORD [%s]
             xor ecx, DWORD [{rnd_xor_key}]
-            mov DWORD [esp+4], ecx
-            mov ecx, [{saved_reg_for_stackretencryption}]
+            mov DWORD [esp+8], ecx
+            pop ecx
             ret
         ''' % hex(self.flag_page + 0x123)
-        # TODO check if push/pop is faster
         self.safe_encrypt_patch = AddCodePatch(added_code,name="safe_encrypt")
 
         self.used_ecx_patch = False
@@ -198,7 +197,7 @@ class StackRetEncryption(object):
             return False
         return True
 
-    def last_block_to_callers(self,addr):
+    def last_block_to_return_locations(self,addr):
         node = self.patcher.cfg.get_any_node(addr)
         if node == None:
             return []
@@ -269,7 +268,7 @@ class StackRetEncryption(object):
         n = all_nodes[0]
 
         if self.is_last_returning_block(addr):
-            return [n.addr for n in self.last_block_to_callers(addr)]
+            return [n.addr for n in self.last_block_to_return_locations(addr)]
 
         all_succ = set()
         for s, jk in cfg.get_successors_and_jumpkind(n):
@@ -290,7 +289,6 @@ class StackRetEncryption(object):
 
         if self.used_safe_patch:
             patches.append(self.safe_encrypt_patch)
-            patches.append(AddRWDataPatch(4,"saved_reg_for_stackretencryption"))
         if self.used_ecx_patch:
             patches.append(self.encrypt_using_ecx_patch)
         if self.used_edx_patch:
