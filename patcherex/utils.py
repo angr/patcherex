@@ -7,6 +7,8 @@ import capstone
 import tempfile
 import contextlib
 import subprocess
+import fnmatch
+import os
 
 
 class NasmException(Exception):
@@ -221,5 +223,16 @@ def redirect_stdout(new_target1, new_target2):
         sys.stderr = old_target2
 
 
+def find_files(folder,extension,only_exec=False):
+    matches = []
+    for root, dirnames, filenames in os.walk(folder):
+        for filename in fnmatch.filter(filenames, extension):
+            full_name = os.path.join(root, filename)
+            if not only_exec or os.access(full_name, os.X_OK):
+                matches.append(full_name)
+    return matches
+
+
 def round_up_to_page(addr):
     return (addr + 0x1000 - 1) / 0x1000 * 0x1000
+
