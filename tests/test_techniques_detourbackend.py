@@ -357,7 +357,6 @@ def test_indirectcfi():
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(patched_fname1)
-        backend.save("../../vm/shared/patched")
         res = Runner(patched_fname1,"00000001\n",record_stdout=True)
         nose.tools.assert_equal(res.stdout,"hello\nCGC")
 

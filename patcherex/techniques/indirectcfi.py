@@ -110,7 +110,9 @@ class IndirectCFI(object):
         patches.extend(self.get_common_patches())
         cfg = self.patcher.cfg
 
-        sci = []
+        # TODO this could be a list, but some basic blocks are overlapping because of cfg problems
+        # using a set "masks" the problem
+        sci = set()
         for function in cfg.functions.values():
             for bb in function.blocks:
                 for ci in bb.capstone.insns:
@@ -120,7 +122,7 @@ class IndirectCFI(object):
                         else:
                             op = ci.operands[0]
                             if op.type != capstone.x86_const.X86_OP_IMM:
-                                sci.append(ci)
+                                sci.add(ci)
 
         for instruction in sci:
             l.info("Found indirect CALL/JUMP: %s" % str(instruction))
