@@ -294,7 +294,7 @@ def test_is_floatingpoint_function():
         if len(ff.endpoints) == 0:
             last = ff.addr
         else:
-            last = max([e.addr for e in ff.endpoints])
+            last = max([e.addr for e in ff.blocks])
     print hex(first),hex(last)
     real_start = 0x804d5c6
     real_end = 0x0804D78b
@@ -317,7 +317,7 @@ def test_is_floatingpoint_function():
         if len(ff.endpoints) == 0:
             last = ff.addr
         else:
-            last = max([e.addr for e in ff.endpoints])
+            last = max([e.addr for e in ff.blocks])
     print hex(first),hex(last)
     real_start = 0x0804D75f
     real_end = 0x0804D924
