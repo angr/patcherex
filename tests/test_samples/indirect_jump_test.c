@@ -132,63 +132,65 @@ void int_to_str(int i,unsigned char* tmp){
   tmp[8]='\x00';
 }
 
-void sprint(){
-  void (*fpointer)(unsigned char*);
-  fpointer = send_str;
-  fpointer((unsigned char*)cstr);
-}
 
-void vul_fpointer_main(){
-  void (*fpointer)();
-  fpointer = sprint;
-  fpointer();
-  fpointer = (void (*)()) receive_int_nl();
-  fpointer();
-}
-void vul_fpointer_stack(){
-  void (*fpointer)();
-  fpointer = sprint;
-  fpointer = (void (*)()) working_code_on_stack;
-  fpointer();
+void jump_table1(){
+  uint32_t option;
+  int32_t offset;
+  uint32_t new_value;
+  unsigned char pivot[9] = "jmptabl1\x00";
+  send_str_nl(pivot);
 
-  fpointer = (void (*)()) receive_int_nl();
-  fpointer();
-}
-void vul_fpointer_heap(){
-  void (*fpointer)();
-  fpointer = sprint;
-  fpointer = (void (*)()) working_code_on_heap;
-  fpointer();
+  offset = receive_int_nl();
+  new_value = receive_int_nl();
+  pivot[offset] = new_value;
+  option = receive_int_nl();
+  send_str_nl(pivot);
 
-  fpointer = (void (*)()) receive_int_nl();
-  fpointer();
-}
-void vul_fpointer_unknown(){
-  void (*fpointer)();
-  fpointer = (void (*)()) receive_int_nl();
-  fpointer();
-}
-
-void sane_fpointer(){
-  ;
-}
-void stable(){
-  ;
-}
-
-void setup(){
-  void (*fpointer)();
-  fpointer = sprint;
-  int i;
-  allocate(0x1000, 1,(void**) &working_code_on_heap);
-  working_code_on_stack = (uint8_t*) 0xbaaaa000;
-
-  for(i=0;i<100;i++){
-    uint8_t b = *(((uint8_t*) fpointer)+i);
-    working_code_on_heap[i] = b;
-    working_code_on_stack[i] = b;
+  switch(option){
+    case 1:
+      send_str((unsigned char*)"11\n");
+    break;
+    case 2:
+      send_str((unsigned char*)"12\n");
+    break;
+    case 3:
+      send_str((unsigned char*)"13\n");
+    break;
+    case 4:
+      send_str((unsigned char*)"14\n");
+    break;
   }
+}
 
+
+void jump_table2(){
+  uint32_t option;
+  int32_t offset;
+  uint32_t new_value;
+  unsigned char pivot[9] = "jmptabl2\x00";
+  option = receive_int_nl();
+  send_str_nl(pivot);
+
+  offset = receive_int_nl();
+  new_value = receive_int_nl();
+  pivot[offset] = new_value;
+  option = receive_int_nl();
+  send_str_nl(pivot);
+
+  switch(option){
+    case 1:
+      send_str((unsigned char*)"21\n");
+    break;
+    case 2:
+      send_str((unsigned char*)"22\n");
+    break;
+    case 3:
+      send_str((unsigned char*)"23\n");
+    break;
+    case 4:
+      send_str((unsigned char*)"24\n");
+    break;
+  }
 }
 
 
@@ -197,27 +199,10 @@ int main() {
   uint32_t option;
   unsigned char tmp[9];
 
-  setup();
-
-  option = receive_int_nl();
-  switch(option){
-    case 1:
-      vul_fpointer_main();
-    break;
-    case 2:
-      vul_fpointer_stack();
-    break;
-    case 3:
-      vul_fpointer_heap();
-    break;
-    case 4:
-      vul_fpointer_unknown();
-    break;
-  }
-
-  return 0;
+  jump_table1();
+  jump_table2();
 }
 
 /*
-~/git/cgc/compilerex $ PP=../vm/shared/; rm $PP/1; ./compile.sh ../patcherex/tests/test_samples/1.c -o $PP/1
+~/git/cgc/compilerex $ PP=../vm/shared/; rm $PP/1; ./compile.sh ../patcherex/tests/test_samples/indirect_call_test.c -o $PP/1
 */

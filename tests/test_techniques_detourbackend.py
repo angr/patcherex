@@ -7,10 +7,12 @@ import subprocess
 import logging
 import shutil
 from functools import wraps
+import tempfile
 
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import *
+from tracer import Runner
 
 l = logging.getLogger("patcherex.test.test_techniques_detourbackend")
 
@@ -219,7 +221,7 @@ def test_cpuid():
         nose.tools.assert_equal(len(res[0]) > 500, True)
         nose.tools.assert_equal(p.returncode == -11, True)
 
-# TODO add stackretencryption test on CROMU_00070
+
 @add_fallback_strategy
 def test_stackretencryption():
     logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
@@ -282,7 +284,54 @@ def test_stackretencryption():
             nose.tools.assert_equal(res[0] == sane_stdout, True)
             nose.tools.assert_equal(p.returncode == sane_retcode, True)
 
-# TODO add test for indirectcfi
+
+#@add_fallback_strategy
+def test_indirectcfi():
+    logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
+    from patcherex.techniques.indirectcfi import IndirectCFI
+
+    vulnerable_fname1 = os.path.join(bin_location, "tests/i386/patchrex/indirect_call_test")
+    res = Runner(vulnerable_fname1,"00000001\n",record_stdout=True)
+    nose.tools.assert_equal(res.stdout,"hello\ncccccccc\n")
+    res = Runner(vulnerable_fname1,"00000002\n",record_stdout=True)
+    nose.tools.assert_equal(res.stdout,"hello\ncccccccc\n")
+    res = Runner(vulnerable_fname1,"00000003\n",record_stdout=True)
+    nose.tools.assert_equal(res.stdout,"hello\ncccccccc\n")
+
+
+    res = Runner(vulnerable_fname1,"00000001\n23456789\n")
+    nose.tools.assert_equal(res.reg_vals['eip'],0x23456789)
+    res = Runner(vulnerable_fname1,"00000002\n43456789\n")
+    nose.tools.assert_equal(res.reg_vals['eip'],0x43456789)
+    res = Runner(vulnerable_fname1,"00000003\n53456789\n")
+    nose.tools.assert_equal(res.reg_vals['eip'],0x53456789)
+    res = Runner(vulnerable_fname1,"00000004\n63456789\n")
+    nose.tools.assert_equal(res.reg_vals['eip'],0x63456789)
+
+
+    with patcherex.utils.tempdir() as td:
+        patched_fname1 = os.path.join(td, "patched")
+        backend = DetourBackend(vulnerable_fname1,global_data_fallback)
+        cp = IndirectCFI(vulnerable_fname1, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(patched_fname1)
+
+        res = Runner(patched_fname1,"00000001\n",record_stdout=True)
+        nose.tools.assert_equal(res.stdout,"hello\ncccccccc\n")
+        res = Runner(patched_fname1,"00000001\n23456789\n",record_stdout=True)
+        print hex(res.reg_vals['eip'])
+        nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
+        res = Runner(patched_fname1,"00000002\n23456789\n",record_stdout=True)
+        print hex(res.reg_vals['eip'])
+        nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
+        res = Runner(patched_fname1,"00000003\n23456789\n",record_stdout=True)
+        print hex(res.reg_vals['eip'])
+        nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
+        res = Runner(patched_fname1,"00000004\n23456789\n",record_stdout=True)
+        print hex(res.reg_vals['eip'])
+        nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
+
 
 def run_all():
     functions = globals()

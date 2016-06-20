@@ -57,8 +57,6 @@ class IndirectCFI(object):
         mov dl, BYTE [edx]
         pop edx
         ''' % utils.bytes_to_asm(mem_access_code, comment=mem_access_str)
-        # possible tester:
-        # nc = utils.decompile(compile_mem_access(utils.decompile(utils.compile_asm("call DWORD [edx+0x11332244+ecx*4]"))[0])[0])[0]; nc.mnemonic+" "+nc.op_str
 
         # TODO should we forbids other stuff?
         # e.g., jumps to stack, jump to ret, jump to unaligned, ...
