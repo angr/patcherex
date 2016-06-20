@@ -283,7 +283,7 @@ def test_is_floatingpoint_function():
     backend = DetourBackend(filepath)
     cfg = backend.cfg
     floatingpoint_functions = [ff for ff in cfg.functions.values() if cfg_utils.is_floatingpoint_function(backend,ff)]
-    sorted(floatingpoint_functions,key = lambda f:f.addr)
+    floatingpoint_functions = sorted(floatingpoint_functions,key = lambda f:f.addr)
     #print "floatingpoint_functions in CROMU_00071"
     #print "\n".join(map(lambda f:hex(f.addr),floatingpoint_functions))
     first = floatingpoint_functions[0].addr
@@ -294,7 +294,7 @@ def test_is_floatingpoint_function():
         if len(ff.endpoints) == 0:
             last = ff.addr
         else:
-            last = max([e.addr for e in ff.endpoints])
+            last = max([e.addr for e in ff.blocks])
     print hex(first),hex(last)
     real_start = 0x804d5c6
     real_end = 0x0804D78b
@@ -306,7 +306,7 @@ def test_is_floatingpoint_function():
     backend = DetourBackend(filepath)
     cfg = backend.cfg
     floatingpoint_functions = [ff for ff in cfg.functions.values() if cfg_utils.is_floatingpoint_function(backend,ff)]
-    sorted(floatingpoint_functions,key = lambda f:f.addr)
+    floatingpoint_functions = sorted(floatingpoint_functions,key = lambda f:f.addr)
     #print "floatingpoint_functions in CROMU_00071"
     #print "\n".join(map(lambda f:hex(f.addr),floatingpoint_functions))
     first = floatingpoint_functions[0].addr
@@ -317,7 +317,7 @@ def test_is_floatingpoint_function():
         if len(ff.endpoints) == 0:
             last = ff.addr
         else:
-            last = max([e.addr for e in ff.endpoints])
+            last = max([e.addr for e in ff.blocks])
     print hex(first),hex(last)
     real_start = 0x0804D75f
     real_end = 0x0804D924
