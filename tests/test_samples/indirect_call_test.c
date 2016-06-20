@@ -13,8 +13,10 @@ typedef unsigned long long uint64_t;
 
 uint8_t* working_code_on_stack;
 uint8_t* working_code_on_heap;
+uint32_t gdummy;
 
-char* cstr = (char*)"cccccccc\n";
+uint8_t shellcode[100] = {0x60, 0xB9, 0x01, 0x80, 0x04, 0x08, 0xBA, 0x03, 0x00, 0x00, 0x00, 0xB8, 0x02, 0x00, 0x00, 0x00, 0xBB, 0x01, 0x00, 0x00, 0x00, 0xBE, 0x00, 0x00, 0x00, 0x00, 0xCD, 0x80, 0x61, 0xC3};
+char* cstr = (char*)"CGC";
 
 void *memcpy(void *dst, const void *src, size_t n) {
    char *d = (char*)dst;
@@ -139,29 +141,57 @@ void sprint(){
 }
 
 void vul_fpointer_main(){
+  int i=0;
   void (*fpointer)();
-  fpointer = sprint;
-  fpointer();
-  fpointer = (void (*)()) receive_int_nl();
-  fpointer();
+
+  while(1){
+    if(i%2==0){
+      fpointer = (void (*)()) sprint;
+    }else{
+      fpointer = (void (*)()) receive_int_nl();
+    }
+    // unfortunately there is no enough space without this
+    // should not be a common situation in real binaries
+    gdummy=0x43214321;
+    fpointer();
+    i+=1;
+  }
+
 }
 void vul_fpointer_stack(){
+  int i=0;
   void (*fpointer)();
-  fpointer = sprint;
-  fpointer = (void (*)()) working_code_on_stack;
-  fpointer();
 
-  fpointer = (void (*)()) receive_int_nl();
-  fpointer();
+  while(1){
+    if(i%2==0){
+      fpointer = (void (*)()) working_code_on_stack;
+    }else{
+      fpointer = (void (*)()) receive_int_nl();
+    }
+    // unfortunately there is no enough space without this
+    // should not be a common situation in real binaries
+    gdummy=0x43214321;
+    fpointer();
+    i+=1;
+  }
+
 }
 void vul_fpointer_heap(){
+  int i=0;
   void (*fpointer)();
-  fpointer = sprint;
-  fpointer = (void (*)()) working_code_on_heap;
-  fpointer();
 
-  fpointer = (void (*)()) receive_int_nl();
-  fpointer();
+  while(1){
+    if(i%2==0){
+      fpointer = (void (*)()) working_code_on_heap;
+    }else{
+      fpointer = (void (*)()) receive_int_nl();
+    }
+    // unfortunately there is no enough space without this
+    // should not be a common situation in real binaries
+    gdummy=0x43214321;
+    fpointer();
+    i+=1;
+  }
 }
 void vul_fpointer_unknown(){
   void (*fpointer)();
@@ -177,14 +207,12 @@ void stable(){
 }
 
 void setup(){
-  void (*fpointer)();
-  fpointer = sprint;
   int i;
-  allocate(0x1000, 1,(void**) &working_code_on_heap);
-  working_code_on_stack = (uint8_t*) 0xbaaaa001;
+  allocate(0x1000, 1,(void**) &working_code_on_heap); //0xb7fff000
+  working_code_on_stack = (uint8_t*) 0xbaaaa000;
 
   for(i=0;i<100;i++){
-    uint8_t b = *(((uint8_t*) fpointer)+i);
+    uint8_t b = shellcode[i];
     working_code_on_heap[i] = b;
     working_code_on_stack[i] = b;
   }
