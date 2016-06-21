@@ -298,7 +298,6 @@ def test_indirectcfi():
     res = Runner(vulnerable_fname1,"00000003\n",record_stdout=True)
     nose.tools.assert_equal(res.stdout,"hello\nCGC")
 
-
     res = Runner(vulnerable_fname1,"00000001\n23456789\n",record_stdout=True)
     nose.tools.assert_equal(res.reg_vals['eip'],0x23456789)
     res = Runner(vulnerable_fname1,"00000002\n43456789\n",record_stdout=True)

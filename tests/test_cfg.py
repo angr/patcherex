@@ -69,7 +69,7 @@ def test_EAGLE_00005_bb():
     filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/EAGLE_00005")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
-
+    # import IPython; IPython.embed()
     bbs = [(0x0804A73C,3),(0x0804BB3D,1),(0x0804A0E5,6),(0x0804A101,3),(0x0804B145,1),(0x0804BB42,2)]
     for addr,ni in bbs:
         n = cfg.get_any_node(addr)
