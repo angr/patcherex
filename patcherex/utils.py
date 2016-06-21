@@ -132,7 +132,7 @@ def compile_jmp(origin, target):
         org {code_loaded_address}
 
         jmp {target}
-    '''.format(**{'code_loaded_address': hex(origin), 'target': hex(target)})
+    '''.format(**{'code_loaded_address': hex(int(origin)), 'target': hex(int(target))})
     return compile_asm(jmp_str)
 
 
@@ -176,7 +176,7 @@ def compile_asm(code, base=None, name_map=None):
             print "NASM error:"
             print res[0]
             print res[1]
-            print open(asm_fname, 'r').read()
+            print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(open(asm_fname, 'r').read().split("\n"))])
             raise NasmException
 
         compiled = open(bin_fname).read()

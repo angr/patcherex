@@ -448,6 +448,62 @@ def test_indirectcfi():
         nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
 
 
+@add_fallback_strategy
+def test_transmitprotection():
+    logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
+    from patcherex.techniques.transmitprotection import TransmitProtection
+    vulnerable_fname1 = os.path.join(bin_location, "tests/i386/patchrex/arbitrary_transmit_O0")
+
+    res = Runner(vulnerable_fname1,"08048000\n00000005\n",record_stdout=True)
+    nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
+    res = Runner(vulnerable_fname1,"08048000\n00000005\n4347c000\n0000000a\n",record_stdout=True)
+    nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+    nose.tools.assert_equal(len(res.stdout),15+4+2)
+
+    with patcherex.utils.tempdir() as td:
+        patched_fname1 = os.path.join(td, "patched")
+        backend = DetourBackend(vulnerable_fname1,global_data_fallback)
+        cp = TransmitProtection(vulnerable_fname1, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(patched_fname1)
+        backend.save("../../vm/shared/patched")
+
+        res = Runner(patched_fname1,"08048000\n00000005\n",record_stdout=True)
+        nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
+
+        res = Runner(patched_fname1,"08048000\n00000005\n4347c000\n0000000a\n",record_stdout=True)
+        nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+        nose.tools.assert_equal(len(res.stdout),11)
+        nose.tools.assert_equal(res.reg_vals['eip'],0x08047ffc)
+
+        res = Runner(patched_fname1,"08048000\n00000005\n4347bfff\n00000004\n08048000\n00000005\n",record_stdout=True)
+        nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01\x7fCGC\x01")
+        res = Runner(patched_fname1,"08048000\n00000005\n4347bfff\n00000001\n08048000\n00000005\n",record_stdout=True)
+        nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01\x7fCGC\x01")
+        res = Runner(patched_fname1,"08048000\n00000005\n4347d000\n00000005\n08048000\n00000005\n",record_stdout=True)
+        nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01\x7fCGC\x01")
+
+        res = Runner(patched_fname1,"08048000\n00000005\n4347c000\n00000004\n08048000\n00000005\n",record_stdout=True)
+        nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+        nose.tools.assert_equal(len(res.stdout),11)
+
+        res = Runner(patched_fname1,"08048000\n00000005\n4347c000\n00000000\n08048000\n00000005\n",record_stdout=True)
+        nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+        nose.tools.assert_equal(len(res.stdout),16+0)
+        res = Runner(patched_fname1,"08048000\n00000005\n4347c000\n00000001\n08048000\n00000005\n",record_stdout=True)
+        nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+        nose.tools.assert_equal(len(res.stdout),16+1)
+        res = Runner(patched_fname1,"08048000\n00000005\n4347c000\n00000002\n08048000\n00000005\n",record_stdout=True)
+        nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+        nose.tools.assert_equal(len(res.stdout),16+2)
+        res = Runner(patched_fname1,"08048000\n00000005\n4347c000\n00000003\n08048000\n00000005\n",record_stdout=True)
+        nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+        nose.tools.assert_equal(len(res.stdout),16+3)
+
+
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
