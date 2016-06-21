@@ -285,7 +285,7 @@ def test_stackretencryption():
             nose.tools.assert_equal(p.returncode == sane_retcode, True)
 
 
-#@add_fallback_strategy
+@add_fallback_strategy
 def test_indirectcfi():
     logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
     from patcherex.techniques.indirectcfi import IndirectCFI
