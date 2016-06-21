@@ -66,7 +66,7 @@ class DetourBackend(object):
         self.name_map = RejectingDict()
 
         # where to put the segments
-        self.added_code_segment = 0x0a000000
+        self.added_code_segment = 0x11000000
         self.single_segment_header_size = 32
         self.additional_headers_size = 2*self.single_segment_header_size
 
@@ -122,7 +122,7 @@ class DetourBackend(object):
 
         if self.data_fallback:
             # this is the start in memory
-            self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + 0x09000000
+            self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + 0x10000000
         else:
             segments = self.dump_segments()
             last_segment = segments[-1]
