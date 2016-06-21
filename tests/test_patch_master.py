@@ -43,15 +43,22 @@ def test_run():
 
 
 def test_cfe_trials():
+    def save_patch(fname,patch_content):
+        fp = open(fname,"wb")
+        fp.write(patch_content)
+        fp.close()
+        os.chmod(fname, 0755)
+
     tfolder = os.path.join(bin_location, "cfe_original")
     tests = utils.find_files(tfolder,"*",only_exec=True)
-    tests = tests[:2] ###FIXME make the CI pass
-    #tests = [t for t in tests if "NRFIN_00076" in t]
+    #tests = [t for t in tests if "KPRCA_00016_2" in t]
     inputs = ["","\x00"*10000,"\n"*10000,"A"*10000]
 
-    for test in tests:
+    for tnumber,test in enumerate(tests):
+        #if os.path.basename(test) == "KPRCA_00016_2":
+        #    continue
         with patcherex.utils.tempdir() as td:
-            print "building patches for",test
+            print "=====",str(tnumber+1)+"/"+str(len(tests)),"building patches for",test
             pm = PatchMaster(test)
             patches = pm.run()
             nose.tools.assert_equal(len(patches),pm.ngenerated_patches)
@@ -67,10 +74,7 @@ def test_cfe_trials():
                 for i,patch in enumerate(patches):
                     print "testing:",os.path.basename(test),stdin[:10].encode("hex"),i
                     tmp_fname = os.path.join(td,str(i))
-                    fp = open(tmp_fname,"wb")
-                    fp.write(patch)
-                    fp.close()
-                    os.chmod(tmp_fname, 0755)
+                    save_patch(tmp_fname,patch)
                     p = subprocess.Popen([qemu_location, tmp_fname], stdin=pipe, stdout=pipe, stderr=pipe)
                     res = p.communicate(stdin)
                     real = (res[0],res[1],p.returncode)

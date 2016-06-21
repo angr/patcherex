@@ -110,9 +110,8 @@ class IndirectCFI(object):
         patches.extend(self.get_common_patches())
         cfg = self.patcher.cfg
 
-        # TODO sci could be a list, but some basic blocks are overlapping because of cfg problems
-        # using a dictionary "masks" the problem
-        # this can be changed after this issue is solved: https://git.seclab.cs.ucsb.edu/angr/angr/issues/195
+        # the overlapping instruction issue seems to be fixed, at least partially
+        # I am still using a dict and raising warnings in case of problems.
         sci = {}
         for function in cfg.functions.values():
             for bb in function.blocks:
@@ -123,9 +122,17 @@ class IndirectCFI(object):
                         else:
                             op = ci.operands[0]
                             if op.type != capstone.x86_const.X86_OP_IMM:
-                                sci[ci.address] = ci
+                                if ci.address in sci:
+                                    old_ci = sci[ci.address]
+                                    tstr = "instruction at %08x (bb: %08x, function %08x) " % \
+                                            (ci.address,bb.addr,function.addr)
+                                    tstr += "previously found at bb: %08x in function: %08x" % \
+                                            (old_ci[1].addr,old_ci[2].addr)
+                                    l.warning(tstr)
+                                else:
+                                    sci[ci.address] = (ci,bb,function)
 
-        for instruction in sci.values():
+        for instruction,bb,function in sci.values():
             l.info("Found indirect CALL/JUMP: %s" % str(instruction))
             cj_type = self.classify_cj(instruction)
             if cj_type == "standard":
