@@ -26,6 +26,7 @@ from patcherex.techniques.cpuid import CpuId
 from patcherex.techniques.randomsyscallloop import RandomSyscallLoop
 from patcherex.techniques.stackretencryption import StackRetEncryption
 from patcherex.techniques.indirectcfi import IndirectCFI
+from patcherex.techniques.transmitprotection import TransmitProtection
 
 from patcherex import utils
 from patcherex.backends.detourbackend import DetourBackend
@@ -99,13 +100,22 @@ class PatchMaster():
         backend.apply_patches(patches)
         return backend.get_final_content()
 
+    def generate_transmitprotection_binary(self):
+        backend = DetourBackend(self.infile)
+        cp = TransmitProtection(self.infile,backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        return backend.get_final_content()
+
     def generate_final_binary(self):
         backend = DetourBackend(self.infile)
         cp = StackRetEncryption(self.infile,backend)
         patches1 = cp.get_patches()
         cp = IndirectCFI(self.infile,backend)
         patches2 = cp.get_patches()
-        backend.apply_patches(patches1+patches2)
+        cp = TransmitProtection(self.infile,backend)
+        patches3 = cp.get_patches()
+        backend.apply_patches(patches1+patches2+patches3)
         return backend.get_final_content()
 
 
@@ -225,6 +235,8 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.techniques.ShadowStack").setLevel("INFO")
         logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
         logging.getLogger("patcherex.backends.StackRetEncryption").setLevel("INFO")
+        logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("INFO")
+        logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("INFO")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
 
         input_fname = sys.argv[2]
@@ -255,6 +267,7 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
         logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
+        logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
 
         input_fname = sys.argv[2]

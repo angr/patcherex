@@ -100,6 +100,8 @@ class DetourBackend(object):
         if data_fallback == None:
             segments = self.dump_segments()
             last_segment = segments[-1]
+            # TODO if not global rw data in the original program, this segment is not here
+            # for now I assume it will be always here in reasonable programs
             if self.pflags_to_perms(last_segment[-2]) == "RW":
                 #check that this is actually the last one in the file and no one is overlapping
                 # p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align

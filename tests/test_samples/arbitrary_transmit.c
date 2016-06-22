@@ -11,6 +11,8 @@ typedef long long int64_t;
 typedef unsigned long long uint64_t;
 
 
+uint32_t dummy = 0x12345; //with this we have some rw data, so we can use the standard backend
+
 void *memcpy(void *dst, const void *src, size_t n) {
    char *d = (char*)dst;
    const char *s = (const char *)src;
@@ -131,6 +133,7 @@ int main() {
   send_str((unsigned char*)"hello\n");
   uint32_t address;
   uint32_t length;
+  dummy = 0x777777;
 
   while(1){
     address = receive_int_nl();
