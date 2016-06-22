@@ -467,7 +467,7 @@ def test_transmitprotection():
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(patched_fname1)
-        backend.save("../../vm/shared/patched")
+        #backend.save("../../vm/shared/patched")
 
         res = Runner(patched_fname1,"08048000\n00000005\n",record_stdout=True)
         nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
