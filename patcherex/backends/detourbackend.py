@@ -9,6 +9,8 @@ import patcherex
 from patcherex import utils
 from patcherex.patches import *
 
+from ..backend import Backend
+
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
 
@@ -46,14 +48,11 @@ class IncompatiblePatchesException(PatchingException):
     pass
 
 
-class DetourBackend(object):
+class DetourBackend(Backend):
     # how do we want to design this to track relocations in the blocks...
     def __init__(self, filename, data_fallback=None):
-        # file info
-        self.filename = filename
-        self.project = angr.Project(filename)
-        with open(filename, "rb") as f:
-            self.ocontent = f.read()
+
+        super(DetourBackend, self).__init__(filename)
 
         # header stuff
         self.ncontent = self.ocontent
@@ -82,19 +81,6 @@ class DetourBackend(object):
         self.saved_states = OrderedDict()
         # not all the touched bytes are bad, they are only a serious problem in case of InsertCodePatch
         self.touched_bytes = set()
-
-        # TODO
-        # 1) ida-like cfg
-        # 2) with some strategies we don't need the cfg, we should be able to apply those strategies even if the cfg fails 
-        l.info("CFG start...")
-        self.cfg = self.project.analyses.CFGFast(normalize=True)
-        l.info("... CFG end")
-        l.info("normalize start...")
-        self.cfg.normalize()
-        l.info("... normalize end")
-
-        # TODO this should be in the cfg
-        self.ordered_nodes = self.get_ordered_nodes()
 
         # we reused existing data segment if it is the last one in the file, otherwise we use the fallback solution
         if data_fallback == None:
@@ -134,16 +120,6 @@ class DetourBackend(object):
             self.real_size_last_segment = len(self.ncontent) - last_segment[1]  
             # this is the start in memory of RWData
             self.name_map["ADDED_DATA_START"] = last_segment[2] + last_segment[5]
-
-    def get_ordered_nodes(self):
-        prev_addr = None
-        ordered_nodes = []
-        for n in sorted(self.cfg.nodes(), key=lambda x: x.addr):
-            if n.addr == prev_addr:
-                continue
-            prev_addr = n.addr
-            ordered_nodes.append(n.addr)
-        return ordered_nodes
 
     def is_patched(self):
         return self.ncontent[0x34:0x34 + len(self.patched_tag)] == self.patched_tag
@@ -296,7 +272,7 @@ class DetourBackend(object):
 
         return applied_patches
 
-    def apply_patches(self,patches):
+    def apply_patches(self, patches):
         # for now any added code will be executed by jumping out and back ie CGRex
         # apply all add code patches
         self.added_code_file_start = len(self.ncontent)
