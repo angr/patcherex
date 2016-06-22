@@ -387,14 +387,20 @@ class DetourBackend(object):
         current_symbol_pos = self.get_current_code_position()
         for patch in patches:
             if isinstance(patch, AddCodePatch):
-                code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
+                if patch.is_c:
+                    code_len = len(utils.compile_c(patch.asm_code))
+                else:
+                    code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
         # now compile for real
         for patch in patches:
             if isinstance(patch, AddCodePatch):
-                new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
+                if patch.is_c:
+                    new_code = utils.compile_c(patch.asm_code)
+                else:
+                    new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                 self.added_code += new_code
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)

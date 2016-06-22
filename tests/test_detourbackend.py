@@ -1258,6 +1258,149 @@ def test_patch_conflicts():
         nose.tools.assert_true(res[0].startswith(estr))
 
 
+@add_fallback_strategy
+def test_c_compilation():
+    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    pipe = subprocess.PIPE
+
+    common_patches = []
+    added_code = '''
+        ; print eax as hex
+        pusha
+        mov ecx,32
+        mov ebx,eax
+        _print_reg_loop:
+            rol ebx,4
+            mov edi,ebx
+            and edi,0x0000000f
+            lea eax,[{hex_array}+edi]
+            mov ebp,ebx
+            mov ebx,0x1
+            call {print}
+            mov ebx,ebp
+            sub ecx,4
+            jnz _print_reg_loop
+        popa
+        ret
+    '''
+    common_patches.append(AddCodePatch(added_code,"print_hex_eax"))
+    added_code = '''
+        ; eax=buf,ebx=len
+        pusha
+        mov ecx,eax
+        mov edx,ebx
+        mov eax,0x2
+        mov ebx,0x1
+        mov esi,0x0
+        int 0x80
+        popa
+        ret
+    '''
+    common_patches.append(AddCodePatch(added_code,"print"))
+    common_patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        patches = []
+        patches.extend(common_patches)
+        added_code = '''
+        push ecx
+        push edx
+        mov ecx, 0x10
+        mov edx, 0x20
+        %s
+        call {print_hex_eax}
+        pop ecx
+        pop edx
+        ''' % patcherex.utils.get_nasm_c_wrapper_code("c_function",get_return=True)
+        patches.append(InsertCodePatch(0x080480a0, added_code, name="p1", priority=1))
+        added_code = '''
+        __attribute__((__fastcall)) int sub1(int a, int b){
+            int c = a*b + 37;
+            return c;
+        }
+        '''
+        patches.append(AddCodePatch(added_code,"c_function",is_c=True))
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        #backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate()
+        nose.tools.assert_equal(p.returncode,0)
+        expected = "00000225\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
+        nose.tools.assert_equal(res[0],expected)
+
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        patches = []
+        patches.append(AddRWDataPatch(10, "memory_area"))
+        patches.extend(common_patches)
+        added_code = '''
+        push ecx
+        push edx
+        mov ecx, 0x10
+        mov edx, {memory_area}
+        mov eax, 0x100
+        %s
+        call {print_hex_eax}
+        mov eax, DWORD [{memory_area}]
+        call {print_hex_eax}
+        pop ecx
+        pop edx
+        ''' % patcherex.utils.get_nasm_c_wrapper_code("c_function",get_return=False)
+        patches.append(InsertCodePatch(0x080480a0, added_code, name="p1", priority=1))
+        added_code = '''
+        __attribute__((__fastcall)) void sub1(int a, unsigned int* b){
+            *b = a*3+2;
+            return;
+        }
+        '''
+        patches.append(AddCodePatch(added_code,"c_function",is_c=True))
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate()
+        nose.tools.assert_equal(p.returncode,0)
+        expected = "0000010000000032\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
+        nose.tools.assert_equal(res[0],expected)
+
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        patches = []
+        patches.append(AddRWDataPatch(10, "memory_area"))
+        patches.extend(common_patches)
+        added_code = '''
+        push ecx
+        push edx
+        mov ecx, 0x10
+        mov edx, {memory_area}
+        mov eax, 0x100
+        %s
+        call {print_hex_eax}
+        mov eax, DWORD [{memory_area}]
+        call {print_hex_eax}
+        pop ecx
+        pop edx
+        ''' % patcherex.utils.get_nasm_c_wrapper_code("c_function",get_return=True)
+        patches.append(InsertCodePatch(0x080480a0, added_code, name="p1", priority=1))
+        added_code = '''
+        __attribute__((__fastcall)) void sub1(int a, unsigned int* b){
+            *b = a*3+2;
+            return;
+        }
+        '''
+        patches.append(AddCodePatch(added_code,"c_function",is_c=True))
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        backend.save("../../vm/shared/patched")
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate()
+        nose.tools.assert_equal(p.returncode,0)
+        expected = "0000003200000032\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
+        nose.tools.assert_equal(res[0],expected)
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))

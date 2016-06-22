@@ -41,12 +41,13 @@ class AddRWInitDataPatch(Patch):
         return "AddRWInitDataPatch [%s] (%d)" % (self.name,len(self.data))
 
 class AddCodePatch(Patch):
-    def __init__(self, asm_code, name=None):
+    def __init__(self, asm_code, name=None, is_c=False):
         super(AddCodePatch, self).__init__(name)
         self.asm_code = asm_code
+        self.is_c = is_c
 
     def __str__(self):
-        return "AddCodePatch [%s] (%d)" % (self.name,len(self.asm_code))
+        return "AddCodePatch [%s] (%d) %s" % (self.name,len(self.asm_code),self.is_c)
 
 
 class AddEntryPointPatch(Patch):

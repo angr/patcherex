@@ -15,6 +15,14 @@ class NasmException(Exception):
     pass
 
 
+class CLangException(Exception):
+    pass
+
+
+class ObjcopyException(Exception):
+    pass
+
+
 class UndefinedSymbolException(Exception):
     pass
 
@@ -206,6 +214,56 @@ def compile_asm_fake_symbol(code, base=None, ):
             print open(asm_fname, 'r').read()
             raise NasmException
 
+        compiled = open(bin_fname).read()
+
+    return compiled
+
+
+def get_nasm_c_wrapper_code(function_symbol,get_return=False):
+    # TODO maybe with better calling convention on llvm this can be semplified
+    wcode = []
+    wcode.append("pusha")
+    # TODO add param list haandling, right two params in ecx/edx are supported
+    '''
+    assert len(param_list) <= 2 # TODO support more parameters
+    if len(param_list) == 1:
+        wcode.append("mov ecx, %s" % param_list[0])
+    if len(param_list) == 2:
+        wcode.append("mov ecx, %s" % param_list[0])
+        wcode.append("mov edx, %s" % param_list[1])
+    '''
+    wcode.append("call {%s}" % function_symbol)
+    if get_return:
+        wcode.append("mov [esp+28], eax") #FIXME check
+    wcode.append("popa")
+
+    return "\n".join(wcode)
+
+
+def compile_c(code, optimization='-Oz', name_map=None):
+    # TODO symbol support in c code
+    with tempdir() as td:
+        c_fname = os.path.join(td, "code.c")
+        object_fname = os.path.join(td, "code.o")
+        bin_fname = os.path.join(td, "code.bin")
+
+        fp = open(c_fname, 'wb')
+        fp.write(code)
+        fp.close()
+
+        res = exec_cmd("clang -m32 -fpic -ffreestanding %s -o %s -c %s" % (optimization, object_fname, c_fname), shell=True)
+        if res[2] != 0:
+            print "CLang error:"
+            print res[0]
+            print res[1]
+            print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(open(c_fname, 'r').read().split("\n"))])
+            raise CLangException
+        res = exec_cmd("objcopy -O binary %s %s" % (object_fname, bin_fname), shell=True)
+        if res[2] != 0:
+            print "objcopy error:"
+            print res[0]
+            print res[1]
+            raise ObjcopyException
         compiled = open(bin_fname).read()
 
     return compiled
