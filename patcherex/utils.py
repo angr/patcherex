@@ -219,7 +219,7 @@ def compile_asm_fake_symbol(code, base=None, ):
     return compiled
 
 
-def get_nasm_c_wrapper_code(function_symbol,get_return=False):
+def get_nasm_c_wrapper_code(function_symbol, get_return=False, debug=False):
     # TODO maybe with better calling convention on llvm this can be semplified
     wcode = []
     wcode.append("pusha")
@@ -232,6 +232,8 @@ def get_nasm_c_wrapper_code(function_symbol,get_return=False):
         wcode.append("mov ecx, %s" % param_list[0])
         wcode.append("mov edx, %s" % param_list[1])
     '''
+    if debug:
+        wcode.append("int 0x3")
     wcode.append("call {%s}" % function_symbol)
     if get_return:
         wcode.append("mov [esp+28], eax") #FIXME check

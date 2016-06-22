@@ -450,6 +450,28 @@ def test_indirectcfi():
 
 @add_fallback_strategy
 def test_transmitprotection():
+    def check_test(test):
+        values,expected_crash = test
+        tinput = "08048000\n00000005\n"
+        tsize = 0
+        for addr,size in values:
+            tinput += "4347c%03x\n%08x\n"% (addr,size)
+            tsize += size
+        tinput += "08048000\n00000005\n"
+        #print repr(tinput)
+        #open("../../vm/shared/input","wb").write(tinput)
+        res = Runner(patched_fname1,tinput,record_stdout=True)
+        if expected_crash:
+            nose.tools.assert_true(res.reg_vals!=None)
+            nose.tools.assert_equal(res.reg_vals['eip'],0x8047ffb)
+        else:
+            nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+            nose.tools.assert_true(res.stdout.endswith("\x7fCGC\x01"))
+            #print repr(res.stdout)
+            nose.tools.assert_equal(len(res.stdout),6+5+5+tsize)
+
+
+
     logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
     from patcherex.techniques.transmitprotection import TransmitProtection
     vulnerable_fname1 = os.path.join(bin_location, "tests/i386/patchrex/arbitrary_transmit_O0")
@@ -460,46 +482,73 @@ def test_transmitprotection():
     nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
     nose.tools.assert_equal(len(res.stdout),15+4+2)
 
-    with patcherex.utils.tempdir() as td:
-        patched_fname1 = os.path.join(td, "patched")
-        backend = DetourBackend(vulnerable_fname1,global_data_fallback)
-        cp = TransmitProtection(vulnerable_fname1, backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        backend.save(patched_fname1)
-        #backend.save("../../vm/shared/patched")
+    for nslot in [8,16,32,100,1000]:
+        print "nlslot:",nslot
+        with patcherex.utils.tempdir() as td:
+            patched_fname1 = os.path.join(td, "patched")
+            backend = DetourBackend(vulnerable_fname1,global_data_fallback)
+            cp = TransmitProtection(vulnerable_fname1, backend)
+            cp.nslot=nslot
+            patches = cp.get_patches()
+            backend.apply_patches(patches)
+            backend.save(patched_fname1)
+            #backend.save("../../vm/shared/patched")
+            base = "08048000\n00000005\n"
 
-        res = Runner(patched_fname1,"08048000\n00000005\n",record_stdout=True)
-        nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
+            res = Runner(patched_fname1,"08048000\n00000005\n",record_stdout=True)
+            nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
 
-        res = Runner(patched_fname1,"08048000\n00000005\n4347c000\n0000000a\n",record_stdout=True)
-        nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
-        nose.tools.assert_equal(len(res.stdout),11)
-        nose.tools.assert_equal(res.reg_vals['eip'],0x08047ffc)
+            res = Runner(patched_fname1,base+"4347c000\n0000000a\n",record_stdout=True)
+            nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+            nose.tools.assert_equal(len(res.stdout),11)
+            nose.tools.assert_equal(res.reg_vals['eip'],0x08047ffc)
 
-        res = Runner(patched_fname1,"08048000\n00000005\n4347bfff\n00000004\n08048000\n00000005\n",record_stdout=True)
-        nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01\x7fCGC\x01")
-        res = Runner(patched_fname1,"08048000\n00000005\n4347bfff\n00000001\n08048000\n00000005\n",record_stdout=True)
-        nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01\x7fCGC\x01")
-        res = Runner(patched_fname1,"08048000\n00000005\n4347d000\n00000005\n08048000\n00000005\n",record_stdout=True)
-        nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01\x7fCGC\x01")
+            res = Runner(patched_fname1,base+"4347bfff\n00000004\n08048000\n00000005\n",record_stdout=True)
+            nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01\x7fCGC\x01")
+            res = Runner(patched_fname1,base+"4347bfff\n00000001\n08048000\n00000005\n",record_stdout=True)
+            nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01\x7fCGC\x01")
+            res = Runner(patched_fname1,base+"4347d000\n00000005\n08048000\n00000005\n",record_stdout=True)
+            nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01\x7fCGC\x01")
 
-        res = Runner(patched_fname1,"08048000\n00000005\n4347c000\n00000004\n08048000\n00000005\n",record_stdout=True)
-        nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
-        nose.tools.assert_equal(len(res.stdout),11)
+            res = Runner(patched_fname1,base+"4347c000\n00000004\n08048000\n00000005\n",record_stdout=True)
+            nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+            nose.tools.assert_equal(len(res.stdout),11)
 
-        res = Runner(patched_fname1,"08048000\n00000005\n4347c000\n00000000\n08048000\n00000005\n",record_stdout=True)
-        nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
-        nose.tools.assert_equal(len(res.stdout),16+0)
-        res = Runner(patched_fname1,"08048000\n00000005\n4347c000\n00000001\n08048000\n00000005\n",record_stdout=True)
-        nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
-        nose.tools.assert_equal(len(res.stdout),16+1)
-        res = Runner(patched_fname1,"08048000\n00000005\n4347c000\n00000002\n08048000\n00000005\n",record_stdout=True)
-        nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
-        nose.tools.assert_equal(len(res.stdout),16+2)
-        res = Runner(patched_fname1,"08048000\n00000005\n4347c000\n00000003\n08048000\n00000005\n",record_stdout=True)
-        nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
-        nose.tools.assert_equal(len(res.stdout),16+3)
+            res = Runner(patched_fname1,base+"4347c000\n00000000\n08048000\n00000005\n",record_stdout=True)
+            nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+            nose.tools.assert_equal(len(res.stdout),16+0)
+            res = Runner(patched_fname1,base+"4347c000\n00000001\n08048000\n00000005\n",record_stdout=True)
+            nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+            nose.tools.assert_equal(len(res.stdout),16+1)
+            res = Runner(patched_fname1,base+"4347c000\n00000002\n08048000\n00000005\n",record_stdout=True)
+            nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+            nose.tools.assert_equal(len(res.stdout),16+2)
+            res = Runner(patched_fname1,base+"4347c000\n00000003\n08048000\n00000005\n",record_stdout=True)
+            nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+            nose.tools.assert_equal(len(res.stdout),16+3)
+
+            complex_tests = [
+                (((0,1),(1,1),(2,1),(3,1)),True),
+                (((0,1),(1,1),(2,1),(2,1)),False),
+                (((0,3),),False),
+                (((0,3),(1,1)),False),
+                (((0,3),(3,1)),True),
+                (((0,3),(4,1)),False),
+                ([(0,3)]*2+[(3,1)],True),
+                ([(0,3)]*20+[(3,1)],True),
+                (((10,1),(11,1),(13,1),(22,1),(23,1),(24,1),(20,1),(100,1),(13,1),(12,1)),True),
+                ([(i,1) for i in xrange(100,200,2)]+[(0,3)]+[(3,1)],True),
+                ([(i,1) for i in xrange(100,150,2)]+[(0,3)]+[(i,1) for i in xrange(100,150,2)]+[(10,3)]+[(13,1)],True),
+                ([(i,1) for i in xrange(100,150,2)]+[(0,3)]+[(i,1) for i in xrange(100,150,2)]+ \
+                        [(1000,1)]+[(10,3)]+[(13,1)],True),
+                ([(i,1) for i in xrange(100,150,2)]+[(0,3)]+[(i,1) for i in xrange(100,150,2)]+ \
+                        [(1000,1)]+[(10,3)]+[(13,1)]+[(i,3) for i in xrange(1000,1100,4)]+[(2000,3)],True),
+                ([(i,1) for i in xrange(100,150,2)]+[(0,3)]+[(i,1) for i in xrange(100,150,2)]+ \
+                        [(1000,1)]+[(10,2)]+[(13,1)]+[(i,3) for i in xrange(1000,1100,4)]+[(2000,3)],False)
+            ]
+            complex_tests += [(list(reversed(l)),r) for l,r in complex_tests]
+            for test in complex_tests:
+                check_test(test)
 
 
 

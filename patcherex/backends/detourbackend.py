@@ -388,7 +388,7 @@ class DetourBackend(object):
         for patch in patches:
             if isinstance(patch, AddCodePatch):
                 if patch.is_c:
-                    code_len = len(utils.compile_c(patch.asm_code))
+                    code_len = len(utils.compile_c(patch.asm_code,optimization=patch.optimization))
                 else:
                     code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
                 if patch.name is not None:
@@ -398,7 +398,7 @@ class DetourBackend(object):
         for patch in patches:
             if isinstance(patch, AddCodePatch):
                 if patch.is_c:
-                    new_code = utils.compile_c(patch.asm_code)
+                    new_code = utils.compile_c(patch.asm_code,optimization=patch.optimization)
                 else:
                     new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                 self.added_code += new_code

@@ -18,62 +18,73 @@ class TransmitProtection(object):
         self.nslot = 16
 
 
+    def get_c_patch(self):
+        code = '''
+        typedef char int8_t;
+        typedef unsigned char uint8_t;
+        typedef short int16_t;
+        typedef unsigned short uint16_t;
+        typedef int int32_t;
+        typedef unsigned int uint32_t;
+        typedef long long int64_t;
+        typedef unsigned long long uint64_t;
+
+        __attribute__((__fastcall)) int sub1(uint32_t transmitted_value_32, uint16_t* mem_area){
+                uint8_t nslot = %d;
+                uint16_t* array_area = &(mem_area[2]);
+                uint8_t index,inner_index;
+                uint16_t transmitted_value = transmitted_value_32 & 0xffff;
+                uint16_t ntransmitted = ((transmitted_value_32 & 0xffff0000) >> 16);
+                uint16_t current_transmitted_value;
+                uint8_t nconsecutive=0;
+                uint16_t current_value;
+
+                if(mem_area[0]==0){
+                    array_area[-1]=0;
+                    for(index=0;index<nslot;index++){
+                        array_area[index]=0xffff;
+                    }
+                    mem_area[0]=1;
+                }
+
+                for(current_transmitted_value=transmitted_value;current_transmitted_value<transmitted_value+ntransmitted;current_transmitted_value++){
+                    for(index=0;index<nslot;index++){
+                        if(current_transmitted_value==array_area[index]){
+                            continue;
+                        }
+                        if(current_transmitted_value>array_area[index-1] && current_transmitted_value<array_area[index]){
+                            for(inner_index=nslot-1;inner_index>index;inner_index--){
+                                array_area[inner_index] = array_area[inner_index-1];
+                            }
+                            array_area[inner_index] = current_transmitted_value;
+                        }
+                    }
+                    if(current_transmitted_value>array_area[index]){
+                        array_area[index] = current_transmitted_value;
+                    }
+
+                }
+
+                current_value = 0;
+                //asm("int $3");
+                for(index=0;index<nslot;index++){
+                    if(array_area[index]==current_value+1){
+                        nconsecutive += 1;
+                        if(nconsecutive == 4-1){
+                            return 1;
+                        }
+                    }else{
+                        nconsecutive = 0;
+                    }
+                    current_value = array_area[index];
+                }
+            return 0;
+        }
+        ''' % (self.nslot)
+        return AddCodePatch(code,"transmit_protection_array_handler",is_c=True,optimization="-Oz")
+
     def compute_patches(self,victim_addr):
         patches = []
-        '''
-                mov esi, edx ; current index
-                _len_loop:
-                    xor eax, eax eax ;array pointer
-                    movz ebx, cx
-                    add ebx, esi ;ebx = current considered transmitted byte
-
-                    _insert_loop:
-                        cmp bx, WORD [{last_transmit_array}+eax]
-                        jb _reloop_insert_loop
-                        cmp bx, WORD [{last_transmit_array}+eax+2]
-                        ja _reloop_insert_loop
-
-                        _push_down_loop:
-                            mov edi, eax
-                            mov dx, WORD [{last_transmit_array}+edi]
-                            mov WORD [{last_transmit_array}+edi], dx
-                            inc edi
-                            cmp edi, %d
-                            jne _push_down_loop
-
-                        mov WORD [{last_transmit_array}+eax+2], bx
-
-                        _reloop_insert_loop:
-                            inc eax
-                            inc eax
-                            cmp eax, %d
-                            jne _insert_loop
-
-                    inc esi
-                    cmp edx, esi
-                    jbe _len_loop
-
-                xor eax, eax ;array pointer
-                xor ebx, ebx ;nmatch
-                mov ecx, %d
-                _scan_loop:
-                    mov dx, WORD [{last_transmit_array}+eax]
-                    mov si, WORD [{last_transmit_array}+eax+2]
-                    dec si
-                    cmp dx,si
-                    jne _nomatch
-                    inc ebx
-                    jmp _match
-                    jmp _end_scan_iter
-                    _nomatch:
-                        xor ebx, ebx
-                    _end_scan_iter:
-                        cmp eax, %d
-                        je _out_scan_loop
-                        inc eax
-
-                _out_scan_loop:
-        ''' # % (self.nslot+2)
 
         code = '''
         cmp ecx, 0x4347c000
@@ -90,14 +101,27 @@ class TransmitProtection(object):
         je _exit
 
         ; slow path begins
-        pusha
-        ; TODO
-        popa
+        push ecx
+        push edx
+        push eax
+        mov eax, edx
+        shl eax, 16
+        mov edx, {last_transmit_array}
+        and ecx, 0x0000ffff
+        or ecx, eax
+        %s
+        test eax,eax
+        pop eax
+        pop edx
+        pop ecx
+        je _exit
+
+        jmp 0x8047ffb
         _exit:
-        '''
+        ''' % utils.get_nasm_c_wrapper_code("transmit_protection_array_handler",get_return=True,debug=False)
         patches.append(InsertCodePatch(victim_addr,code,name="transmit_protection",priority=200))
-        patches.append(AddRWInitDataPatch("\x00\x00"+"\xff\xff"*(self.nslot+1),name="last_transmit_array"))
-        return patches
+        patches.append(AddRWDataPatch(self.nslot+1,name="last_transmit_array"))
+        return patches + [self.get_c_patch()]
 
 
     def get_patches(self):
