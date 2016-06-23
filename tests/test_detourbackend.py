@@ -473,7 +473,7 @@ def test_added_code_and_data_complex():
 
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        backend.save("../../vm/shared/patched")
+        # backend.save("../../vm/shared/patched")
         #for k,v in backend.name_map.iteritems():
             #print k,hex(v)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
