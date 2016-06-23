@@ -1,4 +1,5 @@
 
+import logging
 import os
 import tempfile
 
@@ -7,12 +8,18 @@ from topsecret import Binary
 
 from ..backend import Backend
 
+l = logging.getLogger('reassembler')
+
 class ReassemblerBackend(Backend):
-    def __init__(self, filename):
+    def __init__(self, filename, debugging=False):
 
         super(ReassemblerBackend, self).__init__(filename)
 
+        self._debugging = debugging
         self._binary = None
+
+        self._compiler_stdout = None
+        self._compiler_stderr = None
 
         self._load()
 
@@ -33,16 +40,22 @@ class ReassemblerBackend(Backend):
         os.write(fd, assembly)
         os.close(fd)
 
-        print tmp_file_path
+        l.info("Generating assembly manifest at %s", tmp_file_path)
 
         # compile it
-        res = compilerex.compile([ tmp_file_path, '-mllvm', '--x86-asm-syntax=intel', '-o', filename ])
+        #res = compilerex.assemble([ tmp_file_path, '-mllvm', '--x86-asm-syntax=intel', '-o', filename ])
+        retcode, res = compilerex.assemble([ tmp_file_path, '-o', filename ])
 
-        print res[0]
-        print res[1]
+        self._compiler_stdout, self._compiler_stderr = res
 
         # Remove the temporary file
-        # os.remove(tmp_file_path)
+        if not self._debugging:
+            os.remove(tmp_file_path)
+
+        if retcode == 0:
+            return True
+        else:
+            return False
 
     def get_final_content(self):
         return ""
@@ -56,5 +69,5 @@ class ReassemblerBackend(Backend):
         Load and disassemble the binary.
         """
 
-        self._binary = self.project.analyses.Binary()
+        self._binary = self.project.analyses.Binary(syntax='att')
         self._binary.symbolize()

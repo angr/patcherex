@@ -1,6 +1,8 @@
 
 import os.path
 
+import nose.tools
+
 from patcherex.backends import ReassemblerBackend
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
@@ -9,28 +11,30 @@ bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..
 # Functionality tests
 #
 
-def test_CADET_00003():
+def run_functionality(filename):
 
-    filepath = os.path.join(bin_location, 'cgc_trials', 'CADET_00003')
+    filepath = os.path.join(bin_location, filename)
 
-    p = ReassemblerBackend(filepath)
-    p.save('/tmp/CADET_00003')
+    p = ReassemblerBackend(filepath, debugging=True)
+    r = p.save(os.path.join('/', 'tmp', os.path.basename(filename)))
 
-def test_CROMU_00070():
+    if not r:
+        print "Compiler says:"
+        print p._compiler_stdout
+        print p._compiler_stderr
 
-    filepath = os.path.join(bin_location, 'cgc_trials', 'CROMU_00070')
+    nose.tools.assert_true(r, 'Reassembler fails on binary %s' % filename)
 
-    p = ReassemblerBackend(filepath)
-    p.save('/tmp/CADET_00070')
+def test_functionality():
+    binaries = [
+        os.path.join('cgc_trials', 'CADET_00003'),
+        os.path.join('cgc_trials', 'CROMU_00070'),
+        os.path.join('cgc_trials', 'CROMU_00071'),
+        os.path.join('cgc_trials', 'EAGLE_00005'),
+    ]
 
-def test_CROMU_00071():
-
-    filepath = os.path.join(bin_location, 'cgc_trials', 'CROMU_00071')
-
-    p = ReassemblerBackend(filepath)
-    p.save('/tmp/CADET_00071')
+    for b in binaries:
+        run_functionality(b)
 
 if __name__ == "__main__":
-    #test_CADET_00003()
-    test_CROMU_00070()
-    #test_CROMU_00071()
+    test_functionality()
