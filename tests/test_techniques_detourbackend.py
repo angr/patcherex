@@ -8,6 +8,7 @@ import logging
 import shutil
 from functools import wraps
 import tempfile
+import random
 
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
@@ -259,11 +260,13 @@ def test_stackretencryption():
             backend.apply_patches(patches)
             backend.save(tmp_file)
 
-            p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+            seed = str(random.randint(0,1000000000))
+            p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
             res = p.communicate("A"*10+"\n")
             print res, p.returncode
             nose.tools.assert_equal((res[0] == expected2 and p.returncode == 0), True)
-            p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+            seed = str(random.randint(0,1000000000))
+            p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
             res = p.communicate(exploiting_input)
             print res, p.returncode
             nose.tools.assert_equal(p.returncode == -11, True)
@@ -274,11 +277,13 @@ def test_stackretencryption():
             patches = cp.get_patches()
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            p = subprocess.Popen([qemu_location, original_file], stdin=pipe, stdout=pipe, stderr=pipe)
+            seed = str(random.randint(0,1000000000))
+            p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
             res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
             print res
             sane_stdout, sane_retcode = res[0], p.returncode
-            p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+            seed = str(random.randint(0,1000000000))
+            p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
             res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
             print res
             nose.tools.assert_equal(res[0] == sane_stdout, True)
@@ -585,7 +590,7 @@ def test_shiftstack():
             patches = cp.get_patches()
             backend.apply_patches(patches+[InsertCodePatch(0x804db6b,"jmp 0x11223344")])
             backend.save(tmp_file)
-            res = Runner(tmp_file,tinput,record_stdout=True)
+            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(0,1000000000))
             oesp = original_reg_value['esp']
             nesp = res.reg_vals['esp']
             print hex(nesp),hex(oesp)
