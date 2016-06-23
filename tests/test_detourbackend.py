@@ -10,6 +10,7 @@ from functools import wraps
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import *
+from tracer import Runner
 
 l = logging.getLogger("patcherex.test.test_detourbackend")
 
@@ -472,7 +473,7 @@ def test_added_code_and_data_complex():
 
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        # backend.save("../../vm/shared/patched")
+        backend.save("../../vm/shared/patched")
         #for k,v in backend.name_map.iteritems():
             #print k,hex(v)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -1401,6 +1402,43 @@ def test_c_compilation():
         nose.tools.assert_equal(res[0],expected)
 
 
+@add_fallback_strategy
+def test_entrypointpatch_restore():
+    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        patches = []
+        patches.append(InsertCodePatch(0x80480a0, "jmp 0x4567890", "goto_crash"))
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        res = Runner(tmp_file, "00000001\n", record_stdout=True)
+        original_reg_value = res.reg_vals
+        nose.tools.assert_equal(original_reg_value['eip'], 0x4567890)
+
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        patches = []
+        patches.append(InsertCodePatch(0x80480a0, "jmp 0x4567890", "goto_crash"))
+        patches.append(AddEntryPointPatch("mov eax, 0x34567890"))
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        res = Runner(tmp_file, "00000001\n", record_stdout=True)
+        nose.tools.assert_equal(original_reg_value, res.reg_vals)
+
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        patches = []
+        patches.append(InsertCodePatch(0x80480a0, "jmp 0x4567890", "goto_crash"))
+        patches.append(AddEntryPointPatch("mov eax, 0x34567890", after_restore=True))
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        res = Runner(tmp_file, "00000001\n", record_stdout=True)
+        original_reg_value_mod = dict(original_reg_value)
+        original_reg_value_mod['eax'] = 0x34567890
+        nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
@@ -1408,6 +1446,7 @@ def run_all():
         if hasattr(all_functions[f], '__call__'):
             l.info("testing %s" % str(f))
             all_functions[f]()
+
 
 if __name__ == "__main__":
     import sys
@@ -1418,6 +1457,3 @@ if __name__ == "__main__":
     else:
         run_all()
 
-
-# TODO add int 80 move test
-# TODO add patch conflict over transmit

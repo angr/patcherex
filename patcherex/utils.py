@@ -211,7 +211,7 @@ def compile_asm_fake_symbol(code, base=None, ):
             print "NASM error:"
             print res[0]
             print res[1]
-            print open(asm_fname, 'r').read()
+            print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(open(asm_fname, 'r').read().split("\n"))])
             raise NasmException
 
         compiled = open(bin_fname).read()

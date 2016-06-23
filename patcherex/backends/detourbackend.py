@@ -391,8 +391,14 @@ class DetourBackend(Backend):
         if any([isinstance(p, AddEntryPointPatch) for p in patches]):
             pre_entrypoint_code_position = self.get_current_code_position()
             current_symbol_pos = self.get_current_code_position()
+            entrypoint_patches = [p for p in patches if isinstance(p,AddEntryPointPatch)]
+            between_restore_entrypoint_patches = sorted([p for p in entrypoint_patches if not p.after_restore], \
+                key=lambda x:-1*x.priority)
+            after_restore_entrypoint_patches = sorted([p for p in entrypoint_patches if p.after_restore], \
+                key=lambda x:-1*x.priority)
+
             current_symbol_pos += len(utils.compile_asm_fake_symbol("pusha\npushf\n", current_symbol_pos))
-            for patch in sorted([p for p in patches if isinstance(p,AddEntryPointPatch)],key=lambda x:-1*x.priority):
+            for patch in between_restore_entrypoint_patches:
                 code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
@@ -401,21 +407,35 @@ class DetourBackend(Backend):
             new_code = utils.compile_asm("pusha\npushf\n", self.get_current_code_position())
             self.added_code += new_code
             self.ncontent = utils.str_overwrite(self.ncontent, new_code)
-            for patch in sorted([p for p in patches if isinstance(p,AddEntryPointPatch)],key=lambda x:-1*x.priority):
+            for patch in between_restore_entrypoint_patches:
+                new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
+                self.added_code += new_code
+                self.added_patches.append(patch)
+                l.info("Added patch: " + str(patch))
+                self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+
+            current_symbol_pos += len(utils.compile_asm_fake_symbol("popf\npopa\n", current_symbol_pos))
+            for patch in after_restore_entrypoint_patches:
+                code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))
+                if patch.name is not None:
+                    self.name_map[patch.name] = current_symbol_pos
+                current_symbol_pos += code_len
+            # now compile for real
+            new_code = utils.compile_asm("popf\npopa\n", self.get_current_code_position())
+            self.added_code += new_code
+            self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+            for patch in after_restore_entrypoint_patches:
                 new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                 self.added_code += new_code
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code)
-            new_code = utils.compile_asm("popf\npopa\n", self.get_current_code_position())
-            #TODO add a way to add patches before and after the original stack save/restore
-            self.added_code += new_code
-            self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+                self.added_patches.append(patch)
+                l.info("Added patch: " + str(patch))
+
             oep = self.get_oep()
             self.set_oep(pre_entrypoint_code_position)
             new_code = utils.compile_jmp(self.get_current_code_position(),oep)
             self.added_code += new_code
             self.ncontent += new_code
-            self.added_patches.append(patch)
-            l.info("Added patch: " + str(patch))
 
         # 4) InlinePatch
         # we assume the patch never patches the added code

@@ -550,6 +550,52 @@ def test_transmitprotection():
                 check_test(test)
 
 
+@add_fallback_strategy
+def test_shiftstack():
+    logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
+    from patcherex.techniques.shiftstack import ShiftStack
+    filepath = os.path.join(bin_location, "cfe_original/CROMU_00044/CROMU_00044")
+    tinput = "1\n"*50+"2\n"*50
+
+    res = Runner(filepath,tinput,record_stdout=True)
+    original_output = res.stdout
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+
+        backend = DetourBackend(filepath,global_data_fallback)
+        cp = ShiftStack(filepath, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        # backend.save("../../vm/shared/patched")
+        res = Runner(tmp_file,tinput,record_stdout=True)
+        nose.tools.assert_equal(original_output, res.stdout)
+
+        backend = DetourBackend(filepath,global_data_fallback)
+        backend.apply_patches([InsertCodePatch(0x804db6b,"jmp 0x11223344")])
+        backend.save(tmp_file)
+        res = Runner(tmp_file,tinput,record_stdout=True)
+        original_reg_value = res.reg_vals
+        nose.tools.assert_equal(original_reg_value['eip'], 0x11223344)
+
+        for _ in xrange(10):
+            backend = DetourBackend(filepath,global_data_fallback)
+            cp = ShiftStack(filepath, backend)
+            patches = cp.get_patches()
+            backend.apply_patches(patches+[InsertCodePatch(0x804db6b,"jmp 0x11223344")])
+            backend.save(tmp_file)
+            res = Runner(tmp_file,tinput,record_stdout=True)
+            oesp = original_reg_value['esp']
+            nesp = res.reg_vals['esp']
+            print hex(nesp),hex(oesp)
+            nose.tools.assert_true(oesp-pow(2,cp.max_value_pow)<=nesp<=oesp-pow(2,cp.min_value_pow))
+            original_reg_value_mod = dict(original_reg_value)
+            original_reg_value_mod.pop('esp')
+            res.reg_vals.pop('esp')
+            original_reg_value_mod.pop('eflags')
+            res.reg_vals.pop('eflags')
+            nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
 
 
 def run_all():

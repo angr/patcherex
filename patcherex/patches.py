@@ -52,13 +52,15 @@ class AddCodePatch(Patch):
 
 
 class AddEntryPointPatch(Patch):
-    def __init__(self, asm_code, name=None, priority=1):
+    def __init__(self, asm_code, name=None, priority=1, after_restore=False):
         super(AddEntryPointPatch, self).__init__(name)
         self.asm_code = asm_code
         self.priority = priority
+        self.after_restore = after_restore
 
     def __str__(self):
-        return "AddEntryPointPatch [%s] (%d), pr: %d" % (self.name,len(self.asm_code),self.priority)
+        return "AddEntryPointPatch [%s] (%d), pr: %d, %s" % (self.name,len(self.asm_code),self.priority,
+                self.after_restore)
 
 
 class InsertCodePatch(Patch):

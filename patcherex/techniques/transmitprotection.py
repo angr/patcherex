@@ -1,5 +1,6 @@
 import patcherex
 import angr
+
 import patcherex.utils as utils
 import patcherex.cfg_utils as cfg_utils
 
