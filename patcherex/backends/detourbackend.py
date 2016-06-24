@@ -50,9 +50,9 @@ class IncompatiblePatchesException(PatchingException):
 
 class DetourBackend(Backend):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, data_fallback=None):
+    def __init__(self, filename, data_fallback=None,try_pdf_removal=True):
 
-        super(DetourBackend, self).__init__(filename)
+        super(DetourBackend, self).__init__(filename,try_pdf_removal)
 
         # header stuff
         self.ncontent = self.ocontent
@@ -81,6 +81,15 @@ class DetourBackend(Backend):
         self.saved_states = OrderedDict()
         # not all the touched bytes are bad, they are only a serious problem in case of InsertCodePatch
         self.touched_bytes = set()
+
+        if self.try_pdf_removal == True:
+            should_remove_pdf, pdf_start, pdf_length, check_instruction_addr, check_instruction_size  = self.find_pdf()
+            if should_remove_pdf:
+                l.info("Removing the pdf from the binary")
+                self.remove_pdf(pdf_start, pdf_length, check_instruction_addr, check_instruction_size)
+                self.pdf_removed = True
+            else:
+                l.warning("I cannot remove the pdf from this binary")
 
         # we reused existing data segment if it is the last one in the file, otherwise we use the fallback solution
         if data_fallback == None:
@@ -120,6 +129,130 @@ class DetourBackend(Backend):
             self.real_size_last_segment = len(self.ncontent) - last_segment[1]  
             # this is the start in memory of RWData
             self.name_map["ADDED_DATA_START"] = last_segment[2] + last_segment[5]
+
+    def find_pdf(self):
+        # 1) check if the pdf string is there and get the length
+        pdf_string = " byte CGC Extended Application follows. Each team participating in CGC must " \
+                "have submitted this completed agreement including the Team Information, the Liabi" \
+                "lity Waiver, the Site Visit Information Sheet and the Event Participation agreement.\n"
+        pdf_string_pos = self.ocontent.find(pdf_string)
+        if pdf_string_pos == -1:
+            l.warning("pdf string not found")
+            return False, None, None, None
+
+        # 2) check for the pdf start
+        pdf_beginning_str = [0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x33, 0x0a, 0x25, 0xc4, 0xe5, 0xf2,
+                0xe5, 0xeb, 0xa7, 0xf3, 0xa0, 0xd0, 0xc4, 0xc6, 0x0a, 0x34, 0x20, 0x30, 0x20, 0x6f, 0x62,
+                0x6a, 0x0a, 0x3c, 0x3c, 0x20, 0x2f, 0x4c, 0x65, 0x6e, 0x67, 0x74, 0x68, 0x20, 0x35, 0x20,
+                0x30, 0x20, 0x52, 0x20, 0x2f, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x20, 0x2f, 0x46, 0x6c,
+                0x61, 0x74, 0x65, 0x44, 0x65, 0x63, 0x6f, 0x64, 0x65, 0x20, 0x3e, 0x3e, 0x0a, 0x73, 0x74,
+                0x72, 0x65, 0x61, 0x6d, 0x0a]
+        pdf_beginning_str = "".join([chr(c) for c in pdf_beginning_str])
+        pdf_beginning_pos = pdf_string_pos+len(pdf_string)
+        if not self.ocontent[pdf_beginning_pos:pdf_beginning_pos+len(pdf_beginning_str)] == pdf_beginning_str:
+            l.warning("pdf beginning not found")
+            return False, None, None, None
+
+        # 3) check for the pdf end (based on size)
+        pdf_length_pos = self.ocontent[:pdf_string_pos-1].rfind(" ")
+        if pdf_length_pos == -1:
+            l.warning("pdf length str not found")
+            return False, None, None, None
+        pdf_length_str = self.ocontent[pdf_length_pos:pdf_string_pos]
+        try:
+            pdf_length = int(pdf_length_str)
+        except ValueError:
+            l.warning("pdf length str not int")
+            return False, None, None, None
+        pdf_end = pdf_beginning_pos+pdf_length
+        pdf_ending_str = "\n%%EOF\n"
+        if not self.ocontent[pdf_end-len(pdf_ending_str):pdf_end] == pdf_ending_str:
+            l.warning("pdf ending not found")
+            return False, None, None, None
+
+        # 4) check for segment structure
+        segments = self.dump_segments()
+        last_segment = segments[-1]
+        if not self.pflags_to_perms(last_segment[-2]) == "RW":
+            l.warning("last segment is not RW")
+            return False, None, None, None
+        max_file_start = max([s[1] for s in segments[:-1]])
+        max_file_end = max([s[1]+s[4] for s in segments[:-1]])
+        if not (max_file_start < last_segment[1] and max_file_end <= last_segment[1]+last_segment[4]):
+            l.warning("overlapping segments")
+            return False, None, None, None
+        last_segment_file_start = last_segment[1]
+        last_segment_file_end = last_segment[1]+last_segment[4]
+        if not (last_segment_file_start < pdf_beginning_pos < last_segment_file_end):
+            l.warning("pdf data start outside last segment")
+            return False, None, None, None
+        if not (last_segment_file_start < pdf_end <= last_segment_file_end):
+            l.warning("pdf data end outside last segment")
+            return False, None, None, None
+        last_segment_expected_start = "The DECREE packages used in the creation of this challenge binary were:"
+        expected_str_end = last_segment_file_start+len(last_segment_expected_start)
+        if not self.ocontent[last_segment_file_start:expected_str_end] == last_segment_expected_start:
+            l.warning("last segment not starting correctly")
+            return False, None, None, None
+
+        # 5) check for _start structure
+        instructions = utils.decompile(self.read_mem_from_file(self.get_oep(),30),self.get_oep())
+        i1, i2 = instructions[:2]
+        if not (i1.mnemonic == u'call' and i1.mnemonic == u'call'):
+            l.warning("unexpected instructions at entry points")
+            return False, None, None, None
+        try:
+            checker_function_start = int(i1.op_str,16)
+        except ValueError:
+            l.warning("invald call address at entry point")
+            return False, None, None, None
+
+        # 6) check for pdf checker function structure
+        expected_instructions = ["push","push","push","call","add","push","push","push","push","push",
+                "push","add","pushfd","pop","and","push","popfd","push","pop","ret"]
+        instructions = utils.decompile(self.read_mem_from_file(checker_function_start,0x30),checker_function_start)
+        if not expected_instructions == [instruction.mnemonic.encode("ascii") for instruction in instructions]:
+            l.warning("unexpected instructions in checker function")
+            return False, None, None, None  
+
+        # 7) check for pdf acceses from cfg
+        if False: # TODO, see issue:
+            l.warning("unexpected acceses to the pdf")
+            return False, None, None, None
+            
+        return True, pdf_beginning_pos, pdf_length, instructions[4].address, len(instructions[4].bytes)
+
+    def remove_pdf(self, pdf_start, pdf_length, check_instruction_addr, check_instruction_size):
+        last_segment = self.dump_segments()[-1]
+        cut_end = (pdf_start+pdf_length) & 0xfffff000
+        cut_start = (last_segment[1] & 0xfffff000) + 0x1000
+        cut_amount = cut_end-cut_start
+        l.info("cutting the pdf from: %08x to %08x" % (cut_start,cut_end))
+        self.ncontent = self.ocontent[:cut_start]+self.ocontent[cut_end:]
+
+        if check_instruction_addr != None:
+            utils.str_overwrite(self.ncontent,"\x90"*check_instruction_size,check_instruction_addr)
+
+        header_size = 16 + 2*2 + 4*5 + 2*6
+        buf = self.ocontent[0:header_size]
+        (cgcef_type, cgcef_machine, cgcef_version, cgcef_entry, cgcef_phoff,
+            cgcef_shoff, cgcef_flags, cgcef_ehsize, cgcef_phentsize, cgcef_phnum,
+            cgcef_shentsize, cgcef_shnum, cgcef_shstrndx) = struct.unpack("<xxxxxxxxxxxxxxxxHHLLLLLHHHHHH", buf)
+        phent_size = 8 * 4
+        assert cgcef_phnum != 0
+        assert cgcef_phentsize == phent_size
+
+        segments = []
+        for i in xrange(0, cgcef_phnum):
+            segment_header_content = self.ncontent[cgcef_phoff+phent_size*i:cgcef_phoff+phent_size*i+phent_size]
+            segment_header_addr = (cgcef_phoff + phent_size * i)
+            unpacked_original = struct.unpack("<IIIIIIII", segment_header_content)
+            (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align) = unpacked_original
+        p_filesz -= cut_amount
+        p_memsz -= cut_amount
+        unpacked_new = (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align)
+        l.info("last segment changed from %s to %s" % (repr(map(hex,unpacked_original)), repr(map(hex,unpacked_new))))
+        utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *unpacked_new),segment_header_addr)
 
     def is_patched(self):
         return self.ncontent[0x34:0x34 + len(self.patched_tag)] == self.patched_tag
@@ -162,8 +295,6 @@ class DetourBackend(Backend):
         for i in xrange(0, cgcef_phnum):
             hdr = self.ncontent[cgcef_phoff + phent_size * i:cgcef_phoff + phent_size * i + phent_size]
             (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align) = struct.unpack("<IIIIIIII", hdr)
-            if tprint:
-                print (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align)
 
             assert p_type in pt_types
             ptype_str = pt_types[p_type]
@@ -176,6 +307,7 @@ class DetourBackend(Backend):
                 print "Permissions: %s" % self.pflags_to_perms(p_flags)
                 print "Memory: 0x%x + 0x%x" % (p_vaddr, p_memsz)
                 print "File: 0x%x + 0x%x" % (p_offset, p_filesz)
+                print map(hex,(p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align))
 
         self.segments = segments
         return segments
@@ -198,7 +330,6 @@ class DetourBackend(Backend):
         else:
             pass
             # in this case the header has been already patched before
-
 
         mem_code_location = self.added_code_segment + (self.added_code_file_start % 0x1000)
         code_segment_header = (1, self.added_code_file_start, mem_code_location, mem_code_location,
