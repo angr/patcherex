@@ -69,5 +69,5 @@ class ReassemblerBackend(Backend):
         Load and disassemble the binary.
         """
 
-        self._binary = self.project.analyses.Binary(syntax='att')
+        self._binary = self.project.analyses.Binary(syntax='at&t')
         self._binary.symbolize()
