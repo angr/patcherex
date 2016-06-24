@@ -216,13 +216,20 @@ class DetourBackend(Backend):
             return False, None, None, None  
 
         # 7) check for pdf acceses from cfg
-        if False: # TODO, see issue:
+        if False: # TODO, see issue: https://git.seclab.cs.ucsb.edu/cgc/patcherex/issues
             l.warning("unexpected acceses to the pdf")
             return False, None, None, None
             
         return True, pdf_beginning_pos, pdf_length, instructions[4].address, len(instructions[4].bytes)
 
     def remove_pdf(self, pdf_start, pdf_length, check_instruction_addr, check_instruction_size):
+        # TODO fix issue: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/2
+        # TODO handle case in which there is no pdf checker function (compiler oprions may remove it)
+        # TODO verify if asm functions are always the same when changing compiler options 
+        # TODO large scale with nop patch on all 600
+        # TODO add remove_pdf as decorator options on all test
+        # TODO commit large scale test not as test_ file
+
         last_segment = self.dump_segments()[-1]
         cut_end = (pdf_start+pdf_length) & 0xfffff000
         cut_start = (last_segment[1] & 0xfffff000) + 0x1000
