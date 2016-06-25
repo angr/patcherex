@@ -81,8 +81,10 @@ class DetourBackend(Backend):
         self.saved_states = OrderedDict()
         # not all the touched bytes are bad, they are only a serious problem in case of InsertCodePatch
         self.touched_bytes = set()
+        self.modded_segments = self.dump_segments()
 
         if self.try_pdf_removal == True:
+            l.info("Trying to remove the pdf from the binary")
             should_remove_pdf, pdf_start, pdf_length, check_instruction_addr, check_instruction_size  = self.find_pdf()
             if should_remove_pdf:
                 l.info("Removing the pdf from the binary")
@@ -90,18 +92,19 @@ class DetourBackend(Backend):
                 self.pdf_removed = True
             else:
                 l.warning("I cannot remove the pdf from this binary")
+        else:
+            l.info("Forced not to remove the pdf from the binary")
 
         # we reused existing data segment if it is the last one in the file, otherwise we use the fallback solution
         if data_fallback == None:
-            segments = self.dump_segments()
-            last_segment = segments[-1]
+            last_segment = self.modded_segments[-1]
             # TODO if not global rw data in the original program, this segment is not here
             # for now I assume it will be always here in reasonable programs
             if self.pflags_to_perms(last_segment[-2]) == "RW":
                 #check that this is actually the last one in the file and no one is overlapping
                 # p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align
-                max_file_start = max([s[1] for s in segments[:-1]])
-                max_file_end = max([s[1]+s[4] for s in segments[:-1]])
+                max_file_start = max([s[1] for s in self.modded_segments[:-1]])
+                max_file_end = max([s[1]+s[4] for s in self.modded_segments[:-1]])
                 if max_file_start < last_segment[1] and max_file_end <= last_segment[1]+last_segment[4]:
                     l.info("Using standard method for RW memory. " \
                             "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x" % \
@@ -121,8 +124,7 @@ class DetourBackend(Backend):
             # this is the start in memory
             self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + 0x10000000
         else:
-            segments = self.dump_segments()
-            last_segment = segments[-1]
+            last_segment = self.modded_segments[-1]
             # at the end of the file there is stuff which is supposely not loaded in memory 
             # but it is present in the file (e.g., segment headers)
             # we need to account for that
@@ -138,7 +140,7 @@ class DetourBackend(Backend):
         pdf_string_pos = self.ocontent.find(pdf_string)
         if pdf_string_pos == -1:
             l.warning("pdf string not found")
-            return False, None, None, None
+            return False, None, None, None, None
 
         # 2) check for the pdf start
         pdf_beginning_str = [0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x33, 0x0a, 0x25, 0xc4, 0xe5, 0xf2,
@@ -151,61 +153,63 @@ class DetourBackend(Backend):
         pdf_beginning_pos = pdf_string_pos+len(pdf_string)
         if not self.ocontent[pdf_beginning_pos:pdf_beginning_pos+len(pdf_beginning_str)] == pdf_beginning_str:
             l.warning("pdf beginning not found")
-            return False, None, None, None
+            return False, None, None, None, None
 
         # 3) check for the pdf end (based on size)
         pdf_length_pos = self.ocontent[:pdf_string_pos-1].rfind(" ")
         if pdf_length_pos == -1:
             l.warning("pdf length str not found")
-            return False, None, None, None
+            return False, None, None, None, None
         pdf_length_str = self.ocontent[pdf_length_pos:pdf_string_pos]
         try:
             pdf_length = int(pdf_length_str)
         except ValueError:
             l.warning("pdf length str not int")
-            return False, None, None, None
+            return False, None, None, None, None
         pdf_end = pdf_beginning_pos+pdf_length
         pdf_ending_str = "\n%%EOF\n"
         if not self.ocontent[pdf_end-len(pdf_ending_str):pdf_end] == pdf_ending_str:
             l.warning("pdf ending not found")
-            return False, None, None, None
+            return False, None, None, None, None
 
         # 4) check for segment structure
-        segments = self.dump_segments()
+        segments = self.modded_segments
         last_segment = segments[-1]
         if not self.pflags_to_perms(last_segment[-2]) == "RW":
             l.warning("last segment is not RW")
-            return False, None, None, None
+            return False, None, None, None, None
         max_file_start = max([s[1] for s in segments[:-1]])
         max_file_end = max([s[1]+s[4] for s in segments[:-1]])
         if not (max_file_start < last_segment[1] and max_file_end <= last_segment[1]+last_segment[4]):
             l.warning("overlapping segments")
-            return False, None, None, None
+            return False, None, None, None, None
         last_segment_file_start = last_segment[1]
         last_segment_file_end = last_segment[1]+last_segment[4]
         if not (last_segment_file_start < pdf_beginning_pos < last_segment_file_end):
             l.warning("pdf data start outside last segment")
-            return False, None, None, None
+            return False, None, None, None, None
         if not (last_segment_file_start < pdf_end <= last_segment_file_end):
             l.warning("pdf data end outside last segment")
-            return False, None, None, None
-        last_segment_expected_start = "The DECREE packages used in the creation of this challenge binary were:"
-        expected_str_end = last_segment_file_start+len(last_segment_expected_start)
-        if not self.ocontent[last_segment_file_start:expected_str_end] == last_segment_expected_start:
-            l.warning("last segment not starting correctly")
-            return False, None, None, None
+            return False, None, None, None, None
+
+        # this is not necessary true if yu have not empty .data
+        #last_segment_expected_start = "The DECREE packages used in the creation of this challenge binary were:"
+        #expected_str_end = last_segment_file_start+len(last_segment_expected_start)
+        #if not self.ocontent[last_segment_file_start:expected_str_end] == last_segment_expected_start:
+        #    l.warning("last segment not starting correctly")
+        #    return False, None, None, None, None
 
         # 5) check for _start structure
         instructions = utils.decompile(self.read_mem_from_file(self.get_oep(),30),self.get_oep())
         i1, i2 = instructions[:2]
         if not (i1.mnemonic == u'call' and i1.mnemonic == u'call'):
             l.warning("unexpected instructions at entry points")
-            return False, None, None, None
+            return False, None, None, None, None
         try:
             checker_function_start = int(i1.op_str,16)
         except ValueError:
             l.warning("invald call address at entry point")
-            return False, None, None, None
+            return False, None, None, None, None
 
         # 6) check for pdf checker function structure
         expected_instructions = ["push","push","push","call","add","push","push","push","push","push",
@@ -213,32 +217,42 @@ class DetourBackend(Backend):
         instructions = utils.decompile(self.read_mem_from_file(checker_function_start,0x30),checker_function_start)
         if not expected_instructions == [instruction.mnemonic.encode("ascii") for instruction in instructions]:
             l.warning("unexpected instructions in checker function")
-            return False, None, None, None  
+            return False, None, None, None, None  
 
         # 7) check for pdf acceses from cfg
         if False: # TODO, see issue: https://git.seclab.cs.ucsb.edu/cgc/patcherex/issues
             l.warning("unexpected acceses to the pdf")
-            return False, None, None, None
+            return False, None, None, None, None
             
-        return True, pdf_beginning_pos, pdf_length, instructions[4].address, len(instructions[4].bytes)
+        return True, pdf_beginning_pos, pdf_length, instructions[3].address, len(instructions[3].bytes)
 
     def remove_pdf(self, pdf_start, pdf_length, check_instruction_addr, check_instruction_size):
         # TODO fix issue: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/2
-        # TODO handle case in which there is no pdf checker function (compiler oprions may remove it)
-        # TODO verify if asm functions are always the same when changing compiler options 
         # TODO large scale with nop patch on all 600
-        # TODO add remove_pdf as decorator options on all test
+        # TODO add remove_pdf as decorator options on all tests
         # TODO commit large scale test not as test_ file
+        # TODO prevent translation of maddress in mangled reason (past the beginning of the last segment)
+        # TODO adhoc tests for pdf remover (NRFIN_00075 and CROMU_00071): add code reading/writing all .data and .bss + added one
+        # TODO fix section table pointer so that patched binaries can be at least loaded in gdb and readelf
+        # but use later these bugs for adversarial patching
+        # TODO close qemu issue
 
-        last_segment = self.dump_segments()[-1]
+        last_segment = self.modded_segments[-1]
         cut_end = (pdf_start+pdf_length) & 0xfffff000
-        cut_start = (last_segment[1] & 0xfffff000) + 0x1000
-        cut_amount = cut_end-cut_start
+        cut_start = (pdf_start & 0xfffff000) + 0x1000
+        cut_size = cut_end-cut_start
+        cut_start_mem = cut_start - last_segment[1] + last_segment[2]
+        cut_end_mem = cut_end - last_segment[1] + last_segment[2]
         l.info("cutting the pdf from: %08x to %08x" % (cut_start,cut_end))
         self.ncontent = self.ocontent[:cut_start]+self.ocontent[cut_end:]
 
-        if check_instruction_addr != None:
-            utils.str_overwrite(self.ncontent,"\x90"*check_instruction_size,check_instruction_addr)
+        print "--------------"
+        print check_instruction_size
+        print hex(check_instruction_addr)
+        print "==="
+        self.ncontent = utils.str_overwrite(self.ncontent,"\x90"*check_instruction_size, \
+                self.maddress_to_baddress(check_instruction_addr))
+        # TODO set higer addresses as not convertible
 
         header_size = 16 + 2*2 + 4*5 + 2*6
         buf = self.ocontent[0:header_size]
@@ -249,17 +263,21 @@ class DetourBackend(Backend):
         assert cgcef_phnum != 0
         assert cgcef_phentsize == phent_size
 
-        segments = []
-        for i in xrange(0, cgcef_phnum):
-            segment_header_content = self.ncontent[cgcef_phoff+phent_size*i:cgcef_phoff+phent_size*i+phent_size]
-            segment_header_addr = (cgcef_phoff + phent_size * i)
-            unpacked_original = struct.unpack("<IIIIIIII", segment_header_content)
-            (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align) = unpacked_original
-        p_filesz -= cut_amount
-        p_memsz -= cut_amount
-        unpacked_new = (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align)
-        l.info("last segment changed from %s to %s" % (repr(map(hex,unpacked_original)), repr(map(hex,unpacked_new))))
-        utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *unpacked_new),segment_header_addr)
+        segments = self.modded_segments
+        last_segment = segments[-1]
+        (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align) = last_segment
+        pre_cut_segment_size = cut_start_mem - p_vaddr
+        print map(hex,[cut_start,cut_end,cut_start_mem,pre_cut_segment_size, cut_start_mem, p_vaddr])
+        pre_cut_segment = (p_type, p_offset, p_vaddr, p_paddr, pre_cut_segment_size, pre_cut_segment_size, \
+                p_flags, p_align)
+        post_cut_segment = (p_type, p_offset + pre_cut_segment_size, \
+                p_vaddr + pre_cut_segment_size + cut_size, p_vaddr + pre_cut_segment_size + cut_size, \
+                p_filesz - cut_size - pre_cut_segment_size, p_memsz - cut_size - pre_cut_segment_size, \
+                p_flags, p_align)
+
+        l.info("last segment changed from \n%s to \n%s\n%s" % \
+                (map(hex,last_segment),map(hex,pre_cut_segment),map(hex,post_cut_segment)))
+        self.modded_segments = segments[:-1] + [pre_cut_segment,post_cut_segment]
 
     def is_patched(self):
         return self.ncontent[0x34:0x34 + len(self.patched_tag)] == self.patched_tag
@@ -310,6 +328,7 @@ class DetourBackend(Backend):
 
             if tprint:
                 print "---"
+                print "Loc:" + hex(cgcef_phoff + phent_size * i)
                 print "Type: %s" % ptype_str
                 print "Permissions: %s" % self.pflags_to_perms(p_flags)
                 print "Memory: 0x%x + 0x%x" % (p_vaddr, p_memsz)
@@ -323,7 +342,7 @@ class DetourBackend(Backend):
         assert self.ncontent[0x34:0x34+len(self.patched_tag)] == self.patched_tag
         l.debug("added_data_file_start: %#x", self.added_data_file_start)
         added_segments = 0
-        original_nsegments = struct.unpack("<H", self.ncontent[0x2c:0x2c+2])[0]
+        original_nsegments = len(self.modded_segments)
 
         # if the size of a segment is zero, the kernel does not allocate any memory
         # so, we don't care about empty segments
@@ -345,7 +364,7 @@ class DetourBackend(Backend):
                                             self.original_header_end)
         added_segments += 1
 
-        original_nsegments = struct.unpack("<H", self.ncontent[0x2c:0x2c+2])[0]
+        print original_nsegments,added_segments
         self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<H", original_nsegments + added_segments), 0x2c)
 
     @staticmethod
@@ -636,7 +655,7 @@ class DetourBackend(Backend):
                 segments = segment_patch.segment_headers
                 l.info("Added patch: " + str(segment_patch))
             else:
-                segments = self.dump_segments()
+                segments = self.modded_segments
 
             if not self.data_fallback:
                 last_segment = segments[-1]
