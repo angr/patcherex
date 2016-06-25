@@ -96,6 +96,7 @@ def run_all():
 if __name__ == "__main__":
     import sys
     logging.getLogger("patcherex.test.test_patch_master").setLevel("INFO")
+    logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
     else:

@@ -64,10 +64,12 @@ class DetourBackend(Backend):
 
         self.name_map = RejectingDict()
 
-        # where to put the segments
+        # where to put the segments in memory
         self.added_code_segment = 0x11000000
+        self.added_data_segment = 0x10000000
         self.single_segment_header_size = 32
-        self.additional_headers_size = 2*self.single_segment_header_size
+        # we may need up to 3 additional segments (1 for pdf removal 2 for patching)
+        self.additional_headers_size = 3*self.single_segment_header_size 
 
         self.added_code = ""
         self.added_data = ""
@@ -122,7 +124,7 @@ class DetourBackend(Backend):
 
         if self.data_fallback:
             # this is the start in memory
-            self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + 0x10000000
+            self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + self.added_data_segment
         else:
             last_segment = self.modded_segments[-1]
             # at the end of the file there is stuff which is supposely not loaded in memory 
@@ -229,14 +231,21 @@ class DetourBackend(Backend):
     def remove_pdf(self, pdf_start, pdf_length, check_instruction_addr, check_instruction_size):
         # TODO fix issue: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/2
         # TODO large scale with nop patch on all 600
+        # TODO test patch_master fully (with debug output showing if pdf removal is used)
         # TODO add remove_pdf as decorator options on all tests
         # TODO commit large scale test not as test_ file
         # TODO prevent translation of maddress in mangled reason (past the beginning of the last segment)
-        # TODO adhoc tests for pdf remover (NRFIN_00075 and CROMU_00071): add code reading/writing all .data and .bss + added one
+        # TODO adhoc tests for pdf remover (NRFIN_00075, CROMU_00071, and CROMU_00020): add code reading/writing all .data and .bss + added one
         # TODO fix section table pointer so that patched binaries can be at least loaded in gdb and readelf
         # but use later these bugs for adversarial patching
         # TODO close qemu issue
+        # TODO clean print messages
+        # TODO fix CROMU_00020 --> no patches with indirectcfi --> no segments fix (double check)
 
+        # TODO clang requirement, different compilation flags
+        # TODO double check randomness 
+
+        l.info("pdf is between %08x and %08x" % (pdf_start,  pdf_start + pdf_length))
         last_segment = self.modded_segments[-1]
         cut_end = (pdf_start+pdf_length) & 0xfffff000
         cut_start = (pdf_start & 0xfffff000) + 0x1000
@@ -642,7 +651,7 @@ class DetourBackend(Backend):
         header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
         if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
-                any([isinstance(p,SegmentHeaderPatch) for p in patches]):
+                any([isinstance(p,SegmentHeaderPatch) for p in patches]) or self.pdf_removed:
             # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers 
 
             # 6) SegmentHeaderPatch
@@ -663,10 +672,11 @@ class DetourBackend(Backend):
                 last_segment =  p_type, p_offset, p_vaddr, p_paddr, \
                        p_filesz, p_memsz + self.added_rwdata_len + self.added_rwinitdata_len, p_flags, p_align
                 segments[-1] = last_segment
-
             self.setup_headers(segments)
             self.set_added_segment_headers()
-        l.debug("final symbol table: "+ repr([(k,hex(v)) for k,v in self.name_map.iteritems()]))
+            l.debug("final symbol table: "+ repr([(k,hex(v)) for k,v in self.name_map.iteritems()]))
+        else:
+            l.info("no patches, the binary will not be touched")
 
     def handle_remove_patch(self,patches,patch):
         # note the patches contains also "future" patches
@@ -882,6 +892,7 @@ class DetourBackend(Backend):
         return new_code
 
     def get_final_content(self):
+        print self.modded_segments
         return self.ncontent
 
     def save(self, filename=None):
