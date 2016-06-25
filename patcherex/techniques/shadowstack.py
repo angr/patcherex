@@ -169,7 +169,7 @@ class ShadowStack(object):
             for ret_site in ff.ret_sites:
                 bb = self.patcher.project.factory.block(ret_site.addr)
                 last_instruction = bb.capstone.insns[-1]
-                if last_instruction.mnemonic != u"ret":
+                if last_instruction.mnemonic not in ("ret", "retl"):
                     l.debug("bb at %s does not terminate with a ret in function %s" % (hex(int(bb.addr)),ff.name))
                     break
                 else:

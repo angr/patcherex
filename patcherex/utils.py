@@ -9,6 +9,7 @@ import contextlib
 import subprocess
 import fnmatch
 import os
+import string
 
 
 class NasmException(Exception):
@@ -30,6 +31,256 @@ class UndefinedSymbolException(Exception):
 ELF_HEADER = "7f45 4c46 0101 0100 0000 0000 0000".replace(" ", "").decode('hex')
 CGC_HEADER = "7f43 4743 0101 0143 014d 6572 696e".replace(" ", "").decode('hex')
 
+
+class ASMConverter(object):
+    size_suffix = {
+        1: 'b',
+        2: 'w',
+        4: 'l',
+    }
+
+    @staticmethod
+    def get_size(op):
+        """
+        Get the size from the operand
+        :param str op: The operand
+        :return: Size in bytes
+        :rtype: int
+        """
+
+        # memory operand
+        op = op.lower()
+        if "dword" in op:
+            return 4
+        elif "word" in op:
+            return 2
+        elif "byte" in op:
+            return 1
+
+        # register
+        if len(op) == 3 and op.startswith('e') and op[-1] in ('x', 'i', 'p'):
+            return 4
+        elif len(op) == 2 and any([ c in string.lowercase for c in op ]):
+            if not op.endswith('h') and not op.endswith('l'):
+                return 2
+            else:
+                return 1
+        return None
+
+    @staticmethod
+    def reg_to_att(reg):
+        """
+        Convert a register string from intel syntax to AT&T syntax
+        :param str reg: The register name
+        :return: converted string
+        :rtype: str
+        """
+
+        reg = reg.lower()
+        is_reg = False
+
+        if len(reg) == 3 and reg.startswith('e') and reg[-1] in ('x', 'i', 'p'):
+            is_reg = True
+        elif len(reg) == 2:
+            if reg.endswith('h') or reg.endswith('l') or reg[-1] in ('x', 'i', 'p'):
+                is_reg = True
+
+        if not is_reg:
+            return None
+
+        return "%%%s" % reg
+
+    @staticmethod
+    def mem_to_att(mem):
+        """
+        Convert a memory operand string from intel syntax to AT&T syntax
+        :param str mem: The memory operand string
+        :return: converted string
+        :rtype: str
+        """
+
+        m = re.match(r"[^\[]*\[([^\]]+)\]", mem)
+        if m:
+            mem_ptr = m.group(1)
+
+            # TODO: base + index * scale + displacement
+            # m = re.match(r"")
+
+            # base + displacement
+            m = re.match(r"\s*([^\s\+\-]+)\s*[\+\-]\s*([^\s\+\-]+)", mem_ptr)
+            if m:
+                base, disp = m.group(1), m.group(2)
+
+                base_reg = ASMConverter.reg_to_att(base)
+                if base_reg is None:
+                    # some idiot wrote it in this way: displacement + base
+                    # e.g. {this_is_a_label} + edi
+                    # fuck anyone who wrote assembly like that...
+                    base, disp = disp, base
+
+                base_reg = ASMConverter.reg_to_att(base)
+
+                if base_reg is None:
+                    raise ValueError('Unsupported input: %s' % mem_ptr)
+
+                if disp[0] == '{' and disp[-1] == '}':
+                    disp = disp[1:-1]
+
+                return "%s(%s)" % (disp, base_reg)
+
+            # base or displacement
+            m = re.match(r"\s*([^\s\+\-]+)", mem_ptr)
+            if m:
+                something = m.group(1)
+                reg = ASMConverter.reg_to_att(something)
+                if reg:
+                    # base
+                    return "(%s)" % reg
+                else:
+                    # displacement
+                    # TODO: fix it
+                    if something[0] == '{' and something[-1] == '}':
+                        return something[1:-1]
+                    return "%s" % something
+
+        if mem[0] == '{' and mem[-1] == '}':
+            return "$%s" % mem[1:-1]
+
+        return None
+
+    @staticmethod
+    def imm_to_att(op):
+        """
+        Convert an immediate to AT&T style syntax
+        :param str op: The operand
+        :return: converted string
+        :rtype: str
+        """
+
+        m = re.match(r"\s*([0-9a-fA-Fxh]+)$", op)
+        if m:
+            imm = m.group(1)
+            return "$%s" % imm
+
+    @staticmethod
+    def to_att(op, mnemonic=None):
+        """
+        Convert an operand from intel syntax to AT&T syntax
+        :param str op: the operand string
+        :param str mnemonic: the mnemonic
+        :return: converted string
+        :rtype: str
+        """
+
+        new_op = ASMConverter.reg_to_att(op)
+        if new_op is not None:
+            return 'reg', new_op
+        new_op = ASMConverter.mem_to_att(op)
+        if new_op is not None and mnemonic[0] != 'j' and mnemonic not in ('call', ):
+            return 'mem', new_op
+        new_op = ASMConverter.imm_to_att(op)
+        if new_op is not None:
+            return 'imm', new_op
+
+        if op[0] == '{' and op[-1] == '}':
+            # it's a label
+            return 'label', op[1:-1]
+
+        # other type of label
+        return 'label', op
+
+    @staticmethod
+    def mnemonic_to_att(m, size):
+
+        if m in ('int',):
+            return m
+        if m.startswith('j'):
+            return m
+
+        m += ASMConverter.size_suffix[size]
+        return m
+
+    @staticmethod
+    def intel_to_att(asm):
+
+        # convert each line from intel syntax to AT&T syntax
+
+        converted = []
+
+        for l in asm.split('\n'):
+
+            # comments
+            m = re.match(r"(\s*);(\S*)", l)
+            if m:
+                converted.append("\t#" + m.group(2))
+                continue
+
+            # two operands
+            m = re.match(r"(\s*)([\S]+)\s+([^,]+),\s*([^,]+)\s*$", l)
+            if m:
+                mnemonic, op1, op2 = m.group(2), m.group(3), m.group(4)
+                spaces = m.group(1)
+
+                # switch the op
+                op1, op2 = op2, op1
+                size = ASMConverter.get_size(op1)
+                if size is None: size = ASMConverter.get_size(op2)
+
+                if size is None:
+                    raise NotImplementedError('Not supported')
+
+                # suffix the mnemonic
+                mnemonic = ASMConverter.mnemonic_to_att(mnemonic, size)
+
+                op1 = ASMConverter.to_att(op1, mnemonic=mnemonic)[1]
+                op2 = ASMConverter.to_att(op2, mnemonic=mnemonic)[1]
+
+                s = "%s%s %s, %s" % (spaces, mnemonic, op1, op2)
+                converted.append(s)
+
+                continue
+
+            # one operand
+            m = re.match(r"(\s*)([\S]+)\s+([^,]+)\s*$", l)
+            if m:
+                mnemonic, op = m.group(2), m.group(3)
+                spaces = m.group(1)
+
+                size = ASMConverter.get_size(op)
+                if size is None:
+                    # it might be a label
+                    size = 4
+
+                op_sort, op = ASMConverter.to_att(op, mnemonic=mnemonic)
+
+                # suffix the mnemonic
+                mnemonic = ASMConverter.mnemonic_to_att(mnemonic, size)
+
+                #if mnemonic[0] == 'j' and op_sort == 'label':
+                #    op = "." + op
+
+                s = "%s%s %s" % (spaces, mnemonic, op)
+                converted.append(s)
+
+                continue
+
+            # no operand
+            m = re.match(r"(\s*)([^\s,:]+)\s*$", l)
+            if m:
+                mnemonic = m.group(2)
+                spaces = m.group(1)
+
+                mnemonic = ASMConverter.mnemonic_to_att(mnemonic, 4)
+
+                s = "%s%s" % (spaces, mnemonic)
+                converted.append(s)
+
+                continue
+
+            # other stuff
+            converted.append(l)
+
+        return "\n".join(converted)
 
 def str_overwrite(tstr, new, pos=None):
     if pos is None:

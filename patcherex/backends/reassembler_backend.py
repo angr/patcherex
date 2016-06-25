@@ -6,6 +6,7 @@ import tempfile
 import compilerex
 from topsecret import Binary
 
+from ..patches import *
 from ..backend import Backend
 
 l = logging.getLogger('reassembler')
@@ -28,7 +29,24 @@ class ReassemblerBackend(Backend):
     #
 
     def apply_patches(self, patches):
-        pass
+        for p in patches:
+            if isinstance(p, InsertCodePatch):
+                self._binary.insert_asm(p.addr, p.att_asm())
+#
+            elif isinstance(p, AddCodePatch):
+                self._binary.append_procedure(p.name, p.att_asm())
+#
+            elif isinstance(p, AddRODataPatch):
+                self._binary.append_data(p.name, p.data, len(p.data), readonly=True)
+#
+            elif isinstance(p, AddRWDataPatch):
+                self._binary.append_data(p.name, None, p.len, readonly=False)
+
+            elif isinstance(p, AddEntryPointPatch):
+                self._binary.insert_asm(self.project.entry, p.att_asm())
+
+            else:
+                raise NotImplementedError()
 
     def save(self, filename=None):
 
