@@ -38,6 +38,23 @@ def test_functionality():
     for b in binaries:
         run_functionality(b)
 
+def manual_run_functionality_all():
+
+    # Grab all binaries under binaries-private/cgc_samples_multiflags, and reassemble them
+
+    binaries = []
+
+    for dirname, dirlist, filelist in os.walk(os.path.join(bin_location, 'cgc_samples_multiflags')):
+        for b in filelist:
+            if '.' in b:
+                continue
+            p = os.path.join('cgc_samples_multiflags', dirname, b)
+            binaries.append(p)
+
+    for b in binaries:
+        print "Reassembling %s..." % b
+        run_functionality(b)
+
 #
 # Patching tests
 #
@@ -73,5 +90,6 @@ def test_shadowstack():
         run_shadowstack(b)
 
 if __name__ == "__main__":
-    test_functionality()
-    test_shadowstack()
+    manual_run_functionality_all()
+    #test_functionality()
+    #test_shadowstack()
