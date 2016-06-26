@@ -54,6 +54,9 @@ class DetourBackend(Backend):
 
         super(DetourBackend, self).__init__(filename,try_pdf_removal)
 
+        self.cfg = self._generate_cfg()
+        self.ordered_nodes = self._get_ordered_nodes(self.cfg)
+
         # header stuff
         self.ncontent = self.ocontent
         self.segments = None

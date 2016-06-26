@@ -25,9 +25,6 @@ class Backend(object):
         with open(filename, "rb") as f:
             self.ocontent = f.read()
 
-        self.cfg = self._generate_cfg()
-        self.ordered_nodes = self._get_ordered_nodes()
-
     #
     # Public methods
     #
@@ -83,10 +80,10 @@ class Backend(object):
 
         return cfg
 
-    def _get_ordered_nodes(self):
+    def _get_ordered_nodes(self, cfg):
         prev_addr = None
         ordered_nodes = []
-        for n in sorted(self.cfg.nodes(), key=lambda x: x.addr):
+        for n in sorted(cfg.nodes(), key=lambda x: x.addr):
             if n.addr == prev_addr:
                 continue
             prev_addr = n.addr
