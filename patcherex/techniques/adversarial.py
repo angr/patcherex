@@ -28,38 +28,63 @@ class Adversarial(object):
         patches.append(RawFilePatch(0x30,struct.pack("<H",0xfefe)))
         patches.append(RawFilePatch(0x30,struct.pack("<H",0xffff)))
         fail_code = '''
-        
+            ; infinite loop allocating and writing memory
+            xor ebp, ebp
+            _loop:
+                inc ebp
+                call _get_eip
+                _get_eip:
+                pop eax
+
+                test eax, eax
+                jz _exit ; never true
+                xor eax, eax
+                mov al, 5
+                mov ebx, 0x1000
+                xor ecx, ecx
+                inc ecx
+                mov edx, {tmp1}
+                int 0x80
+                cmp al, 4 ;ENOMEM
+                je _loop
+                mov esi, DWORD [{tmp1}]
+                mov edi, esi
+                _inner_loop:
+                    mov DWORD [esi], ebp
+                    add esi, 4
+                    cmp esi, edi
+                    je _exit2
+                    jmp _inner_loop
+                _exit2:
+                jmp _loop
+            _exit:
         '''
-        patches.append(AddCodePatch())
+        patches.append(AddCodePatch(fail_code,"evil_fail"))
 
         code = '''
         ; 1) transmit flag page to stderr
         ;  - check if it fails (it should not even if we try to send two pages)
         ;  - confuse dynamic detection of type2
         ; int transmit(int fd, const void *buf, size_t count, size_t *tx_bytes) [2]
+        mov ecx,  0x4347c000
+        mov edx, 0x10000
+        mov esi {tmp1}
         xor eax, eax
         mov al, 0x2
         xor ebx, ebx
         mov bl, 0x2 ;stderr!
-        ; it seems that at least one page must exist
-        mov ecx,  0x4347c000 ;two pages before the end of the stack + 1
-        mov edx, 0x10000
-        mov esi {tmp1}
         int 0x80
         test eax, eax
         je _e1
-        mov eax, 0x40
-        call {exit_eax}
+        call {evil_fail}
         _e1:
-        pop eax
-        ; I am just checking that it is different from 0
-        ; from a full discussion of this very complicated matter read:
-        ; https://git.seclab.cs.ucsb.edu/cgc/tracer/issues/3
-        cmp eax, 0
+        cmp [{tmp1}], 0
         jg _e2
-        mov eax, 0x41
-        call {exit_eax}
+        call {evil_fail}
         _e2:
+        ; ...
         '''
+        patches.append(AddCodePatch(fail_code,"evil_fail"))
+
 
         return patches
