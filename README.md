@@ -1,7 +1,7 @@
 Central manager and compiler for all the patches.
 
-It requires NASM:
-apt-get install nasm
+It requires NASM and clang:
+apt-get install nasm clang
 
 
 
