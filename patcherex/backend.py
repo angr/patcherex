@@ -10,7 +10,7 @@ class Backend(object):
     Patcher backend.
     """
 
-    def __init__(self, filename):
+    def __init__(self, filename, try_pdf_removal=True):
         """
         Constructor
 
@@ -19,6 +19,8 @@ class Backend(object):
 
         # file info
         self.filename = filename
+        self.try_pdf_removal = try_pdf_removal
+        self.pdf_removed = False # has the pdf actually been removed?
         self.project = angr.Project(filename)
         with open(filename, "rb") as f:
             self.ocontent = f.read()

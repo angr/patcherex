@@ -13,7 +13,7 @@ class Packer(object):
         self.binary_fname = binary_fname
         self.patcher = backend
         self.oep = self.patcher.get_oep()
-        self.original_segments = self.patcher.dump_segments()
+        self.original_segments = self.patcher.modded_segments
         self.plen = 0x1000
 
     def compute_new_segments_layout(self):
