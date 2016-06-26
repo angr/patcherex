@@ -18,15 +18,25 @@ bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..
 qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../tracer/bin/tracer-qemu-cgc"))
 
 global_data_fallback = None
+global_try_pdf_removal = True
 
 
 def add_fallback_strategy(f):
     @wraps(f)
     def wrapper():
         global global_data_fallback
+        global global_try_pdf_removal
         global_data_fallback = None
+        global_try_pdf_removal = True
         f()
         global_data_fallback = True
+        global_try_pdf_removal = True
+        f()
+        global_data_fallback = None
+        global_try_pdf_removal = False
+        f()
+        global_data_fallback = True
+        global_try_pdf_removal = False
         f()
     return wrapper
 
@@ -44,7 +54,7 @@ def test_simple_inline():
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p = InlinePatch(0x8048291, "mov DWORD [esp+8], 0x40;", name="asdf")
         backend.apply_patches([p])
         backend.save(tmp_file)
@@ -62,7 +72,7 @@ def test_added_code():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         added_code = '''
             mov     eax, 1
             mov     ebx, 0x32
@@ -86,7 +96,7 @@ def test_added_code_and_data():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         test_str = "testtesttest\n\x00"
         added_code = '''
             mov     eax, 2
@@ -131,7 +141,7 @@ def test_rw_memory():
     lenlist.append(0x2000+1)
 
     for tlen in lenlist:
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
         patches.append(AddRWDataPatch(tlen, "added_data_rw"))
 
@@ -221,7 +231,7 @@ def test_ro_memory():
     lenlist.append(0x2000+1)
 
     for tlen in lenlist:
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
         patches.append(AddRODataPatch("\x01"*tlen, "added_data_rw"))
 
@@ -313,7 +323,7 @@ def test_rwinit_memory():
     lenlist.append(0x2000+1)
 
     for tlen in lenlist:
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
         patches.append(AddRWInitDataPatch("\x02"*tlen, "added_data_rwinit"))
 
@@ -456,7 +466,7 @@ def test_added_code_and_data_complex():
                         "i1ri1\nro2ro2ro2\nHGFE\x00\x00\x00\x00\x00\x00HGFEi2ri2\nro3ro3ro3\nLKJI\x00\x00" \
                         "\x00\x00\x00\x00LKJIi3ri3\n\x00\x02\x00\x00\x02"
         tmp_file = os.path.join(td, "patched1")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = [p for p in common_patches]
         added_code = '''
             call {dump}
@@ -487,7 +497,7 @@ def test_added_code_and_data_complex():
                             "\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00HGFEi2ri2\nro3ro3ro3\nLKJI\x00\x00\x00\x00" \
                             "\x00\x00ri3ri3ri3\n"
         tmp_file = os.path.join(td, "patched2")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = [p for p in common_patches]
         added_code = '''
             call {dump}
@@ -522,7 +532,7 @@ def test_added_code_and_data_big():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         test_str = "".join([chr(x) for x in xrange(256)])*40
         added_code = '''
             mov     eax, 2
@@ -555,7 +565,7 @@ def test_detour():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         test_str = "qwertyuiop\n\x00"
         added_code = '''
             mov     eax, 2
@@ -585,7 +595,7 @@ def test_single_entry_point_patch():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         added_code = '''
             mov     eax, 2
             mov     ebx, 0
@@ -611,7 +621,7 @@ def test_complex1():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
 
         patches = []
         added_code = '''
@@ -681,7 +691,7 @@ def test_double_patch_collision():
             popa
         ''' % (len(test_str2))
 
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p1 = InsertCodePatch(0x080480A0, added_code1, name="p1", priority=100)
         p2 = InsertCodePatch(0x080480A0, added_code2, name="p2", priority=1)
         p3 = AddRODataPatch(test_str1, "str1")
@@ -698,7 +708,7 @@ def test_double_patch_collision():
                    "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
 
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p1 = InsertCodePatch(0x080480A0, added_code1, name="p1", priority=1)
         p2 = InsertCodePatch(0x080480A0, added_code2, name="p2", priority=100)
         p3 = AddRODataPatch(test_str1, "str1")
@@ -715,7 +725,7 @@ def test_double_patch_collision():
                    "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
 
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p1 = InsertCodePatch(0x080480A0, added_code1, name="p1", priority=1)
         #partial overlap
         p2 = InsertCodePatch(0x080480A0+3, added_code2, name="p2", priority=100)
@@ -733,7 +743,7 @@ def test_double_patch_collision():
                    "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
 
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p1 = InsertCodePatch(0x080480A0, added_code1, name="p1", priority=1)
         #no overlap
         p2 = InsertCodePatch(0x080480A0+0x11, added_code2, name="p2", priority=100)
@@ -757,7 +767,7 @@ def test_conflicting_symbols():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
 
     patches = []
-    backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+    backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
     patches.append(AddRODataPatch("0123456789abcdef", "aaa"))
     patches.append(AddRODataPatch("\n", "aaa"))
     exc = False
@@ -768,7 +778,7 @@ def test_conflicting_symbols():
     nose.tools.assert_true(exc)
 
     patches = []
-    backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+    backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
     patches.append(AddRODataPatch("0123456789abcdef", "aaa"))
     added_code = '''
         ; put 4 random bytes in eax
@@ -809,7 +819,7 @@ def test_random_canary():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
 
         patches = []
         patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
@@ -1000,7 +1010,7 @@ def test_patch_conflicts():
     with patcherex.utils.tempdir() as td:
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         backend.apply_patches(cpatches)
         backend.save(tmp_file)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -1013,7 +1023,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         backend.apply_patches(cpatches+[p11])
         backend.save(tmp_file)
         #backend.save("../../vm/shared/patched")
@@ -1027,7 +1037,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         backend.apply_patches(cpatches+[p11,p21,p31,p41])
         backend.save(tmp_file)
         #backend.save("../../vm/shared/patched")
@@ -1041,7 +1051,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         backend.apply_patches(cpatches+[p12,p22,p32,p42])
         backend.save(tmp_file)
         #backend.save("../../vm/shared/patched")
@@ -1055,7 +1065,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
         backend.save(tmp_file)
         #backend.save("../../vm/shared/patched")
@@ -1069,7 +1079,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p31.dependencies = [p12]
         backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
         backend.save(tmp_file)
@@ -1084,7 +1094,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p11.dependencies = [p12]
         p21.dependencies = [p12]
         p31.dependencies = [p12]
@@ -1102,7 +1112,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p31.dependencies = [p12]
         p12.dependencies = [p22]
         p22.dependencies = [p31]
@@ -1119,7 +1129,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p31.dependencies = [p12]
         p12.dependencies = [p22]
         p22.dependencies = [p31]
@@ -1136,7 +1146,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p11.dependencies = [p12]
         backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
         backend.save(tmp_file)
@@ -1151,7 +1161,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p21.dependencies = [p12]
         backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
         backend.save(tmp_file)
@@ -1166,7 +1176,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p31.dependencies = [p12]
         backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
         backend.save(tmp_file)
@@ -1181,7 +1191,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p41.dependencies = [p12]
         backend.apply_patches(cpatches+[p11,p21,p31,p41,p12])
         backend.save(tmp_file)
@@ -1196,7 +1206,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p31.dependencies = [p12]
         p21.dependencies = [p42]
         backend.apply_patches(cpatches+[p11,p21,p31,p12,p42])
@@ -1212,7 +1222,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p31.dependencies = [p12]
         p21.dependencies = [p42]
         backend.apply_patches(cpatches+[p11,p21,p31,p12,p42,p41])
@@ -1228,7 +1238,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p11.dependencies = [p42]
         p31.dependencies = [p12]
         p21.dependencies = [p42]
@@ -1245,7 +1255,7 @@ def test_patch_conflicts():
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         p11.dependencies = [p21,p32]
         backend.apply_patches(cpatches+[p11,p21,p31,p32])
         backend.save(tmp_file)
@@ -1303,7 +1313,7 @@ def test_c_compilation():
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
 
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
         patches.extend(common_patches)
         added_code = '''
@@ -1333,7 +1343,7 @@ def test_c_compilation():
         expected = "00000225\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0],expected)
 
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
         patches.append(AddRWDataPatch(10, "memory_area"))
         patches.extend(common_patches)
@@ -1367,7 +1377,7 @@ def test_c_compilation():
         expected = "0000010000000032\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0],expected)
 
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
         patches.append(AddRWDataPatch(10, "memory_area"))
         patches.extend(common_patches)
@@ -1409,7 +1419,7 @@ def test_entrypointpatch_restore():
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
 
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
         patches.append(InsertCodePatch(0x80480a0, "jmp 0x4567890", "goto_crash"))
         backend.apply_patches(patches)
@@ -1418,7 +1428,7 @@ def test_entrypointpatch_restore():
         original_reg_value = res.reg_vals
         nose.tools.assert_equal(original_reg_value['eip'], 0x4567890)
 
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
         patches.append(InsertCodePatch(0x80480a0, "jmp 0x4567890", "goto_crash"))
         patches.append(AddEntryPointPatch("mov eax, 0x34567890"))
@@ -1427,7 +1437,7 @@ def test_entrypointpatch_restore():
         res = Runner(tmp_file, "00000001\n", record_stdout=True)
         nose.tools.assert_equal(original_reg_value, res.reg_vals)
 
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
         patches.append(InsertCodePatch(0x80480a0, "jmp 0x4567890", "goto_crash"))
         patches.append(AddEntryPointPatch("mov eax, 0x34567890", after_restore=True))
@@ -1437,6 +1447,113 @@ def test_entrypointpatch_restore():
         original_reg_value_mod = dict(original_reg_value)
         original_reg_value_mod['eax'] = 0x34567890
         nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
+
+
+def test_pdf_removal():
+    # I am not using the decorator since I want to test for diffs between pdf removal or not
+    # also, this test will obviously fail with any backend moving things in memory
+    # I try to print all ro and rw data and compare between pdf and not pdf
+    tests = [
+                (os.path.join(bin_location, "cgc_samples_multiflags/CROMU_00071/original/CROMU_00071"),
+                0x0804D790, 0x0804D9B8, 0x08062BD8, 0x08062BEC),
+                (os.path.join(bin_location, "cgc_samples_multiflags/KPRCA_00046/original/KPRCA_00046"),
+                0x0804F868, 0x0805007C, 0x08064298, 0x0806891C)
+            ]
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        for filepath, ro_start, ro_end, rw_start, rw_end in tests:
+            patches = []
+            patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
+            added_code = '''
+                ; eax=buf,ebx=len
+                pusha
+                mov ecx,eax
+                mov edx,ebx
+                mov eax,0x2
+                mov ebx,0x1
+                mov esi,0x0
+                int 0x80
+                popa
+                ret
+            '''
+            patches.append(AddCodePatch(added_code,"print"))
+            added_code = '''
+                ; print eax as hex
+                pusha
+                mov ecx,32
+                mov ebx,eax
+                _print_reg_loop:
+                    rol ebx,4
+                    mov edi,ebx
+                    and edi,0x0000000f
+                    lea eax,[{hex_array}+edi]
+                    mov ebp,ebx
+                    mov ebx,0x1
+                    call {print}
+                    mov ebx,ebp
+                    sub ecx,4
+                    jnz _print_reg_loop
+                popa
+                ret
+            '''
+            patches.append(AddCodePatch(added_code,"print_hex_eax"))
+            code = '''
+            mov ebx, 0x%08x
+            mov ecx, 0x%08x
+            mov edx, 0x%08x
+            mov esi, 0x%08x
+            mov edi, ebx
+            _loop1:
+                mov eax, DWORD [edi]
+                call {print_hex_eax}
+                cmp edi, ecx
+                jg _exit1
+                add edi, 4
+                jmp _loop1
+            _exit1:
+            mov edi, edx
+            _loop2:
+                mov eax, DWORD [edi]
+                mov DWORD [edi], 0
+                call {print_hex_eax}
+                cmp edi, esi
+                jg _exit2
+                add edi, 4
+                jmp _loop2
+            _exit2:
+            ''' %(ro_start, ro_end, rw_start, rw_end)
+            patches.append(AddEntryPointPatch(code))
+
+            data_fallback = False
+            backend = DetourBackend(filepath,data_fallback,try_pdf_removal=False)
+            backend.apply_patches(patches)
+            backend.save(tmp_file)
+            # backend.save("../../vm/shared/patched")
+            res = Runner(tmp_file, "\n", record_stdout=True)
+            nose.tools.assert_equal(res.reg_vals, None)
+            original = res.stdout
+            print filepath
+            print original
+
+            backend = DetourBackend(filepath,data_fallback,try_pdf_removal=True)
+            backend.apply_patches(patches)
+            backend.save(tmp_file)
+            res = Runner(tmp_file, "\n", record_stdout=True)
+            nose.tools.assert_equal(res.reg_vals, None)
+            mod = res.stdout
+            nose.tools.assert_true(backend.pdf_removed)
+            nose.tools.assert_equal(original,mod)
+
+            data_fallback = True
+            backend = DetourBackend(filepath,data_fallback,try_pdf_removal=True)
+            backend.apply_patches(patches)
+            backend.save(tmp_file)
+            res = Runner(tmp_file, "\n", record_stdout=True)
+            nose.tools.assert_equal(res.reg_vals, None)
+            mod = res.stdout
+            nose.tools.assert_true(backend.pdf_removed)
+            nose.tools.assert_equal(original,mod)
 
 
 def run_all():

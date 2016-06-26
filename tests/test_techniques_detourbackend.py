@@ -35,15 +35,25 @@ cp i386-linux-user/qemu-i386 <patcherex>/tests/old_tracer-qemu-cgc
 old_qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "old_tracer-qemu-cgc"))
 
 global_data_fallback = None
+global_try_pdf_removal = True
 
 
 def add_fallback_strategy(f):
     @wraps(f)
     def wrapper():
         global global_data_fallback
+        global global_try_pdf_removal
         global_data_fallback = None
+        global_try_pdf_removal = True
         f()
         global_data_fallback = True
+        global_try_pdf_removal = True
+        f()
+        global_data_fallback = None
+        global_try_pdf_removal = False
+        f()
+        global_data_fallback = True
+        global_try_pdf_removal = False
         f()
     return wrapper
 
@@ -62,7 +72,7 @@ def test_shadowstack():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,global_data_fallback)
+        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = ShadowStack(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -83,7 +93,7 @@ def test_packer():
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,global_data_fallback)
+        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = Packer(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -121,7 +131,7 @@ def test_simplecfi():
     expected3 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,global_data_fallback)
+        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = SimpleCFI(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -153,7 +163,7 @@ def test_qemudetection():
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,global_data_fallback)
+        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = QemuDetection(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -183,7 +193,7 @@ def test_randomsyscallloop():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,global_data_fallback)
+        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = RandomSyscallLoop(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -209,7 +219,7 @@ def test_cpuid():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,global_data_fallback)
+        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = CpuId(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -254,7 +264,7 @@ def test_stackretencryption():
             os.chmod(original_file,777)
 
             tmp_file = os.path.join(td, "patched1")
-            backend = DetourBackend(filepath1,global_data_fallback)
+            backend = DetourBackend(filepath1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = StackRetEncryption(filepath1, backend, allow_reg_reuse=allow_reg_reuse)
             patches = cp.get_patches()
             backend.apply_patches(patches)
@@ -272,7 +282,7 @@ def test_stackretencryption():
             nose.tools.assert_equal(p.returncode == -11, True)
 
             tmp_file = os.path.join(td, "patched2")
-            backend = DetourBackend(filepath2,global_data_fallback)
+            backend = DetourBackend(filepath2,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = StackRetEncryption(filepath2, backend, allow_reg_reuse=allow_reg_reuse)
             patches = cp.get_patches()
             backend.apply_patches(patches)
@@ -357,7 +367,7 @@ def test_indirectcfi():
     with patcherex.utils.tempdir() as td:
         patched_fname1 = os.path.join(td, "patched")
         #import IPython; IPython.embed()
-        backend = DetourBackend(vulnerable_fname1,global_data_fallback)
+        backend = DetourBackend(vulnerable_fname1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = IndirectCFI(vulnerable_fname1, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -490,7 +500,7 @@ def test_transmitprotection():
         print "nlslot:",nslot
         with patcherex.utils.tempdir() as td:
             patched_fname1 = os.path.join(td, "patched")
-            backend = DetourBackend(vulnerable_fname1,global_data_fallback)
+            backend = DetourBackend(vulnerable_fname1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = TransmitProtection(vulnerable_fname1, backend)
             cp.nslot=nslot
             patches = cp.get_patches()
@@ -568,7 +578,7 @@ def test_shiftstack():
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
 
-        backend = DetourBackend(filepath,global_data_fallback)
+        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = ShiftStack(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -577,7 +587,7 @@ def test_shiftstack():
         res = Runner(tmp_file,tinput,record_stdout=True)
         nose.tools.assert_equal(original_output, res.stdout)
 
-        backend = DetourBackend(filepath,global_data_fallback)
+        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         backend.apply_patches([InsertCodePatch(0x804db6b,"jmp 0x11223344")])
         backend.save(tmp_file)
         res = Runner(tmp_file,tinput,record_stdout=True)
@@ -585,7 +595,7 @@ def test_shiftstack():
         nose.tools.assert_equal(original_reg_value['eip'], 0x11223344)
 
         for _ in xrange(10):
-            backend = DetourBackend(filepath,global_data_fallback)
+            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = ShiftStack(filepath, backend)
             patches = cp.get_patches()
             backend.apply_patches(patches+[InsertCodePatch(0x804db6b,"jmp 0x11223344")])

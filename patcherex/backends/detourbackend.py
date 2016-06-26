@@ -79,6 +79,7 @@ class DetourBackend(Backend):
         self.added_rwdata_len = 0
         self.added_rwinitdata_len = 0
         self.to_init_data = ""
+        self.max_convertible_address = 0xffffffff
 
         self.saved_states = OrderedDict()
         # not all the touched bytes are bad, they are only a serious problem in case of InsertCodePatch
@@ -214,6 +215,8 @@ class DetourBackend(Backend):
             return False, None, None, None, None
 
         # 6) check for pdf checker function structure
+        # TODO we may want to avoid to be that precise, to handle slight modifications in libcgc
+        # however, it would be significantly harder to detect how to remove the crc check
         expected_instructions = ["push","push","push","call","add","push","push","push","push","push",
                 "push","add","pushfd","pop","and","push","popfd","push","pop","ret"]
         instructions = utils.decompile(self.read_mem_from_file(checker_function_start,0x30),checker_function_start)
@@ -229,22 +232,6 @@ class DetourBackend(Backend):
         return True, pdf_beginning_pos, pdf_length, instructions[3].address, len(instructions[3].bytes)
 
     def remove_pdf(self, pdf_start, pdf_length, check_instruction_addr, check_instruction_size):
-        # TODO fix issue: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/2
-        # TODO large scale with nop patch on all 600
-        # TODO test patch_master fully (with debug output showing if pdf removal is used)
-        # TODO add remove_pdf as decorator options on all tests
-        # TODO commit large scale test not as test_ file
-        # TODO prevent translation of maddress in mangled reason (past the beginning of the last segment)
-        # TODO adhoc tests for pdf remover (NRFIN_00075, CROMU_00071, and CROMU_00020): add code reading/writing all .data and .bss + added one
-        # TODO fix section table pointer so that patched binaries can be at least loaded in gdb and readelf
-        # but use later these bugs for adversarial patching
-        # TODO close qemu issue
-        # TODO clean print messages
-        # TODO fix CROMU_00020 --> no patches with indirectcfi --> no segments fix (double check)
-
-        # TODO clang requirement, different compilation flags
-        # TODO double check randomness 
-
         l.info("pdf is between %08x and %08x" % (pdf_start,  pdf_start + pdf_length))
         last_segment = self.modded_segments[-1]
         cut_end = (pdf_start+pdf_length) & 0xfffff000
@@ -255,13 +242,16 @@ class DetourBackend(Backend):
         l.info("cutting the pdf from: %08x to %08x" % (cut_start,cut_end))
         self.ncontent = self.ocontent[:cut_start]+self.ocontent[cut_end:]
 
-        print "--------------"
-        print check_instruction_size
-        print hex(check_instruction_addr)
-        print "==="
+        # remove pointer to section headers, so that it loads fine in gdb, ida, ...
+        # later we can set this ti 0xffffffff for adversarial patching
+        # e_shoff = 0xffffffff, e_shnum = 0x0000,  e_shstrndx = 0x0000
+        self.ncontent = utils.str_overwrite(self.ncontent,struct.pack("<I",0),0x20)
+        self.ncontent = utils.str_overwrite(self.ncontent,struct.pack("<H",0),0x30)
+        self.ncontent = utils.str_overwrite(self.ncontent,struct.pack("<H",0),0x32)
+
         self.ncontent = utils.str_overwrite(self.ncontent,"\x90"*check_instruction_size, \
                 self.maddress_to_baddress(check_instruction_addr))
-        # TODO set higer addresses as not convertible
+        self.max_convertible_address = cut_start_mem
 
         header_size = 16 + 2*2 + 4*5 + 2*6
         buf = self.ocontent[0:header_size]
@@ -276,7 +266,7 @@ class DetourBackend(Backend):
         last_segment = segments[-1]
         (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align) = last_segment
         pre_cut_segment_size = cut_start_mem - p_vaddr
-        print map(hex,[cut_start,cut_end,cut_start_mem,pre_cut_segment_size, cut_start_mem, p_vaddr])
+        # print map(hex,[cut_start,cut_end,cut_start_mem,pre_cut_segment_size, cut_start_mem, p_vaddr])
         pre_cut_segment = (p_type, p_offset, p_vaddr, p_paddr, pre_cut_segment_size, pre_cut_segment_size, \
                 p_flags, p_align)
         post_cut_segment = (p_type, p_offset + pre_cut_segment_size, \
@@ -373,7 +363,7 @@ class DetourBackend(Backend):
                                             self.original_header_end)
         added_segments += 1
 
-        print original_nsegments,added_segments
+        # print original_nsegments,added_segments
         self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<H", original_nsegments + added_segments), 0x2c)
 
     @staticmethod
@@ -455,7 +445,6 @@ class DetourBackend(Backend):
                 self.patch_bin(patch.addr,patch.data)
                 self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
-        #TODO file cutter patch
 
         if self.data_fallback:
             # 1)
@@ -719,6 +708,9 @@ class DetourBackend(Backend):
             return False
 
     def maddress_to_baddress(self, addr):
+        if addr >= self.max_convertible_address:
+            msg = "%08x higher than max_convertible_address (%08x)" % (addr,self.max_convertible_address)
+            raise InvalidVAddrException(msg)
         baddr = self.project.loader.main_bin.addr_to_offset(addr)
         if baddr is None:
             raise InvalidVAddrException(hex(addr))
@@ -892,7 +884,7 @@ class DetourBackend(Backend):
         return new_code
 
     def get_final_content(self):
-        print self.modded_segments
+        # print self.modded_segments
         return self.ncontent
 
     def save(self, filename=None):
