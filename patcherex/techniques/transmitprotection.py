@@ -13,11 +13,10 @@ l = logging.getLogger("patcherex.techniques.TrasmitProtection")
 
 class TransmitProtection(object):
 
-    def __init__(self,binary_fname,backend,allow_reg_reuse=True):
+    def __init__(self,binary_fname,backend):
         self.binary_fname = binary_fname
         self.patcher = backend
         self.nslot = 16
-
 
     def get_c_patch(self):
         code = '''
