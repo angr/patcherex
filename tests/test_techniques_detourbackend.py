@@ -584,6 +584,7 @@ def test_shiftstack():
         original_reg_value = res.reg_vals
         nose.tools.assert_equal(original_reg_value['eip'], 0x11223344)
 
+        random_stack_pos = set()
         for _ in xrange(10):
             backend = DetourBackend(filepath,global_data_fallback)
             cp = ShiftStack(filepath, backend)
@@ -593,6 +594,7 @@ def test_shiftstack():
             res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(0,1000000000))
             oesp = original_reg_value['esp']
             nesp = res.reg_vals['esp']
+            random_stack_pos.add(nesp)
             print hex(nesp),hex(oesp)
             nose.tools.assert_true(oesp-pow(2,cp.max_value_pow)<=nesp<=oesp-pow(2,cp.min_value_pow))
             original_reg_value_mod = dict(original_reg_value)
@@ -601,6 +603,8 @@ def test_shiftstack():
             original_reg_value_mod.pop('eflags')
             res.reg_vals.pop('eflags')
             nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
+        print map(hex,random_stack_pos)
+        nose.tools.assert_true(len(random_stack_pos)>2)
 
 
 def run_all():
