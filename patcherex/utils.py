@@ -253,7 +253,7 @@ def compile_c(code, optimization='-Oz', name_map=None):
         fp.write(code)
         fp.close()
 
-        res = exec_cmd("clang -m32 -fpic -ffreestanding %s -o %s -c %s" % (optimization, object_fname, c_fname), shell=True)
+        res = exec_cmd("clang -m32 -nostdlib -mno-sse -ffreestanding %s -o %s -c %s" % (optimization, object_fname, c_fname), shell=True)
         if res[2] != 0:
             print "CLang error:"
             print res[0]
