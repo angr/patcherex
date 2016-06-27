@@ -60,6 +60,12 @@ class ReassemblerBackend(Backend):
 
         l.info("Generating assembly manifest at %s", tmp_file_path)
 
+        dirpath = os.path.dirname(filename)
+        try:
+            os.makedirs(dirpath, 0755)
+        except OSError:
+            pass
+
         # compile it
         #res = compilerex.assemble([ tmp_file_path, '-mllvm', '--x86-asm-syntax=intel', '-o', filename ])
         retcode, res = compilerex.assemble([ tmp_file_path, '-o', filename ])
