@@ -67,6 +67,8 @@ def manual_run_functionality_all():
             print "succeeded"
         except AssertionError:
             print "failed"
+        except Exception as ex:
+            print "failed miserably with an exception: %s" % str(ex)
 
 #
 # Patching tests
