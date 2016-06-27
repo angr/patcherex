@@ -1470,6 +1470,8 @@ def test_pdf_removal():
         tmp_file = os.path.join(td, "patched")
         for filepath, ro_start, ro_end, rw_start, rw_end in tests:
             patches = []
+            osize = os.path.getsize(filepath)
+
             patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
             added_code = '''
                 ; eax=buf,ebx=len
@@ -1548,6 +1550,9 @@ def test_pdf_removal():
             res = Runner(tmp_file, "\n", record_stdout=True)
             nose.tools.assert_equal(res.reg_vals, None)
             mod = res.stdout
+            fsize = os.path.getsize(tmp_file)
+            print hex(fsize),hex(osize)
+            nose.tools.assert_true((osize - fsize) > 0x10000)
             nose.tools.assert_true(backend.pdf_removed)
             nose.tools.assert_equal(original,mod)
 
@@ -1558,6 +1563,9 @@ def test_pdf_removal():
             res = Runner(tmp_file, "\n", record_stdout=True)
             nose.tools.assert_equal(res.reg_vals, None)
             mod = res.stdout
+            fsize = os.path.getsize(tmp_file)
+            print hex(fsize),hex(osize)
+            nose.tools.assert_true((osize - fsize) > 0x10000)
             nose.tools.assert_true(backend.pdf_removed)
             nose.tools.assert_equal(original,mod)
 
