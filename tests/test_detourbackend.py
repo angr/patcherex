@@ -131,7 +131,7 @@ def test_rw_memory():
     lenlist = []
     while(tlen<1000000):
         lenlist.append(tlen)
-        tlen = int(round(tlen*2.5))
+        tlen = int(round(tlen*67))
     lenlist.append(0)
     lenlist.append(0x1000)
     lenlist.append(0x1000-1)
@@ -221,7 +221,7 @@ def test_ro_memory():
     lenlist = []
     while(tlen<1000000):
         lenlist.append(tlen)
-        tlen = int(round(tlen*2.5))
+        tlen = int(round(tlen*67))
     lenlist.append(0)
     lenlist.append(0x1000)
     lenlist.append(0x1000-1)
@@ -313,7 +313,7 @@ def test_rwinit_memory():
     lenlist = []
     while(tlen<50000): # I add to lower this because of NASM problems with too large .db
         lenlist.append(tlen)
-        tlen = int(round(tlen*2.5))
+        tlen = int(round(tlen*67))
     lenlist.append(0)
     lenlist.append(0x1000)
     lenlist.append(0x1000-1)
@@ -1049,6 +1049,7 @@ def test_patch_conflicts():
         print repr(estr)
         nose.tools.assert_true(res[0].startswith(estr))
 
+        '''
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -1062,6 +1063,7 @@ def test_patch_conflicts():
         estr = expected_str([p12,p22,p32,p42])
         print repr(estr)
         nose.tools.assert_true(res[0].startswith(estr))
+        '''
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
@@ -1077,6 +1079,7 @@ def test_patch_conflicts():
         print repr(estr)
         nose.tools.assert_true(res[0].startswith(estr))
 
+        '''
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -1091,6 +1094,7 @@ def test_patch_conflicts():
         estr = expected_str([p11,p21,p41])
         print repr(estr)
         nose.tools.assert_true(res[0].startswith(estr))
+        '''
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
@@ -1159,6 +1163,7 @@ def test_patch_conflicts():
         print repr(estr)
         nose.tools.assert_true(res[0].startswith(estr))
 
+        '''
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -1173,6 +1178,7 @@ def test_patch_conflicts():
         estr = expected_str([p11,p31,p41])
         print repr(estr)
         nose.tools.assert_true(res[0].startswith(estr))
+        '''
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
@@ -1464,6 +1470,8 @@ def test_pdf_removal():
         tmp_file = os.path.join(td, "patched")
         for filepath, ro_start, ro_end, rw_start, rw_end in tests:
             patches = []
+            osize = os.path.getsize(filepath)
+
             patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
             added_code = '''
                 ; eax=buf,ebx=len
@@ -1542,6 +1550,9 @@ def test_pdf_removal():
             res = Runner(tmp_file, "\n", record_stdout=True)
             nose.tools.assert_equal(res.reg_vals, None)
             mod = res.stdout
+            fsize = os.path.getsize(tmp_file)
+            print hex(fsize),hex(osize)
+            nose.tools.assert_true((osize - fsize) > 0x10000)
             nose.tools.assert_true(backend.pdf_removed)
             nose.tools.assert_equal(original,mod)
 
@@ -1552,6 +1563,9 @@ def test_pdf_removal():
             res = Runner(tmp_file, "\n", record_stdout=True)
             nose.tools.assert_equal(res.reg_vals, None)
             mod = res.stdout
+            fsize = os.path.getsize(tmp_file)
+            print hex(fsize),hex(osize)
+            nose.tools.assert_true((osize - fsize) > 0x10000)
             nose.tools.assert_true(backend.pdf_removed)
             nose.tools.assert_equal(original,mod)
 

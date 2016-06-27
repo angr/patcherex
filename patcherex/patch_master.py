@@ -27,6 +27,8 @@ from patcherex.techniques.randomsyscallloop import RandomSyscallLoop
 from patcherex.techniques.stackretencryption import StackRetEncryption
 from patcherex.techniques.indirectcfi import IndirectCFI
 from patcherex.techniques.transmitprotection import TransmitProtection
+from patcherex.techniques.shiftstack import ShiftStack
+from patcherex.techniques.adversarial import Adversarial
 
 from patcherex import utils
 from patcherex.backends.detourbackend import DetourBackend
@@ -100,6 +102,13 @@ class PatchMaster():
         backend.apply_patches(patches)
         return backend.get_final_content()
 
+    def generate_adversarial_binary(self):
+        backend = DetourBackend(self.infile)
+        cp = Adversarial(self.infile,backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        return backend.get_final_content()
+
     def generate_transmitprotection_binary(self):
         backend = DetourBackend(self.infile)
         cp = TransmitProtection(self.infile,backend)
@@ -115,7 +124,9 @@ class PatchMaster():
         patches2 = cp.get_patches()
         cp = TransmitProtection(self.infile,backend)
         patches3 = cp.get_patches()
-        backend.apply_patches(patches1+patches2+patches3)
+        cp = ShiftStack(self.infile,backend)
+        patches4 = cp.get_patches()
+        backend.apply_patches(patches1+patches2+patches3+patches4)
         return backend.get_final_content()
 
 
@@ -134,17 +145,6 @@ class PatchMaster():
             to_be_submitted["stackretencryption"] = stackretencryption_binary
         l.info("stackretencryption_binary created")
 
-        l.info("creating indirectcfi_binary...")
-        indirectcfi_binary = None
-        try:
-            indirectcfi_binary = self.generate_indirectcfi_binary()
-        except Exception as e:
-            print "ERROR","during generation of indirectcfi_binary"
-            traceback.print_exc()
-        if indirectcfi_binary != None:
-            to_be_submitted["indirectcfi"] = indirectcfi_binary
-        l.info("indirectcfi_binary created")
-
         l.info("creating final binary...")
         final_binary = None
         try:
@@ -156,11 +156,21 @@ class PatchMaster():
             to_be_submitted["final"] = final_binary
         l.info("final_binary created")
 
+        l.info("creating adversarial_binary...")
+        adversarial_binary = None
+        try:
+            adversarial_binary = self.generate_adversarial_binary()
+        except Exception as e:
+            print "ERROR","during generation of adversarial_binary"
+            traceback.print_exc()
+        if adversarial_binary != None:
+            to_be_submitted["adversarial"] = adversarial_binary
+        l.info("adversarial_binary created")
+
         if return_dict:
             return to_be_submitted
         else:
             return to_be_submitted.values()
-
 
 def process_killer():
     cdll['libc.so.6'].prctl(1,9)
@@ -237,6 +247,8 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.backends.StackRetEncryption").setLevel("INFO")
         logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("INFO")
         logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("INFO")
+        logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
+        logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
 
         input_fname = sys.argv[2]
@@ -268,6 +280,8 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
+        logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
+        logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
 
         input_fname = sys.argv[2]
