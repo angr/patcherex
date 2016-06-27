@@ -54,7 +54,7 @@ def test_cfe_trials():
     #tests = [t for t in tests if "KPRCA_00016_2" in t]
     inputs = ["","\x00"*10000,"\n"*10000,"A"*10000]
 
-    for tnumber,test in enumerate(tests):
+    for tnumber,test in enumerate(tests[:2]):
         #if os.path.basename(test) == "KPRCA_00016_2":
         #    continue
         with patcherex.utils.tempdir() as td:
