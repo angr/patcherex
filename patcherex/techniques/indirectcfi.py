@@ -83,6 +83,8 @@ class IndirectCFI(object):
         else:
             gadget_protection = ""
 
+        # I assume that something that does not jump above 0x43 will never jump below and viceversa
+        # this is true unless there are binaries bigger than 1GB or allocate bigger than 1GB
         new_code = '''
         push edx
         %s
@@ -92,14 +94,29 @@ class IndirectCFI(object):
         mov dh, BYTE [{%s}]
         cmp dh,0
         jne _check
-            mov BYTE [{%s}], dl
+            cmp dl, 0x43
+            jb _cond1
+            mov BYTE [{%s}], 0x2
             jmp _exit
+            _cond1:
+            mov BYTE [{%s}], 0x1
+            jmp _exit
+
         _check:
+        cmp dl,0x43
+        jb _cond2
+        mov dl, 0x2
+        jmp _exit2
+        _cond2:
+        mov dl, 0x1
+
+        _exit2:
         cmp dl,dh
         jne 0x8047333
+
         _exit:
         pop edx
-        ''' % (target_resolver,gadget_protection,data_patch_name,data_patch_name)
+        ''' % (target_resolver,gadget_protection,data_patch_name,data_patch_name,data_patch_name)
 
         code_patch = InsertCodePatch(int(instruction.address),new_code,name="indirect_cfi_for_%08x"%instruction.address)
         data_patch = AddRWDataPatch(1,"saved_first_target_%08x"%instruction.address)
