@@ -616,6 +616,26 @@ def test_shiftstack():
         nose.tools.assert_true(len(random_stack_pos)>=2)
 
 
+@add_fallback_strategy
+def test_adversarial():
+    logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
+    from patcherex.techniques.adversarial import Adversarial
+    filepath = os.path.join(bin_location, "cfe_original/CROMU_00044/CROMU_00044")
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        cp = Adversarial(filepath, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        # TODO I cannot check if it works until QEMU is fully able to deal with it
+        # see: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/4
+        fsize = os.path.getsize(tmp_file)
+        print hex(fsize)
+        nose.tools.assert_true(fsize > 0x1000)
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
