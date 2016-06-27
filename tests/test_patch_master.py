@@ -52,13 +52,12 @@ def test_cfe_trials():
     tfolder = os.path.join(bin_location, "cfe_original")
     tests = utils.find_files(tfolder,"*",only_exec=True)
     #tests = [t for t in tests if "KPRCA_00016_2" in t]
-    inputs = ["","\x00"*10000,"\n"*10000,"A"*10000]
+    inputs = ["","\x00"*10000,"A"*10000]
 
-    for tnumber,test in enumerate(tests[:2]):
-        #if os.path.basename(test) == "KPRCA_00016_2":
-        #    continue
+    titerator = list(tests[::3][:4])
+    for tnumber,test in enumerate(tests[:10:2]):
         with patcherex.utils.tempdir() as td:
-            print "=====",str(tnumber+1)+"/"+str(len(tests)),"building patches for",test
+            print "=====",str(tnumber+1)+"/"+str(len(titerator)),"building patches for",test
             pm = PatchMaster(test)
             patches = pm.run()
             nose.tools.assert_equal(len(patches),pm.ngenerated_patches)

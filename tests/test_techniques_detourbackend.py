@@ -257,47 +257,46 @@ def test_stackretencryption():
     nose.tools.assert_equal(res[0].startswith(expected1),True)
 
     expected2 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
-    for allow_reg_reuse in [True,False]:
-        with patcherex.utils.tempdir() as td:
-            original_file = os.path.join(td, "original")
-            shutil.copy(filepath2,original_file)
-            os.chmod(original_file,777)
+    with patcherex.utils.tempdir() as td:
+        original_file = os.path.join(td, "original")
+        shutil.copy(filepath2,original_file)
+        os.chmod(original_file,777)
 
-            tmp_file = os.path.join(td, "patched1")
-            backend = DetourBackend(filepath1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-            cp = StackRetEncryption(filepath1, backend, allow_reg_reuse=allow_reg_reuse)
-            patches = cp.get_patches()
-            backend.apply_patches(patches)
-            backend.save(tmp_file)
+        tmp_file = os.path.join(td, "patched1")
+        backend = DetourBackend(filepath1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        cp = StackRetEncryption(filepath1, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
 
-            seed = str(random.randint(0,1000000000))
-            p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-            res = p.communicate("A"*10+"\n")
-            print res, p.returncode
-            nose.tools.assert_equal((res[0] == expected2 and p.returncode == 0), True)
-            seed = str(random.randint(0,1000000000))
-            p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-            res = p.communicate(exploiting_input)
-            print res, p.returncode
-            nose.tools.assert_equal(p.returncode == -11, True)
+        seed = str(random.randint(0,1000000000))
+        p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("A"*10+"\n")
+        print res, p.returncode
+        nose.tools.assert_equal((res[0] == expected2 and p.returncode == 0), True)
+        seed = str(random.randint(0,1000000000))
+        p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(exploiting_input)
+        print res, p.returncode
+        nose.tools.assert_equal(p.returncode == -11, True)
 
-            tmp_file = os.path.join(td, "patched2")
-            backend = DetourBackend(filepath2,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-            cp = StackRetEncryption(filepath2, backend, allow_reg_reuse=allow_reg_reuse)
-            patches = cp.get_patches()
-            backend.apply_patches(patches)
-            backend.save(tmp_file)
-            seed = str(random.randint(0,1000000000))
-            p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-            res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
-            print res
-            sane_stdout, sane_retcode = res[0], p.returncode
-            seed = str(random.randint(0,1000000000))
-            p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-            res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
-            print res
-            nose.tools.assert_equal(res[0] == sane_stdout, True)
-            nose.tools.assert_equal(p.returncode == sane_retcode, True)
+        tmp_file = os.path.join(td, "patched2")
+        backend = DetourBackend(filepath2,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        cp = StackRetEncryption(filepath2, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        seed = str(random.randint(0,1000000000))
+        p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+        print res
+        sane_stdout, sane_retcode = res[0], p.returncode
+        seed = str(random.randint(0,1000000000))
+        p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+        print res
+        nose.tools.assert_equal(res[0] == sane_stdout, True)
+        nose.tools.assert_equal(p.returncode == sane_retcode, True)
 
 
 @add_fallback_strategy
@@ -595,7 +594,7 @@ def test_shiftstack():
         nose.tools.assert_equal(original_reg_value['eip'], 0x11223344)
 
         random_stack_pos = set()
-        for _ in xrange(10):
+        for _ in xrange(6):
             backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = ShiftStack(filepath, backend)
             patches = cp.get_patches()
@@ -614,7 +613,7 @@ def test_shiftstack():
             res.reg_vals.pop('eflags')
             nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
         print map(hex,random_stack_pos)
-        nose.tools.assert_true(len(random_stack_pos)>2)
+        nose.tools.assert_true(len(random_stack_pos)>=2)
 
 
 def run_all():
