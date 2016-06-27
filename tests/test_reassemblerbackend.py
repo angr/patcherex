@@ -13,12 +13,14 @@ bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..
 # Functionality tests
 #
 
-def run_functionality(filename):
+def run_functionality(filename, save_as=None):
 
     filepath = os.path.join(bin_location, filename)
+    if save_as is None:
+        save_as = os.path.join('/', 'tmp', os.path.basename(filename))
 
     p = ReassemblerBackend(filepath, debugging=True)
-    r = p.save(os.path.join('/', 'tmp', os.path.basename(filename)))
+    r = p.save(save_as)
 
     if not r:
         print "Compiler says:"
@@ -52,8 +54,19 @@ def manual_run_functionality_all():
             binaries.append(p)
 
     for b in binaries:
-        print "Reassembling %s..." % b
-        run_functionality(b)
+        print "Reassembling %s..." % b,
+        save_as = os.path.join("/",
+                               "tmp",
+                               "reassembled_binaries",
+                               os.path.basename(b),
+                               os.path.basename(os.path.dirname(b)),
+                               os.path.basename(b)
+                               )
+        try:
+            run_functionality(b, save_as=save_as)
+            print "succeeded"
+        except AssertionError:
+            print "failed"
 
 #
 # Patching tests
