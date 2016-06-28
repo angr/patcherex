@@ -299,7 +299,7 @@ def test_stackretencryption():
         nose.tools.assert_equal(p.returncode == sane_retcode, True)
 
 
-# @add_fallback_strategy not relevant for this test
+@add_fallback_strategy
 def test_indirectcfi():
     logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
     from patcherex.techniques.indirectcfi import IndirectCFI
@@ -309,7 +309,6 @@ def test_indirectcfi():
     ]
 
     for i,(tbin,addr_str) in enumerate(tests):
-        print "\n"*10+"==========="
         vulnerable_fname1 = os.path.join(bin_location, tbin)
         if i==0: #do this only the first time
             res = Runner(vulnerable_fname1,"00000001\n",record_stdout=True)
