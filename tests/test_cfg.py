@@ -54,7 +54,7 @@ def last_block_to_callers(addr,cfg,inv_callsites):
     if node == None:
         return []
     function = cfg.functions[node.function_address]
-    if node.addr not in [n.addr for n in function.endpoints]:
+    if node.addr not in [n.addr for n in function.ret_sites]:
         return []
 
     return_locations = []
@@ -142,12 +142,12 @@ def test_CADET_00003():
         nose.tools.assert_equal(node!=None,True)
         nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
         nose.tools.assert_equal(ff.startpoint!=None,True)
-        nose.tools.assert_equal(ff.endpoints!=None,True)
+        nose.tools.assert_equal(ff.ret_sites!=None,True)
         if ff.addr == 0x080485FC or ff.addr==0x804860C:
             nose.tools.assert_equal(ff.returning==False,True)
         if ff.returning:
-            nose.tools.assert_equal(len(ff.endpoints)>0,True)
-        for endpoint in ff.endpoints:
+            nose.tools.assert_equal(len(ff.ret_sites)>0,True)
+        for endpoint in ff.ret_sites:
             bb = backend.project.factory.block(endpoint.addr)
             last_instruction = bb.capstone.insns[-1]
             nose.tools.assert_equal(last_instruction.mnemonic == u"ret", True) 
@@ -217,12 +217,12 @@ def test_0b32aa01_01():
         nose.tools.assert_equal(node!=None,True)
         nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
         nose.tools.assert_equal(ff.startpoint!=None,True)
-        nose.tools.assert_equal(ff.endpoints!=None,True)
+        nose.tools.assert_equal(ff.ret_sites!=None,True)
         if ff.addr == 0x080485FC or ff.addr==0x8048607:
             nose.tools.assert_equal(ff.returning==False,True)
         if ff.returning:
-            nose.tools.assert_equal(len(ff.endpoints)>0,True)
-        for endpoint in ff.endpoints:
+            nose.tools.assert_equal(len(ff.ret_sites)>0,True)
+        for endpoint in ff.ret_sites:
             bb = backend.project.factory.block(endpoint.addr)
             last_instruction = bb.capstone.insns[-1]
             nose.tools.assert_equal(last_instruction.mnemonic == u"ret", True) 
@@ -288,10 +288,10 @@ def test_is_floatingpoint_function():
     #print "\n".join(map(lambda f:hex(f.addr),floatingpoint_functions))
     first = floatingpoint_functions[0].addr
     ff = floatingpoint_functions[-1]
-    if ff.endpoints == None:
+    if ff.ret_sites == None:
         last = ff.addr
     else:
-        if len(ff.endpoints) == 0:
+        if len(ff.ret_sites) == 0:
             last = ff.addr
         else:
             last = max([e.addr for e in ff.blocks])
@@ -311,10 +311,10 @@ def test_is_floatingpoint_function():
     #print "\n".join(map(lambda f:hex(f.addr),floatingpoint_functions))
     first = floatingpoint_functions[0].addr
     ff = floatingpoint_functions[-1]
-    if ff.endpoints == None:
+    if ff.ret_sites == None:
         last = ff.addr
     else:
-        if len(ff.endpoints) == 0:
+        if len(ff.ret_sites) == 0:
             last = ff.addr
         else:
             last = max([e.addr for e in ff.blocks])
