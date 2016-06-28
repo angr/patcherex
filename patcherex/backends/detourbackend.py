@@ -65,8 +65,8 @@ class DetourBackend(Backend):
         self.name_map = RejectingDict()
 
         # where to put the segments in memory
-        self.added_code_segment = 0x11000000
-        self.added_data_segment = 0x10000000
+        self.added_code_segment = 0x06000000
+        self.added_data_segment = 0x07000000
         self.single_segment_header_size = 32
         # we may need up to 3 additional segments (1 for pdf removal 2 for patching)
         self.additional_headers_size = 3*self.single_segment_header_size 

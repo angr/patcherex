@@ -94,29 +94,26 @@ class IndirectCFI(object):
         mov dh, BYTE [{%s}]
         cmp dh,0
         jne _check
-            cmp dl, 0x43
-            jb _cond1
-            mov BYTE [{%s}], 0x2
-            jmp _exit
-            _cond1:
-            mov BYTE [{%s}], 0x1
+            mov BYTE [{%s}], dl
             jmp _exit
 
         _check:
         cmp dl,0x43
         jb _cond2
-        mov dl, 0x2
-        jmp _exit2
+        cmp dh, 0x43
+        jb _bad ; < >
+        jmp _exit ; > >
+
         _cond2:
-        mov dl, 0x1
+        cmp dh, 0x43
+        jb _exit
 
-        _exit2:
-        cmp dl,dh
-        jne 0x8047333
-
-        _exit:
+        _bad:
+        jmp 0x8047333; > <
+        _exit: ; < <
         pop edx
-        ''' % (target_resolver,gadget_protection,data_patch_name,data_patch_name,data_patch_name)
+        ''' % (target_resolver,gadget_protection,data_patch_name,data_patch_name)
+        # the memory regions should be correct with binaries up to 8MB of stack, 1GB of heap, about 930 MB of binary
 
         code_patch = InsertCodePatch(int(instruction.address),new_code,name="indirect_cfi_for_%08x"%instruction.address)
         data_patch = AddRWDataPatch(1,"saved_first_target_%08x"%instruction.address)
