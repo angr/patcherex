@@ -336,7 +336,8 @@ def test_fullcfg_properties():
             "CADET_00003","CROMU_00070","EAGLE_00005","KPRCA_00019"]
 
     # these are either "slides" into a call or jump to the beginning of a call
-    legittimate_jumpouts = [("KPRCA_00025",0x80480bf),("KPRCA_00019",0x8048326),\
+    # ("KPRCA_00025",0x804b041) is a very weird case, but Fish convinced me that it is correct
+    legittimate_jumpouts = [("KPRCA_00025",0x80480bf),("KPRCA_00025",0x804b041),("KPRCA_00019",0x8048326),\
             ("KPRCA_00019",0x8048b41),("KPRCA_00019",0x804882e),("KPRCA_00019",0x8048cd1),\
             ("KPRCA_00019",0x8048cca),("KPRCA_00019",0x8049408)]
 
