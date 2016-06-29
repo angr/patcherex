@@ -374,9 +374,14 @@ def test_fullcfg_properties():
 
         # check that every node only appears once in the cfg
         nn = set()
+        instruction_set = set()
         for n in cfg.nodes():
             nose.tools.assert_true(n.addr not in nn)
             nn.add(n.addr)
+            # check that every instruction appears only in one node
+            for iaddr in n.instruction_addrs:
+                nose.tools.assert_true(iaddr not in instruction_set)
+                instruction_set.add(iaddr)
 
 
 def run_all():
