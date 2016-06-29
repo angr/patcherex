@@ -163,11 +163,12 @@ class ShadowStack(object):
             return True
 
     def function_to_canary_locations(self,ff):
+        # TODO I do not handle the tail-call
         if cfg_utils.is_sane_function(ff):
             start = ff.startpoint
             ends = set()
-            for endpoint in ff.endpoints:
-                bb = self.patcher.project.factory.block(endpoint.addr)
+            for ret_site in ff.ret_sites:
+                bb = self.patcher.project.factory.block(ret_site.addr)
                 last_instruction = bb.capstone.insns[-1]
                 if last_instruction.mnemonic != u"ret":
                     l.debug("bb at %s does not terminate with a ret in function %s" % (hex(int(bb.addr)),ff.name))

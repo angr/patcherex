@@ -165,12 +165,13 @@ class StackRetEncryption(object):
             return [headp]+tailp
 
     def function_to_patch_locations(self,ff):
+        # TODO I do not handle the tail-call
         if cfg_utils.is_sane_function(ff) and cfg_utils.detect_syscall_wrapper(self.patcher,ff) == None \
                 and not cfg_utils.is_floatingpoint_function(self.patcher,ff):
             start = ff.startpoint
             ends = set()
-            for endpoint in ff.endpoints:
-                bb = self.patcher.project.factory.block(endpoint.addr)
+            for ret_site in ff.ret_sites:
+                bb = self.patcher.project.factory.block(ret_site.addr)
                 last_instruction = bb.capstone.insns[-1]
                 if last_instruction.mnemonic != u"ret":
                     l.debug("bb at %s does not terminate with a ret in function %s" % (hex(int(bb.addr)),ff.name))
