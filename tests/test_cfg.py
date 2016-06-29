@@ -372,6 +372,12 @@ def test_fullcfg_properties():
                 print "found node in multiple functions:",hex(k.addr),repr(v)
             nose.tools.assert_equal(len(v),1)
 
+        # check that every node only appears once in the cfg
+        nn = set()
+        for n in cfg.nodes():
+            nose.tools.assert_true(n.addr not in nn)
+            nn.add(n.addr)
+
 
 def run_all():
     functions = globals()
