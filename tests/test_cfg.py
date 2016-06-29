@@ -331,6 +331,59 @@ def test_is_floatingpoint_function():
     nose.tools.assert_true(last > real_end-0x20) #I allow some imprecision
 
 
+def test_fullcfg_properties():
+    binaries = ["KPRCA_00009","KPRCA_00025","NRFIN_00004","CROMU_00071",
+            "CADET_00003","CROMU_00070","EAGLE_00005","KPRCA_00019"]
+
+    # these are either "slides" into a call or jump to the beginning of a call
+    # ("KPRCA_00025",0x804b041) is a very weird case, but Fish convinced me that it is correct
+    legittimate_jumpouts = [("KPRCA_00025",0x80480bf),("KPRCA_00025",0x804b041),("KPRCA_00019",0x8048326),\
+            ("KPRCA_00019",0x8048b41),("KPRCA_00019",0x804882e),("KPRCA_00019",0x8048cd1),\
+            ("KPRCA_00019",0x8048cca),("KPRCA_00019",0x8049408)]
+
+    for binary in binaries:
+        print "testing",binary,"..."
+        filepath = os.path.join(bin_location, "cgc_samples_multiflags/%s/original/%s" % (binary,binary))
+        backend = DetourBackend(filepath)
+        cfg = backend.cfg
+
+        nodes_dict = defaultdict(set)
+        for k,ff in cfg.functions.iteritems():
+            for n in ff.blocks:
+                nodes_dict[n].add(ff)
+            # check that endpoints are the union of callouts, rets, and jumpouts
+            endpoint_union = set(ff.callout_sites).union(set(ff.ret_sites).union(set(ff.jumpout_sites)))
+            nose.tools.assert_equal(set(ff.endpoints),endpoint_union)
+
+            # check that we do not encounter any unexpected jumpout
+            if not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and \
+                    not ff.has_unresolved_jumps and ff.startpoint != None and ff.endpoints:
+                if not cfg_utils.is_floatingpoint_function(backend,ff):
+                    if len(ff.jumpout_sites) > 0:
+                        unexpected_jumpout = [(binary,int(jo.addr)) for jo in ff.jumpout_sites \
+                                if (binary,int(jo.addr)) not in legittimate_jumpouts]
+                        if len(unexpected_jumpout)>0:
+                            print "unexpected jumpouts in",binary,map(lambda x:hex(x[1]),unexpected_jumpout)
+                        nose.tools.assert_equal(len(unexpected_jumpout),0)
+
+        # check that every node only belongs to a single function
+        for k,v in nodes_dict.iteritems():
+            if len(v)>1:
+                print "found node in multiple functions:",hex(k.addr),repr(v)
+            nose.tools.assert_equal(len(v),1)
+
+        # check that every node only appears once in the cfg
+        nn = set()
+        instruction_set = set()
+        for n in cfg.nodes():
+            nose.tools.assert_true(n.addr not in nn)
+            nn.add(n.addr)
+            # check that every instruction appears only in one node
+            for iaddr in n.instruction_addrs:
+                nose.tools.assert_true(iaddr not in instruction_set)
+                instruction_set.add(iaddr)
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
