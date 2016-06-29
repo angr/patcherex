@@ -162,6 +162,11 @@ def test_CADET_00003():
         ii = bb.capstone.insns[-1]
         nose.tools.assert_equal(ii.mnemonic ==  u"int" and ii.op_str == u"0x80", True)
 
+    endpoint_set = set(map(lambda x:(x.addr,x.size),cfg.functions[0x08048230].endpoints))
+    nose.tools.assert_equal(set([(0x080483F4,12),(0x080483D5,20)]),endpoint_set)
+    ret_set = set(map(lambda x:(x.addr,x.size),cfg.functions[0x08048230].ret_sites))
+    nose.tools.assert_equal(set([(0x080483F4,12)]),ret_set)
+
     # the following is a case of a bb that should be split by normalization
     # because the bb is split by a "subsequent" jump 
     bb = cfg.get_any_node(0x804824F)

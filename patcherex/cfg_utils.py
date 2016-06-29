@@ -9,7 +9,7 @@ def get_function_size(ff):
 def is_sane_function(ff):
     if not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and \
             not ff.has_unresolved_jumps and ff.startpoint != None and ff.endpoints != None:
-        if len(ff.endpoints)>0:
+        if len(ff.ret_sites)>0:
             if get_function_size(ff) >= 10: # this is the size of two detours
                 return True
     return False
