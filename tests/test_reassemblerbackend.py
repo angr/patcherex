@@ -53,8 +53,12 @@ def manual_run_functionality_all():
             p = os.path.join('cgc_samples_multiflags', dirname, b)
             binaries.append(p)
 
+    import sys
+
     for b in binaries:
-        print "Reassembling %s..." % b,
+        sys.stdout.write("Reassembling %s..." % b)
+        sys.stdout.flush()
+
         save_as = os.path.join("/",
                                "tmp",
                                "reassembled_binaries",
