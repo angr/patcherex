@@ -349,7 +349,7 @@ def test_fullcfg_properties():
 
         nodes_dict = defaultdict(set)
         for k,ff in cfg.functions.iteritems():
-            for n in ff.nodes:
+            for n in ff.blocks:
                 nodes_dict[n].add(ff)
             # check that endpoints are the union of callouts, rets, and jumpouts
             endpoint_union = set(ff.callout_sites).union(set(ff.ret_sites).union(set(ff.jumpout_sites)))
