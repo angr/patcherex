@@ -165,7 +165,7 @@ class StackRetEncryption(object):
             return [headp]+tailp
 
     def function_to_patch_locations(self,ff):
-        # TODO I do not handle the tail-call
+        # TODO tail-call is handled lazily just by considering jumping out functions as not sane
         if cfg_utils.is_sane_function(ff) and cfg_utils.detect_syscall_wrapper(self.patcher,ff) == None \
                 and not cfg_utils.is_floatingpoint_function(self.patcher,ff):
             start = ff.startpoint

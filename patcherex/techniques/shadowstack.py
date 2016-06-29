@@ -163,7 +163,6 @@ class ShadowStack(object):
             return True
 
     def function_to_canary_locations(self,ff):
-        # TODO I do not handle the tail-call
         if cfg_utils.is_sane_function(ff):
             start = ff.startpoint
             ends = set()

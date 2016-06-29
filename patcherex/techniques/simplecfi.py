@@ -66,7 +66,6 @@ class SimpleCFI(object):
         return [patch]
 
     def function_to_ret_locations(self,ff):
-        # TODO I do not handle the tail-call
         if cfg_utils.is_sane_function(ff):
             start = ff.startpoint
             ends = set()
