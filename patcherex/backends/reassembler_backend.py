@@ -25,6 +25,14 @@ class ReassemblerBackend(Backend):
         self._load()
 
     #
+    # Properties
+    #
+
+    @property
+    def cfg(self):
+        return self._binary.cfg
+
+    #
     # Overriding public methods
     #
 
