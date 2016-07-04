@@ -436,8 +436,12 @@ class SimplePointerEncryption(Technique):
         bp_offset = self.patcher.cfg.project.arch.bp_offset
 
         addr_belongs_to_section = self.patcher.cfg._addr_belongs_to_section
+        addr_in_exec_memory_regions = self.patcher.cfg._addr_in_exec_memory_regions
 
         def is_addr_valid(addr):
+            if addr_in_exec_memory_regions(addr):
+                return False
+
             if addr_belongs_to_section(addr) is not None:
                 return True
 
