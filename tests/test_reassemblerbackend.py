@@ -125,7 +125,7 @@ def run_simple_pointer_encryption(filename):
         print p._compiler_stdout
         print p._compiler_stderr
 
-    nose.tools.assert_true(r, 'Shadowstack patching with reassembler fails on binary %s' % filename)
+    nose.tools.assert_true(r, 'SimplePointerEncryption patching with reassembler fails on binary %s' % filename)
 
 def test_simple_pointer_encryption():
     binaries = [
@@ -139,6 +139,9 @@ def test_simple_pointer_encryption():
         run_simple_pointer_encryption(b)
 
 if __name__ == "__main__":
+    import logging
+    logging.getLogger('reassembler').setLevel(logging.DEBUG)
+
     test_simple_pointer_encryption()
     # manual_run_functionality_all()
     #test_functionality()
