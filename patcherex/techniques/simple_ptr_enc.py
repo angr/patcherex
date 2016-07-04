@@ -1,19 +1,24 @@
 
 import string
 import random
+import logging
 
 import pyvex
+from ..backends import ReassemblerBackend
 
 from ..technique import Technique
-from ..patches import InsertCodePatch
+from ..patches import InsertCodePatch, PointerArrayPatch, AddEntryPointPatch
+
+l = logging.getLogger('techniques.simple_ptr_enc')
 
 # TODO: - detect if ebp is used as base pointer in a function or not
 # TODO: - support more types of VEX statements and expressions
 # TODO: - use a dynamic key
+# TODO: - compress the pointer storage array
+# TODO: - use random strings for label names ('begin', 'end', etc.)
 # TODO: - raise proper exceptions
 # TODO: - more testing
 # TODO: - bug fixes
-# TODO: - put all pointers to a writable section, and encrypt all pointers when binary starts
 
 
 class MiniAST(object):
@@ -79,22 +84,56 @@ class SimplePointerEncryption(Technique):
         cfg.project.arch.capstone_x86_syntax = 'intel'
         cfg.project.factory._lifter.clear_cache()
 
+        pointers = self._constant_pointers(cfg)
         mem_deref_instrs = self._memory_deref_instructions(cfg)
         mem_ref_instrs = self._memory_ref_instructions(cfg)
 
         if debug:
-            print "dereferences"
+            l.debug("dereferences")
 
             # print them out
             for deref in mem_deref_instrs:  # type: DerefInstruction
-                print deref, cfg.project.factory.block(deref.ins_addr, num_inst=1).capstone
+                l.debug("%s %s", deref, cfg.project.factory.block(deref.ins_addr, num_inst=1).capstone)
 
-            print "references"
+            l.debug("references")
 
             for ref in mem_ref_instrs:  # type: RefInstruction
-                print ref, cfg.project.factory.block(ref.ins_addr, num_inst=1).capstone
+                l.debug("%s %s", ref, cfg.project.factory.block(ref.ins_addr, num_inst=1).capstone)
 
         arch = cfg.project.arch
+
+        # add a list of pointers to the binary
+        patch = PointerArrayPatch(None, pointers + [ 0 ], name='all_pointers')
+        patches.append(patch)
+
+        # insert the pointer encryption code at the entry point
+        encrypt_pointers = """
+            push eax
+            push ebx
+            push ecx
+            xor eax, eax
+        begin:
+            mov ebx, dword ptr [all_pointers + eax]
+            cmp ebx, 0
+            je end
+            mov ecx, dword ptr [ebx]
+            add ecx, 5
+            mov dword ptr [ebx], ecx
+            add eax, 4
+            jmp begin
+
+        end:
+            pop ecx
+            pop ebx
+            pop eax
+        """
+        patch = AddEntryPointPatch(asm_code=encrypt_pointers)
+        patches.append(patch)
+
+        # make all pointer-array data belong to ".data"
+        for data in self.backend._binary.data:
+            if data.sort == "pointer-array":
+                data.section_name = ".data"
 
         # insert an encryption patch after each memory referencing instruction
 
@@ -127,7 +166,7 @@ class SimplePointerEncryption(Technique):
             # for example: movsx eax, byte ptr [eax]
             # apparently we don't decrypt eax since it's already overwritten
 
-            if deref.addr_regs_used is not False:
+            if deref.action in ('load', 'store') and deref.addr_regs_used is not False:
                 # re-encryption patch
                 asm_code = """
                 pushfd
@@ -323,6 +362,7 @@ class SimplePointerEncryption(Technique):
 
                 ins_addr = None
                 tmps = {}
+                regs = {}
 
                 for stmt in vex_block_noopt.statements:
                     if isinstance(stmt, pyvex.IRStmt.IMark):
@@ -336,10 +376,13 @@ class SimplePointerEncryption(Technique):
                         data = stmt.data
                         if isinstance(data, pyvex.IRExpr.Get):
                             # read from register
-                            tmps[tmp] = MiniAST('reg', [ data.offset ])
-                            if last_instr is not None and last_instr.addr_regs_used is None and \
-                                    data.offset in last_instr.addr_regs:
-                                last_instr.addr_regs_used = True
+                            if data.offset == ip_offset and data.offset in regs:
+                                tmps[tmp] = regs[data.offset]
+                            else:
+                                tmps[tmp] = MiniAST('reg', [ data.offset ])
+                                if last_instr is not None and last_instr.addr_regs_used is None and \
+                                        data.offset in last_instr.addr_regs:
+                                    last_instr.addr_regs_used = True
                         elif isinstance(data, pyvex.IRExpr.Binop):
                             # some sort of arithmetic operations
                             if data.op.startswith('Iop_Cmp') or \
@@ -403,6 +446,21 @@ class SimplePointerEncryption(Technique):
                                 stmt.offset in last_instr.addr_regs:
                             last_instr.addr_regs_used = False
 
+                        if isinstance(stmt.data, pyvex.IRExpr.RdTmp) and stmt.data.tmp in tmps:
+                            regs[stmt.offset] = tmps[stmt.data.tmp]
+
+                if last_instr is not None and last_instr.ins_size is None:
+                    last_instr.ins_size = block.addr + vex_block_noopt.size - last_instr.ins_addr
+                    last_instr = None
+
+                if isinstance(vex_block_noopt.next, pyvex.IRExpr.RdTmp):
+                    tmp = vex_block_noopt.next.tmp
+                    if tmp in tmps:
+                        last_instr = DerefInstruction(ins_addr, 'jump',
+                                                      self._ast_to_addr_regs(tmps[tmp], is_addr_valid)
+                                                      )
+                        instrs.append(last_instr)
+
                 if last_instr is not None and last_instr.ins_size is None:
                     last_instr.ins_size = block.addr + vex_block_noopt.size - last_instr.ins_addr
                     last_instr = None
@@ -436,12 +494,8 @@ class SimplePointerEncryption(Technique):
         bp_offset = self.patcher.cfg.project.arch.bp_offset
 
         addr_belongs_to_section = self.patcher.cfg._addr_belongs_to_section
-        addr_in_exec_memory_regions = self.patcher.cfg._addr_in_exec_memory_regions
 
         def is_addr_valid(addr):
-            if addr_in_exec_memory_regions(addr):
-                return False
-
             if addr_belongs_to_section(addr) is not None:
                 return True
 
@@ -523,6 +577,27 @@ class SimplePointerEncryption(Technique):
                    ]
 
         return instrs
+
+    def _constant_pointers(self, cfg):
+        """
+        Find all pointers that are in non-executable sections.
+
+        :param angr.analyses.CFG cfg: The control flow graph.
+        :return: A list of addresses of pointers.
+        :rtype: list
+        """
+
+        pointer_addrs = [ ]
+
+        memory_data = cfg.memory_data
+
+        for addr, data in memory_data.iteritems():
+            if data.sort == "pointer-array":
+                for i in xrange(0, data.size, cfg.project.arch.bits / 8):
+                    ptr_addr = addr + i
+                    pointer_addrs.append(ptr_addr)
+
+        return pointer_addrs
 
     def get_patches(self):
         return self._patches
