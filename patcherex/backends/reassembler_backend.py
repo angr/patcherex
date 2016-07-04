@@ -2,6 +2,7 @@
 import logging
 import os
 import tempfile
+import subprocess
 
 import compilerex
 from topsecret import Binary
@@ -84,10 +85,52 @@ class ReassemblerBackend(Backend):
         if not self._debugging:
             os.remove(tmp_file_path)
 
+        # strip the binary
+        self._strip(filename)
+
         if retcode == 0:
             return True
         else:
             return False
+
+    def _strip(self, path):
+        """
+        Strip the generated CGC binary.
+
+        :param str path: Path to the CGC binary.
+        :return: None
+        """
+
+        tmp_path = path + ".tmp"
+
+        elf_header = "\177ELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00"
+
+        with open(path, "rb") as f:
+            data = f.read()
+
+        l.info("Before stripping: %d bytes", len(data))
+
+        cgc_header = data[ : len(elf_header) ]
+
+        data = elf_header + data[ len(elf_header) : ]
+
+        with open(tmp_path, "wb") as f:
+            f.write(data)
+
+        r = subprocess.call(['strip', tmp_path])
+
+        if r != 0:
+            l.error("Stripping failed with exit code %d", r)
+            return
+
+        with open(tmp_path, "rb") as f1:
+            with open(path, "wb") as f2:
+                data = f1.read()
+
+                l.info("After stripping: %d bytes", len(data))
+
+                data = cgc_header + data[ len(cgc_header) : ]
+                f2.write(data)
 
     def get_final_content(self):
         return ""
