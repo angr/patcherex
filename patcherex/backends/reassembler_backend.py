@@ -17,6 +17,10 @@ class ReassemblerBackend(Backend):
 
         super(ReassemblerBackend, self).__init__(filename)
 
+        l.info("Reassembling %s...", os.path.basename(filename))
+        filesize = os.stat(filename).st_size
+        l.info('Original binary: %d bytes', filesize)
+
         self._debugging = debugging
         self._binary = None
 
