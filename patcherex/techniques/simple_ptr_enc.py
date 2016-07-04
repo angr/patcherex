@@ -13,6 +13,17 @@ from ..patches import InsertCodePatch
 # TODO: - raise proper exceptions
 # TODO: - more testing
 # TODO: - bug fixes
+# TODO: - put all pointers to a writable section, and encrypt all pointers when binary starts
+
+
+class MiniAST(object):
+    def __init__(self, op, args=None):
+        self.op = op
+        self.args = args
+
+    def __repr__(self):
+        s = "(%s %s)" % (self.op, " ".join(repr(a) for a in self.args))
+        return s
 
 
 class DerefInstruction(object):
@@ -21,6 +32,7 @@ class DerefInstruction(object):
         self.ins_size = None
         self.action = action
         self.addr_regs = addr_regs
+        self.addr_regs_used = None
 
     def __repr__(self):
         return "<Deref %#08x %s@%s>" % (self.ins_addr, self.action, self.addr_regs)
@@ -100,9 +112,7 @@ class SimplePointerEncryption(Technique):
         for deref in mem_deref_instrs:  # type: DerefInstruction
 
             # FIXME: if there are more than one registers, what sort of problems will we have?
-            src_reg_offset = next(r[1] for r in deref.addr_regs if r[0] == 'reg' and
-                                  r[1] not in (arch.sp_offset, arch.bp_offset)
-                                  )
+            src_reg_offset = next(r for r in deref.addr_regs if r not in (arch.sp_offset, arch.bp_offset))
             src_reg = arch.register_names[src_reg_offset]
 
             # decryption patch
@@ -113,13 +123,20 @@ class SimplePointerEncryption(Technique):
 
             patches.append(patch)
 
-            # re-encryption patch
-            asm_code = """
-            add {src_reg}, 5
-            """.format(src_reg=src_reg)
+            # we do not apply the re-encryption patch if the source register is reused immediately
+            # for example: movsx eax, byte ptr [eax]
+            # apparently we don't decrypt eax since it's already overwritten
 
-            patch = InsertCodePatch(deref.ins_addr + deref.ins_size, asm_code)
-            patches.append(patch)
+            if deref.addr_regs_used is not False:
+                # re-encryption patch
+                asm_code = """
+                pushfd
+                add {src_reg}, 5
+                popfd
+                """.format(src_reg=src_reg)
+
+                patch = InsertCodePatch(deref.ins_addr + deref.ins_size, asm_code)
+                patches.append(patch)
 
         # for syscalls, make sure all pointers are decrypted before calling
         syscalls = {
@@ -196,6 +213,71 @@ class SimplePointerEncryption(Technique):
 
         return patches
 
+    def _ast_to_addr_regs(self, ast, is_addr_valid):
+        """
+        Pick registers that holds a valid address and return them.
+
+        :param MiniAST ast: The AST
+        :param is_addr_valid: A function that takes in an address and returns True iff the address is valid.
+        :return: A list of register offsets.
+        :rtype: list
+        """
+
+        # we only care about where the base comes from
+        # - if there is only one register, then it must be the base
+        # - if there are a register and a const, the register is the base if and only if the const
+        #   is not a valid address. Otherwise the constant is the base
+        # - if there are two constants, it's gonna be a little complicated... TODO
+
+        if len(ast.args) == 2:
+            # binary operations
+            if ast.op == '+':
+                if ast.args[1].op == 'const':
+                    # something + constant
+                    if is_addr_valid(ast.args[1].args[0]):
+                        # base address + some offset
+                        return [ ]
+                    else:
+                        if ast.args[0].op == 'reg':
+                            # this register must be the base address
+                            return [ ast.args[0].args[0] ]
+                        elif ast.args[0].op == 'const' and is_addr_valid(ast.args[0].args[0]):
+                            # the constant is the base address
+                            return [ ]
+                        else:
+                            return self._ast_to_addr_regs(ast.args[0], is_addr_valid)
+
+                elif ast.args[1].op in ('<<', ):
+                    # arg1 must be used as an offset or index
+                    # arg0 is the base address
+                    if ast.args[0].op == 'reg':
+                        return [ ast.args[0].args[0] ]
+                    elif ast.args[0].op == 'const':
+                        return [ ]
+                elif ast.args[0].op == 'reg':
+                    # let's see if we can extract a base address from other arguments
+                    regs = self._ast_to_addr_regs(ast.args[1], is_addr_valid)
+                    if not regs:
+                        # nice! the first argument must be the base register
+                        return ast.args[0].args[0]
+
+            elif ast.op == '-':
+                if ast.args[0].op == 'reg':
+                    return [ ast.args[0].args[0] ]
+                elif ast.args[0].op == 'const':
+                    return [ ]
+
+        elif len(ast.args) == 1:
+            if ast.op == 'reg':
+                # directly using the register as the address
+                return ast.args
+            elif ast.op == 'const':
+                # using a constant as the address
+                return [ ]
+
+        print "Unresolved AST", ast
+        import ipdb; ipdb.set_trace()
+
     def _memory_deref_instructions(self, cfg):
         """
         Iterate through all basic blocks in the CFG, and find all instructions that load data from memory
@@ -210,6 +292,27 @@ class SimplePointerEncryption(Technique):
         ip_offset = self.patcher.cfg.project.arch.ip_offset
         sp_offset = self.patcher.cfg.project.arch.sp_offset
         bp_offset = self.patcher.cfg.project.arch.bp_offset
+
+        def is_addr_valid(addr):
+            if cfg._addr_belongs_to_section(addr) is not None:
+                return True
+
+            if 0x4347c000 <= addr < 0x4347c000 + 0x1000:
+                return True
+
+            return False
+
+        OPSTR_TO_OP = {
+            'Iop_Add32': '+',
+            'Iop_Sub32': '-',
+            'Iop_Sub8': '-',
+            'Iop_Shl32': '<<',
+            'Iop_And8': '&',
+            'Iop_And32': '&',
+            'Iop_Sar32': '>>',
+            'Iop_Shr32': '>>',
+            'Iop_Mul32': '*',
+        }
 
         for function in cfg.functions.values():  # type: angr.knowledge.Function
             for block in function.blocks:
@@ -227,44 +330,78 @@ class SimplePointerEncryption(Technique):
                         # update the instruction size of the previous DerefInstruction object
                         if last_instr is not None and last_instr.ins_size is None:
                             last_instr.ins_size = ins_addr - last_instr.ins_addr
-                            last_instr = None
 
                     elif isinstance(stmt, pyvex.IRStmt.WrTmp):
                         tmp = stmt.tmp
                         data = stmt.data
                         if isinstance(data, pyvex.IRExpr.Get):
                             # read from register
-                            tmps[tmp] = [ ('reg', data.offset) ]
+                            tmps[tmp] = MiniAST('reg', [ data.offset ])
+                            if last_instr is not None and last_instr.addr_regs_used is None and \
+                                    data.offset in last_instr.addr_regs:
+                                last_instr.addr_regs_used = True
                         elif isinstance(data, pyvex.IRExpr.Binop):
                             # some sort of arithmetic operations
-                            source = [ ]
+                            if data.op.startswith('Iop_Cmp') or \
+                                    data.op.startswith('Iop_Div') or \
+                                    data.op.startswith('Iop_Or') or \
+                                    data.op.startswith('Iop_Xor') or \
+                                    data.op in ('Iop_32HLto64', ):
+                                # ignore them.
+                                continue
+                            elif data.op in OPSTR_TO_OP:
+                                op = OPSTR_TO_OP[data.op]
+                            else:
+                                op = data.op
+
+                            args = [ ]
                             for arg in data.args:
                                 if isinstance(arg, pyvex.IRExpr.RdTmp):
-                                    tmp_arg = arg.tmp
-                                    if tmp_arg in tmps:
-                                        source.extend(tmps[tmp_arg])
-                            if source:
-                                tmps[tmp] = source
+                                    if arg.tmp in tmps:
+                                        args.append(tmps[arg.tmp])
+                                    else:
+                                        args.append(MiniAST('unknown'))
+                                elif isinstance(arg, pyvex.IRExpr.Const):
+                                    val = arg.con.value
+                                    args.append(MiniAST('const', [ val ]))
+
+                            tmps[tmp] = MiniAST(op, args)
+
                         elif isinstance(data, pyvex.IRExpr.Load):
                             # loading from memory!
                             addr = data.addr
                             if isinstance(addr, pyvex.IRExpr.RdTmp):
                                 tmp_addr = addr.tmp
                                 if tmp_addr in tmps:
-                                    last_instr = DerefInstruction(ins_addr, 'load', tmps[tmp_addr])
+                                    last_instr = DerefInstruction(ins_addr, 'load',
+                                                                  self._ast_to_addr_regs(tmps[tmp_addr], is_addr_valid)
+                                                                  )
                                     instrs.append(last_instr)
                         elif isinstance(data, pyvex.IRExpr.RdTmp):
                             data_tmp = data.tmp
                             if data_tmp in tmps:
                                 tmps[tmp] = tmps[data_tmp]
+                        elif isinstance(data, pyvex.IRExpr.Const):
+                            # loading a const address
+                            value = data.con.value
+                            if is_addr_valid(value):
+                                tmps[tmp] = MiniAST('const', [ value ])
                     elif isinstance(stmt, pyvex.IRStmt.Store):
                         # writing some stuff into memory
                         addr = stmt.addr
                         if isinstance(addr, pyvex.IRExpr.RdTmp):
                             tmp_addr = addr.tmp
                             if tmp_addr in tmps:
-                                last_instr = DerefInstruction(ins_addr, 'store', tmps[tmp_addr])
+                                last_instr = DerefInstruction(ins_addr, 'store',
+                                                              self._ast_to_addr_regs(tmps[tmp_addr], is_addr_valid)
+                                                              )
                                 instrs.append(last_instr)
+                    elif isinstance(stmt, pyvex.IRStmt.Put):
+                        # loading data into a register
+                        if last_instr is not None and last_instr.addr_regs_used is None and \
+                                len(last_instr.addr_regs) == 1 and \
+                                stmt.offset in last_instr.addr_regs:
+                            last_instr.addr_regs_used = False
 
                 if last_instr is not None and last_instr.ins_size is None:
                     last_instr.ins_size = block.addr + vex_block_noopt.size - last_instr.ins_addr
@@ -273,8 +410,7 @@ class SimplePointerEncryption(Technique):
         # filtering
         filtered = [ ]
         for i in instrs:
-            addr_regs = [ r[1] for r in i.addr_regs if r[0] == 'reg' ]
-            if addr_regs and any(r for r in addr_regs if r in (sp_offset, bp_offset, ip_offset)):
+            if not i.addr_regs or any(r for r in i.addr_regs if r in (sp_offset, bp_offset, ip_offset)):
                 continue
             filtered.append(i)
 
