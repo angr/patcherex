@@ -1,4 +1,6 @@
 
+import struct
+
 from .utils import ASMConverter
 
 class Patch(object):
@@ -129,6 +131,7 @@ class SegmentHeaderPatch(Patch):
     def __repr__(self):
         return "SegmentHeaderPatch [%s] (%d)" % (self.name,len(self.segment_headers))
 
+
 class AddSegmentHeaderPatch(Patch):
     def __init__(self, new_segment, name=None):
         super(AddSegmentHeaderPatch, self).__init__(name)
@@ -136,4 +139,15 @@ class AddSegmentHeaderPatch(Patch):
 
     def __str__(self):
         return "AddSegmentHeaderPatch [%s] (%s)" % (self.name,map(hex,self.new_segment))
+
+
+class PointerArrayPatch(Patch):
+    def __init__(self, addr, pointers, name=None):
+        super(PointerArrayPatch, self).__init__(name)
+        self.addr = addr
+        self.pointers = pointers
+        self.data = "".join([ struct.pack("<I", p) for p in self.pointers ])
+
+    def __repr__(self):
+        return "PointerArrayPatch [%s] %#08x (%d)" % (self.name, self.addr, len(self.data))
 
