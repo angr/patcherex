@@ -192,7 +192,7 @@ class ASMConverter(object):
     @staticmethod
     def mnemonic_to_att(m, size):
 
-        if m in ('int',):
+        if m in ('int', 'pushfd', 'popfd', ):
             return m
         if m.startswith('j'):
             return m
