@@ -54,6 +54,9 @@ class ReassemblerBackend(Backend):
             elif isinstance(p, AddEntryPointPatch):
                 self._binary.insert_asm(self.project.entry, p.att_asm())
 
+            elif isinstance(p, PointerArrayPatch):
+                self._binary.append_data(p.name, p.data, len(p.data), readonly=False, sort='pointer-array')
+
             else:
                 raise NotImplementedError()
 
