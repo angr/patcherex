@@ -7,7 +7,7 @@ import pyvex
 from ..backends import ReassemblerBackend
 
 from ..technique import Technique
-from ..patches import InsertCodePatch, PointerArrayPatch, AddEntryPointPatch
+from ..patches import InsertCodePatch, PointerArrayPatch, AddEntryPointPatch, AddRWDataPatch
 
 l = logging.getLogger('techniques.simple_ptr_enc')
 
@@ -106,27 +106,54 @@ class SimplePointerEncryption(Technique):
         patch = PointerArrayPatch(None, pointers + [ 0 ], name='all_pointers')
         patches.append(patch)
 
+        # add the encryption key into data section
+        patch = AddRWDataPatch(4, '_POINTER_KEY')
+        patches.append(patch)
+
         # insert the pointer encryption code at the entry point
+        begin_label = "".join(random.choice(string.lowercase) for _ in xrange(10))
+        end_label = "".join(random.choice(string.lowercase) for _ in xrange(10))
+
         encrypt_pointers = """
             push eax
             push ebx
             push ecx
+            push edx
+
+            ; random
+            sub esp, 4
+            mov eax, 7
+            mov ebx, esp
+            mov ecx, 4
+            xor edx, edx
+            int 80h
+
+            ; generate offset
+            pop edx
+            mov dword ptr [_POINTER_KEY], edx
+
+            ; encrypt all static pointers
             xor eax, eax
-        begin:
+
+        {begin_label}:
             mov ebx, dword ptr [all_pointers + eax]
             cmp ebx, 0
-            je end
+            je {end_label}
             mov ecx, dword ptr [ebx]
-            add ecx, 5
+            add ecx, edx ; edx holds the encryption key
             mov dword ptr [ebx], ecx
             add eax, 4
-            jmp begin
+            jmp {begin_label}
 
-        end:
+        {end_label}:
+            pop edx
             pop ecx
             pop ebx
             pop eax
-        """
+        """.format(
+            begin_label=begin_label,
+            end_label=end_label
+        )
         patch = AddEntryPointPatch(asm_code=encrypt_pointers)
         patches.append(patch)
 
@@ -140,7 +167,7 @@ class SimplePointerEncryption(Technique):
         for ref in mem_ref_instrs:  # type: RefInstruction
             dst_reg = arch.register_names[ref.addr_reg]
             asm_code = """
-            add {dst_reg}, 5
+            add {dst_reg}, dword ptr [_POINTER_KEY]
             """.format(dst_reg=dst_reg)
             patch = InsertCodePatch(ref.ins_addr + ref.ins_size, asm_code)
 
@@ -156,7 +183,7 @@ class SimplePointerEncryption(Technique):
 
             # decryption patch
             asm_code = """
-            sub {src_reg}, 5
+            sub {src_reg}, dword ptr [_POINTER_KEY]
             """.format(src_reg=src_reg)
             patch = InsertCodePatch(deref.ins_addr, asm_code)
 
@@ -170,7 +197,7 @@ class SimplePointerEncryption(Technique):
                 # re-encryption patch
                 asm_code = """
                 pushfd
-                add {src_reg}, 5
+                add {src_reg}, dword ptr [_POINTER_KEY]
                 popfd
                 """.format(src_reg=src_reg)
 
@@ -227,7 +254,7 @@ class SimplePointerEncryption(Technique):
                 asm = """
                     cmp {reg}, 0
                     je .{lbl}
-                    sub {reg}, 5
+                    sub {reg}, [_POINTER_KEY]
                 .{lbl}:
                 """.format(reg=reg, lbl=lbl_name)
                 patch = InsertCodePatch(last_instr_addr, asm)
@@ -241,7 +268,7 @@ class SimplePointerEncryption(Technique):
                     mov eax, dword ptr [{reg}]
                     cmp eax, 0
                     je .{lbl}
-                    add eax, 5
+                    add eax, [_POINTER_KEY]
                     mov dword ptr [{reg}], eax
                     pop eax
                 .{lbl}:
