@@ -210,10 +210,20 @@ class ASMConverter(object):
         for l in asm.split('\n'):
 
             # comments
-            m = re.match(r"(\s*);(\S*)", l)
+            m = re.match(r"(\s*);([\s\S]*)", l)
             if m:
                 converted.append("\t#" + m.group(2))
                 continue
+
+            # inline comments
+            m = re.match(r"([\s\S]+);([\s\S]+)", l)
+            if m:
+                inline_comments = "\t#" + m.group(2)
+                l = m.group(1)
+            else:
+                inline_comments = ""
+
+            l = l.strip()
 
             # two operands
             m = re.match(r"(\s*)([\S]+)\s+([^,]+),\s*([^,]+)\s*$", l)
@@ -229,13 +239,13 @@ class ASMConverter(object):
                 if size is None:
                     raise NotImplementedError('Not supported')
 
-                # suffix the mnemonic
-                mnemonic = ASMConverter.mnemonic_to_att(mnemonic, size)
-
                 op1 = ASMConverter.to_att(op1, mnemonic=mnemonic)[1]
                 op2 = ASMConverter.to_att(op2, mnemonic=mnemonic)[1]
 
-                s = "%s%s %s, %s" % (spaces, mnemonic, op1, op2)
+                # suffix the mnemonic
+                mnemonic = ASMConverter.mnemonic_to_att(mnemonic, size)
+
+                s = "%s%s\t%s, %s%s" % (spaces, mnemonic, op1, op2, inline_comments)
                 converted.append(s)
 
                 continue
@@ -259,7 +269,7 @@ class ASMConverter(object):
                 #if mnemonic[0] == 'j' and op_sort == 'label':
                 #    op = "." + op
 
-                s = "%s%s %s" % (spaces, mnemonic, op)
+                s = "%s%s\t%s%s" % (spaces, mnemonic, op, inline_comments)
                 converted.append(s)
 
                 continue
@@ -272,7 +282,7 @@ class ASMConverter(object):
 
                 mnemonic = ASMConverter.mnemonic_to_att(mnemonic, 4)
 
-                s = "%s%s" % (spaces, mnemonic)
+                s = "%s%s%s" % (spaces, mnemonic, inline_comments)
                 converted.append(s)
 
                 continue
