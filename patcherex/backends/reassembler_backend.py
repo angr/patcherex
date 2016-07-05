@@ -92,13 +92,13 @@ class ReassemblerBackend(Backend):
         if not self._debugging:
             os.remove(tmp_file_path)
 
+        if retcode != 0:
+            return False
+
         # strip the binary
         self._strip(filename)
 
-        if retcode == 0:
-            return True
-        else:
-            return False
+        return True
 
     def _strip(self, path):
         """
