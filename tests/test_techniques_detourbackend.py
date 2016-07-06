@@ -651,6 +651,25 @@ def test_adversarial():
         nose.tools.assert_true(fsize > 0x1000)
 
 
+#@add_fallback_strategy
+def test_backdoor():
+    logging.getLogger("patcherex.techniques.Backdoor").setLevel("DEBUG")
+    from patcherex.techniques.backdoor import Backdoor
+    filepath = os.path.join(bin_location, "cfe_original/CADET_00003/CADET_00003")
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        cp = Backdoor(filepath, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        backend.save("../../vm/shared/patched")
+
+
+        # TODO this is goiung to be hard to test properly without a vm
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))

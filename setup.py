@@ -10,5 +10,7 @@ setup(
         'capstone',
         'psutil',
         'timeout-decorator',
+        'tracer',
+        'povsim',
    ],
 )
