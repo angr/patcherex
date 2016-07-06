@@ -22,3 +22,9 @@ rm $OUT/arbitrary_transmit_Oz; $SCRIPT arbitrary_transmit.c -Ofast -o $OUT/arbit
 
 rm $OUT/indirect_call_test_fullmem_O0; $SCRIPT indirect_call_test_fullmem.c -O0 -o $OUT/indirect_call_test_fullmem_O0
 printf '\x00\x00\x00\x3a' | dd of=$OUT/indirect_call_test_fullmem_O0 bs=1 seek=136 count=4 conv=notrunc 2> /dev/null
+
+rm $OUT/backdoorme1; $SCRIPT backdoorme1.c -Ofast -o $OUT/backdoorme1
+rm $OUT/backdoorme2; $SCRIPT backdoorme2.c -Ofast -o $OUT/backdoorme2
+rm $OUT/backdoorme3; $SCRIPT backdoorme3.c -Ofast -o $OUT/backdoorme3
+rm $OUT/backdoorme4; $SCRIPT backdoorme4.c -Ofast -o $OUT/backdoorme4
+rm $OUT/backdoorme5; $SCRIPT backdoorme5.c -Ofast -o $OUT/backdoorme5

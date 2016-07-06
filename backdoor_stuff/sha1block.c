@@ -177,7 +177,7 @@ int ROTATE_LEFT(const int value, int shift) {
 
 
 // Update HASH[] by processing a one 64-byte block in MESSAGE[]
-__attribute__((__fastcall)) int SHA1( int HASH[], int MESSAGE[] )
+__attribute__((__fastcall)) int SHA1(int MESSAGE[] )
 {
   // these arrays are not necessary but used to better highlight dependencies
   int B, C, D, E;
@@ -187,11 +187,11 @@ __attribute__((__fastcall)) int SHA1( int HASH[], int MESSAGE[] )
   int FN;
   int i;
 
-  A = HASH[0]; 
-  B = HASH[1];
-  C = HASH[2];
-  D = HASH[3];
-  E = HASH[4];
+  A = 0x67452301;
+  B = 0x98BADCFE;
+  C = 0xEFCDAB89;
+  D = 0x10325476;
+  E = 0xC3D2E1F0;
 
   for ( i=0; i<80; ++i ){
     //send_int_nl(A[i]);
@@ -243,17 +243,16 @@ __attribute__((__fastcall)) int SHA1( int HASH[], int MESSAGE[] )
     //send_int_space(K(i));//
     //send_int_nl(W[i]);//
 
-    Dn = C;
+    E = D;
+    D = C;
     C = ROTATE_LEFT( B, 30 );
     B = A;
-    E = D;
     A = An;
-    D = Dn;
     //send_int_nl(A[i+1]);
   }
 
 
-  return (HASH[0] + A);
+  return (0x67452301 + A);
 }
 //-----------------------
 
@@ -263,14 +262,7 @@ uint32_t sha1block(uint32_t input){
   uint32_t res;
 
   allocate(0x1000, 0, (void*) &addr);
-  addr[0] = input;
-  addr[100] = 0x67452301;
-  addr[101] = 0x98BADCFE;
-  addr[102] = 0xEFCDAB89;
-  addr[103] = 0x10325476;
-  addr[104] = 0xC3D2E1F0;
-
-  res = SHA1((int*)&(addr[100]),(int*)addr);
+  res = SHA1((int*)addr);
   return res;
 }
 
