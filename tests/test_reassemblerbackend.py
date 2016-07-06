@@ -1,5 +1,6 @@
 
 import os.path
+import multiprocessing
 
 import nose.tools
 
@@ -40,7 +41,7 @@ def test_functionality():
     for b in binaries:
         run_functionality(b)
 
-def manual_run_functionality_all():
+def manual_run_functionality_all(threads=8):
 
     # Grab all binaries under binaries-private/cgc_samples_multiflags, and reassemble them
 
@@ -50,14 +51,31 @@ def manual_run_functionality_all():
         for b in filelist:
             if '.' in b:
                 continue
-            p = os.path.join('cgc_samples_multiflags', dirname, b)
+            p = os.path.normpath(os.path.join('cgc_samples_multiflags', dirname, b))
             binaries.append(p)
 
-    import sys
+    if threads > 1:
 
-    for b in binaries:
-        sys.stdout.write("Reassembling %s..." % b)
-        sys.stdout.flush()
+        process_objects = [ ]
+        for thread_id in xrange(threads):
+            p = multiprocessing.Process(target=manual_run_functionality_core, args=(binaries, thread_id, threads))
+            process_objects.append(p)
+
+            p.start()
+
+        for p in process_objects:
+            p.join()
+
+    else:
+        manual_run_functionality_core(binaries, 0, 1)
+
+def manual_run_functionality_core(binaries, thread_id, all_threads):
+    for i, b in enumerate(binaries):
+        if (i + thread_id) % all_threads != 0:
+            continue
+
+        s = "[%02d] Reassembling %s..." % (thread_id, b)
+        print s
 
         save_as = os.path.join("/",
                                "tmp",
@@ -68,11 +86,11 @@ def manual_run_functionality_all():
                                )
         try:
             run_functionality(b, save_as=save_as)
-            print "succeeded"
+            print s, "succeeded"
         except AssertionError:
-            print "failed"
+            print s, "failed"
         except Exception as ex:
-            print "failed miserably with an exception: %s" % str(ex)
+            print s, "failed miserably with an exception: %s" % str(ex)
 
 #
 # Patching tests
