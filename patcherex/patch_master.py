@@ -29,6 +29,7 @@ from patcherex.techniques.indirectcfi import IndirectCFI
 from patcherex.techniques.transmitprotection import TransmitProtection
 from patcherex.techniques.shiftstack import ShiftStack
 from patcherex.techniques.adversarial import Adversarial
+from patcherex.techniques.backdoor import Backdoor
 
 from patcherex import utils
 from patcherex.backends.detourbackend import DetourBackend
@@ -44,7 +45,7 @@ class PatchMaster():
     def __init__(self,infile):
         self.infile = infile
         # to ease autotesting:
-        self.ngenerated_patches = 3
+        self.ngenerated_patches = 4
 
     def generate_shadow_stack_binary(self):
         backend = DetourBackend(self.infile)
@@ -109,6 +110,13 @@ class PatchMaster():
         backend.apply_patches(patches)
         return backend.get_final_content()
 
+    def generate_backdoor_binary(self):
+        backend = DetourBackend(self.infile)
+        cp = Backdoor(self.infile,backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        return backend.get_final_content()
+
     def generate_transmitprotection_binary(self):
         backend = DetourBackend(self.infile)
         cp = TransmitProtection(self.infile,backend)
@@ -155,6 +163,17 @@ class PatchMaster():
         if final_binary != None:
             to_be_submitted["final"] = final_binary
         l.info("final_binary created")
+
+        l.info("creating backdoor_binary...")
+        backdoor_binary = None
+        try:
+            backdoor_binary = self.generate_backdoor_binary()
+        except Exception as e:
+            print "ERROR","during generation of backdoor_binary"
+            traceback.print_exc()
+        if backdoor_binary != None:
+            to_be_submitted["backdoor"] = backdoor_binary
+        l.info("backdoor_binary created")
 
         l.info("creating adversarial_binary...")
         adversarial_binary = None
@@ -249,6 +268,7 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("INFO")
         logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
+        logging.getLogger("patcherex.techniques.Backdoor").setLevel("DEBUG")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
 
         input_fname = sys.argv[2]
@@ -282,6 +302,7 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
+        logging.getLogger("patcherex.techniques.Backdoor").setLevel("DEBUG")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
 
         input_fname = sys.argv[2]
