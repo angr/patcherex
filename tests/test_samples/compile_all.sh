@@ -28,3 +28,8 @@ rm $OUT/backdoorme2; $SCRIPT backdoorme2.c -Ofast -o $OUT/backdoorme2
 rm $OUT/backdoorme3; $SCRIPT backdoorme3.c -Ofast -o $OUT/backdoorme3
 rm $OUT/backdoorme4; $SCRIPT backdoorme4.c -Ofast -o $OUT/backdoorme4
 rm $OUT/backdoorme5; $SCRIPT backdoorme5.c -Ofast -o $OUT/backdoorme5
+rm $OUT/backdoorme6; $SCRIPT backdoorme6.c -Ofast -o $OUT/backdoorme6
+rm $OUT/backdoorme7; $SCRIPT backdoorme7.c -Ofast -o $OUT/backdoorme7
+rm $OUT/backdoorme8; $SCRIPT backdoorme8.c -Ofast -o $OUT/backdoorme8
+rm $OUT/backdoorme9; $SCRIPT backdoorme9.c -Ofast -o $OUT/backdoorme9
+

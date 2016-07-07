@@ -658,14 +658,13 @@ def test_backdoor():
         # deal with endianness craziness
         return "".join(map(chr,[l[3],l[2],l[1],l[0],0,0,0,l[4]]))
 
-    logging.getLogger("patcherex.techniques.Backdoor").setLevel("DEBUG")
     from patcherex.techniques.backdoor import Backdoor
     filepath = os.path.join(bin_location, "cfe_original/CADET_00003/CADET_00003")
     real_backdoor_enter = "3367b180".decode('hex')
     fake_backdoor_enter = "3367b181".decode('hex')
     logging.getLogger('povsim').setLevel("DEBUG")
     custom_bins = [os.path.join(bin_location,os.path.join("tests/i386/patchrex","backdoorme"+str(i))) \
-            for i in xrange(1,5+1)]
+            for i in xrange(1,9+1)]
     bins = [filepath] + custom_bins
 
     with patcherex.utils.tempdir() as td:
@@ -729,19 +728,23 @@ def test_backdoor():
         nose.tools.assert_equal(len(eip_vals),ntests)
         nose.tools.assert_equal(len(ebx_vals),ntests)
 
-        for tbin in bins:
+        for index,tbin in enumerate(bins):
             tmp_file = os.path.join(td, "patched")
             backend = DetourBackend(tbin,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = Backdoor(tbin, backend)
             patches = cp.get_patches()
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            backend.save("../../vm/shared/%sp"%os.path.basename(tbin))
+            # backend.save("../../vm/shared/patched")
             pov_tester = CGCPovSimulator()
             res = pov_tester.test_binary_pov("../backdoor_stuff/backdoor_pov",tmp_file)
-            if not res:
-                print "failed on:", os.path.basename(tbin)
-            nose.tools.assert_true(res)
+            if index < len(bins)-2:
+                if not res:
+                    print "failed on:", os.path.basename(tbin)
+                nose.tools.assert_true(res)
+            else:
+                # the last two are supposed to fail
+                nose.tools.assert_equal(res,False)
 
 
 def run_all():
@@ -757,6 +760,8 @@ if __name__ == "__main__":
     import sys
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
     logging.getLogger("patcherex.test.test_techniques_detourbackend").setLevel("INFO")
+    logging.getLogger("patcherex.techniques.Backdoor").setLevel("DEBUG")
+
     if len(sys.argv) > 1:
         globals()['test_' + sys.argv[1]]()
     else:

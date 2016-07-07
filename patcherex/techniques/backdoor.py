@@ -194,7 +194,21 @@ int ROTATE_LEFT(const int value, int shift) {
             ; in between push <code>, push esp and the final ret I put all the code for the backdoor logic
             ; so that an attacker cannot use push <code>, push esp without actually executing the backdoor code
             _real_backdoor:
-                sub esp, 64 ; space for sha1 MESSAGE
+
+                sub esp, 0x64 ; space for sha1 MESSAGE
+                ; clear the memory here (otherwise you get nasty bugs depending on the frames on the stack!)
+                mov eax, esp
+                xor edx, edx
+                xor ecx, ecx
+                mov cl, 64;
+                _zero_loop:
+                    test ecx, ecx
+                    jmp _zero_loop_out
+                    mov DWORD [esp+ecx], edx
+                    sub cl, 4
+                    jmp _zero_loop
+                _zero_loop_out:
+
                 push 0xc35b5990 ; nop, pop ecx, pop ebx, ret: pop ecx is used to clean [esp] from the stack
                 push esp
                 call {get_4_rnd}

