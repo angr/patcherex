@@ -177,7 +177,7 @@ int ROTATE_LEFT(const int value, int shift) {
 
 
 // Update HASH[] by processing a one 64-byte block in MESSAGE[]
-__attribute__((__fastcall)) int SHA1(int MESSAGE[] )
+__attribute__((fastcall)) int SHA1(int MESSAGE[] )
 {
   // these arrays are not necessary but used to better highlight dependencies
   int B, C, D, E;

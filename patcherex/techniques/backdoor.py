@@ -27,7 +27,7 @@ class Backdoor(object):
 #define K3 0x8F1BBCDC
 #define K4 0xCA62C1D6
 
-__attribute__((__fastcall)) int SHA1(int MESSAGE[] )
+__attribute__((fastcall)) int SHA1(int MESSAGE[] )
 {
   // __asm("int $3");
   // these arrays are not necessary but used to better highlight dependencies
