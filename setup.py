@@ -12,5 +12,6 @@ setup(
         'timeout-decorator',
         'tracer',
         'povsim',
+        'shellphish-qemu',
    ],
 )
