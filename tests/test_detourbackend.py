@@ -1335,7 +1335,7 @@ def test_c_compilation():
         ''' % patcherex.utils.get_nasm_c_wrapper_code("c_function",get_return=True)
         patches.append(InsertCodePatch(0x080480a0, added_code, name="p1", priority=1))
         added_code = '''
-        __attribute__((__fastcall)) int sub1(int a, int b){
+        __attribute__((fastcall)) int sub1(int a, int b){
             int c = a*b + 37;
             return c;
         }
@@ -1369,7 +1369,7 @@ def test_c_compilation():
         ''' % patcherex.utils.get_nasm_c_wrapper_code("c_function",get_return=False)
         patches.append(InsertCodePatch(0x080480a0, added_code, name="p1", priority=1))
         added_code = '''
-        __attribute__((__fastcall)) void sub1(int a, unsigned int* b){
+        __attribute__((fastcall)) void sub1(int a, unsigned int* b){
             *b = a*3+2;
             return;
         }
@@ -1403,7 +1403,7 @@ def test_c_compilation():
         ''' % patcherex.utils.get_nasm_c_wrapper_code("c_function",get_return=True)
         patches.append(InsertCodePatch(0x080480a0, added_code, name="p1", priority=1))
         added_code = '''
-        __attribute__((__fastcall)) void sub1(int a, unsigned int* b){
+        __attribute__((fastcall)) void sub1(int a, unsigned int* b){
             *b = a*3+2;
             return;
         }

@@ -29,7 +29,7 @@ class TransmitProtection(object):
         typedef long long int64_t;
         typedef unsigned long long uint64_t;
 
-        __attribute__((__fastcall)) int sub1(uint32_t transmitted_value_32, uint16_t* mem_area){
+        __attribute__((fastcall)) int sub1(uint32_t transmitted_value_32, uint16_t* mem_area){
                 uint8_t nslot = %d;
                 uint16_t* array_area = &(mem_area[2]);
                 uint8_t index,inner_index;
