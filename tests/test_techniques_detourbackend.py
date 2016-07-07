@@ -23,6 +23,7 @@ l = logging.getLogger("patcherex.test.test_techniques_detourbackend")
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
 qemu_location = shellphish_qemu.qemu_path('cgc')
+self_location_folder = os.path.dirname(os.path.realpath(__file__))
 
 
 '''
@@ -739,7 +740,8 @@ def test_backdoor():
             backend.save(tmp_file)
             # backend.save("../../vm/shared/patched")
             pov_tester = CGCPovSimulator()
-            res = pov_tester.test_binary_pov("../backdoor_stuff/backdoor_pov",tmp_file)
+            backdoor_pov_location = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov")
+            res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_file)
             if index < len(bins)-2:
                 if not res:
                     print "failed on:", os.path.basename(tbin)
