@@ -652,7 +652,7 @@ def test_adversarial():
         nose.tools.assert_true(fsize > 0x1000)
 
 
-#@add_fallback_strategy
+@add_fallback_strategy
 def test_backdoor():
     def solution_to_str(l):
         # deal with endianness craziness
