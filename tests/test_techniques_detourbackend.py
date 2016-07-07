@@ -11,6 +11,7 @@ import tempfile
 import random
 
 import patcherex
+import shellphish_qemu
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import *
 from tracer import Runner
@@ -21,7 +22,8 @@ l = logging.getLogger("patcherex.test.test_techniques_detourbackend")
 # TODO ideally these tests should be run in the vm
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
-qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../tracer/bin/tracer-qemu-cgc"))
+qemu_location = shellphish_qemu.qemu_path('cgc')
+
 
 '''
 This "old" version of QEMU works like a "normal" QEMU, failing to transmit partially invalid memory regions.

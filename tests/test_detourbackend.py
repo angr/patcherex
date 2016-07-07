@@ -8,6 +8,7 @@ import logging
 from functools import wraps
 
 import patcherex
+import shellphish_qemu
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import *
 from tracer import Runner
@@ -15,7 +16,7 @@ from tracer import Runner
 l = logging.getLogger("patcherex.test.test_detourbackend")
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
-qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../tracer/bin/tracer-qemu-cgc"))
+qemu_location = shellphish_qemu.qemu_path('cgc')
 
 global_data_fallback = None
 global_try_pdf_removal = True

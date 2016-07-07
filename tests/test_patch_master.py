@@ -8,12 +8,13 @@ import logging
 import patcherex.utils as utils
 
 import patcherex
+import shellphish_qemu
 from patcherex.patch_master import PatchMaster
 
 l = logging.getLogger("patcherex.test.test_patch_master")
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
-qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../tracer/bin/tracer-qemu-cgc"))
+qemu_location = shellphish_qemu.qemu_path('cgc')
 
 
 def test_run():
