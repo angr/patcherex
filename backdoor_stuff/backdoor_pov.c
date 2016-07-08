@@ -367,14 +367,14 @@ int main() {
   sleep(1,0); //wait a superstitious second
   // send_all(2,(void*)"111\n",4);
   len = receive_until_str(0,big_buffer,"\x04\xd0\xcc\xba",4,100000);
-  send_all(2,(void*)("---------------\n"),16);
+  // send_all(2,(void*)("---------------\n"),16);
   // send_all(2,(void*)"333\n",4);
   // send_all(2,(void*)(&big_buffer[len-4-4+1]),4);
   // send_all(2,(void*)"444\n",4);
   memcpy((void*) (&challenge), (void *)(&(big_buffer[len-4-4+1])),4);
-  send_int_nl(len,2);
-  send_int_nl(challenge,2);
-  send_all(2,(void*)("---------------\n"),16);
+  // send_int_nl(len,2);
+  // send_int_nl(challenge,2);
+  // send_all(2,(void*)("---------------\n"),16);
   // this is crashing if we receive a wrong challenge, we do not care
   res = &(backdoor_solutions[challenge*5]);
   // endianness is crazy
