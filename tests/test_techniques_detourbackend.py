@@ -507,6 +507,7 @@ def test_transmitprotection():
     logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
     from patcherex.techniques.transmitprotection import TransmitProtection
     vulnerable_fname1 = os.path.join(bin_location, "tests/i386/patchrex/arbitrary_transmit_O0")
+    vulnerable_fname2 = os.path.join(bin_location, "tests/i386/patchrex/arbitrary_transmit_stdin_O0")
 
     res = Runner(vulnerable_fname1,"08048000\n00000005\n",record_stdout=True)
     nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
@@ -517,20 +518,34 @@ def test_transmitprotection():
     for nslot in [8,16,32,100,1000]:
         print "nlslot:",nslot
         with patcherex.utils.tempdir() as td:
-            patched_fname1 = os.path.join(td, "patched")
+            patched_fname1 = os.path.join(td, "patched1")
             backend = DetourBackend(vulnerable_fname1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = TransmitProtection(vulnerable_fname1, backend)
             cp.nslot=nslot
             patches = cp.get_patches()
             backend.apply_patches(patches)
             backend.save(patched_fname1)
+
+            patched_fname2 = os.path.join(td, "patched2")
+            backend = DetourBackend(vulnerable_fname2,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            cp = TransmitProtection(vulnerable_fname2, backend)
+            cp.nslot=nslot
+            patches = cp.get_patches()
+            backend.apply_patches(patches)
+            backend.save(patched_fname2)
             #backend.save("../../vm/shared/patched")
             base = "08048000\n00000005\n"
 
             res = Runner(patched_fname1,"08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
-
             res = Runner(patched_fname1,base+"4347c000\n0000000a\n",record_stdout=True)
+            nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+            nose.tools.assert_equal(len(res.stdout),11)
+            nose.tools.assert_equal(res.reg_vals['eip'],0x08047ffc)
+
+            res = Runner(patched_fname2,"08048000\n00000005\n",record_stdout=True)
+            nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
+            res = Runner(patched_fname2,base+"4347c000\n0000000a\n",record_stdout=True)
             nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
             nose.tools.assert_equal(len(res.stdout),11)
             nose.tools.assert_equal(res.reg_vals['eip'],0x08047ffc)
