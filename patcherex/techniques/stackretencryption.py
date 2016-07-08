@@ -13,6 +13,10 @@ class CfgError(Exception):
     pass
 
 
+class TooManyBB(Exception):
+    pass
+
+
 class StackRetEncryption(object):
 
     def __init__(self,binary_fname,backend,allow_reg_reuse=True):
@@ -22,6 +26,7 @@ class StackRetEncryption(object):
         self.flag_page = 0x4347c000
         self.allow_reg_reuse = allow_reg_reuse
         self.cfg_exploration_depth = 8
+        self.max_cfg_steps = 5000
 
         self.relevant_registers = set(["eax","ebx","ecx","edx","esi","edi","ebp"])
         self.reg_free_map, self.reg_not_free_map = self.get_reg_free_map()
@@ -89,7 +94,7 @@ class StackRetEncryption(object):
         common_patches.append(AddEntryPointPatch(added_code,name="set_rnd_xor_key"))
         return common_patches
 
-    def get_free_regs(self,addr,ignore_current_bb=False,level=0,debug=False):
+    def get_free_regs(self,addr,ignore_current_bb=False,level=0,debug=False,total_steps=[],prev=set()):
         if debug: print "\t"*level,"--------",hex(addr)
         if level >= self.cfg_exploration_depth:
             # we reached max depth: we assume that everything else may use any reg
@@ -112,6 +117,9 @@ class StackRetEncryption(object):
         # 2) it is free in all the successors bb and not used in current
         try:
             succ = self.get_all_succ(addr)
+            total_steps[0] += 1
+            if total_steps[0] >= self.max_cfg_steps:
+                raise TooManyBB("too many steps")
             if debug: print "\t"*level,map(hex,succ)
         except CfgError:
             l.warning("CFGError detected at %#x" % addr)
@@ -119,7 +127,10 @@ class StackRetEncryption(object):
             return set()
         free_regs_in_succ_list = []
         for s in succ:
-            free_regs_in_succ_list.append(self.get_free_regs(s,False,level+1))
+            if s in prev:
+                continue # avoid exploring already exploring nodes (except the first one).
+            prev.add(s)
+            free_regs_in_succ_list.append(self.get_free_regs(s,False,level+1,total_steps=total_steps,prev=prev))
         
         if debug: print "\t"*level,free_regs_in_succ_list,not_free_regs
         for r in (self.relevant_registers-not_free_regs):
@@ -131,7 +142,13 @@ class StackRetEncryption(object):
 
 
     def add_patch_at_bb(self,addr,is_tail=False):
-        free_regs = self.get_free_regs(addr,ignore_current_bb=is_tail)
+        try:
+            total_steps = [0]
+            free_regs = self.get_free_regs(addr,ignore_current_bb=is_tail,total_steps=total_steps)
+        except TooManyBB:
+            l.warning("Too many steps (%d) while exploring bb at %#x" % (self.max_cfg_steps,addr))
+            free_regs = set()
+        # print total_steps[0]
         if "ecx" in free_regs and self.allow_reg_reuse:
             l.debug("using encrypt_using_ecx method for bb at %s" % hex(int(addr)))
             self.used_ecx_patch = True
@@ -150,6 +167,7 @@ class StackRetEncryption(object):
     def add_shadowstack_to_function(self,start,ends):
         # in the grand-plan these patches have higher priority than, for instance, indirect jump ones
         # this only matters in case of conflicts
+        l.debug("Trying adding stackretencryption to %08x %s"%(start,map(lambda x:hex(int(x)),ends)))
         headp = InsertCodePatch(start,self.add_patch_at_bb(start),name="stackretencryption_head_%d_%#x"%(self.npatch,start),priority=100)
 
         tailp = []
