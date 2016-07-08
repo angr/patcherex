@@ -4,6 +4,7 @@ import os
 import nose
 import struct
 import subprocess
+import shellphish_qemu
 import logging
 from collections import defaultdict
 
@@ -17,7 +18,7 @@ from patcherex.backends.detourbackend import DetourBackend
 # large scale testing of the CFGs is an open problem  
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
-qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), "../../tracer/bin/tracer-qemu-cgc"))
+qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
 pipe = subprocess.PIPE
 
 
