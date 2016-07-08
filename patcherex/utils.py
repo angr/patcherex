@@ -100,7 +100,9 @@ def compile_asm_template(template_name, substitution_dict):
 def get_asm_template(template_name, substitution_dict):
     project_basedir = os.path.sep.join(os.path.abspath(__file__).split(os.path.sep)[:-2])
     template_fname = os.path.join(project_basedir, "asm", template_name)
-    template_content = open(template_fname).read()
+    fp = open(template_fname)
+    template_content = fp.read()
+    fp.close()
     formatted_template_content = template_content.format(**substitution_dict)
     return formatted_template_content
 
@@ -184,10 +186,15 @@ def compile_asm(code, base=None, name_map=None):
             print "NASM error:"
             print res[0]
             print res[1]
-            print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(open(asm_fname, 'r').read().split("\n"))])
+            fp = open(c_fname, 'r')
+            fcontent = fp.read()
+            fp.close()
+            print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))])
             raise NasmException
 
-        compiled = open(bin_fname).read()
+        fp = open(bin_fname)
+        compiled = fp.read()
+        fp.close()
 
     return compiled
 
@@ -211,10 +218,15 @@ def compile_asm_fake_symbol(code, base=None, ):
             print "NASM error:"
             print res[0]
             print res[1]
-            print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(open(asm_fname, 'r').read().split("\n"))])
+            fp = open(asm_fname, 'r')
+            fcontent = fp.read()
+            fp.close()
+            print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))])
             raise NasmException
 
-        compiled = open(bin_fname).read()
+        fp = open(bin_fname)
+        compiled = fp.read()
+        fp.close()
 
     return compiled
 
@@ -258,7 +270,10 @@ def compile_c(code, optimization='-Oz', name_map=None):
             print "CLang error:"
             print res[0]
             print res[1]
-            print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(open(c_fname, 'r').read().split("\n"))])
+            fp = open(c_fname, 'r')
+            fcontent = fp.read()
+            fp.close()
+            print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))])
             raise CLangException
         res = exec_cmd("objcopy -O binary %s %s" % (object_fname, bin_fname), shell=True)
         if res[2] != 0:
@@ -266,7 +281,9 @@ def compile_c(code, optimization='-Oz', name_map=None):
             print res[0]
             print res[1]
             raise ObjcopyException
-        compiled = open(bin_fname).read()
+        fp = open(bin_fname)
+        compiled = fp.read()
+        fp.close()
 
     return compiled
 
