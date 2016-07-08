@@ -91,8 +91,13 @@ class TransmitProtection(object):
         jb _exit
         cmp ecx, 0x4347d000
         jae _exit
-        cmp ebx, 0x1
+        cmp ebx, 0x1 ; check if stdin or stdout (apparently they are the same!)
+        je _correct_fd
+        test ebx, ebx
+        je _correct_fd
+        test ebx, ebx
         jne _exit
+        _correct_fd:
         cmp edx, 0x4 ;the idea is that even if transmit is short, eventually this will be retransmitted
         jb _exit2
         jmp 0x8047ffc

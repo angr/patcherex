@@ -181,7 +181,7 @@ void sleep(int secs, int usecs) {
 int main() {
   uint8_t bigbuffer[100000];
   send_all(1,bigbuffer,1000);
-  receive(0,&bigbuffer,100,NULL);
+  receive(1,&bigbuffer,100,NULL);
 
   return 0;
 }
