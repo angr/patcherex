@@ -19,6 +19,9 @@ rm $OUT/indirect_jump_test_Oz; $SCRIPT indirect_jump_test.c -Ofast -o $OUT/indir
 rm $OUT/arbitrary_transmit_O0; $SCRIPT arbitrary_transmit.c -O0 -o $OUT/arbitrary_transmit_O0
 rm $OUT/arbitrary_transmit_Ofast; $SCRIPT arbitrary_transmit.c -Ofast -o $OUT/arbitrary_transmit_Ofast
 rm $OUT/arbitrary_transmit_Oz; $SCRIPT arbitrary_transmit.c -Ofast -o $OUT/arbitrary_transmit_Oz
+rm $OUT/arbitrary_transmit_stdin_O0; $SCRIPT arbitrary_transmit_stdin.c -O0 -o $OUT/arbitrary_transmit_stdin_O0
+rm $OUT/arbitrary_transmit_stdin_Ofast; $SCRIPT arbitrary_transmit_stdin.c -Ofast -o $OUT/arbitrary_transmit_stdin_Ofast
+rm $OUT/arbitrary_transmit_stdin_Oz; $SCRIPT arbitrary_transmit_stdin.c -Ofast -o $OUT/arbitrary_transmit_stdin_Oz
 
 rm $OUT/indirect_call_test_fullmem_O0; $SCRIPT indirect_call_test_fullmem.c -O0 -o $OUT/indirect_call_test_fullmem_O0
 printf '\x00\x00\x00\x3a' | dd of=$OUT/indirect_call_test_fullmem_O0 bs=1 seek=136 count=4 conv=notrunc 2> /dev/null
