@@ -139,6 +139,8 @@ class ReassemblerBackend(Backend):
                 data = cgc_header + data[ len(cgc_header) : ]
                 f2.write(data)
 
+        os.remove(tmp_path)
+
     def get_final_content(self):
         return ""
 
