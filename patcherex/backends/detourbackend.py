@@ -339,7 +339,8 @@ class DetourBackend(Backend):
 
     def set_added_segment_headers(self):
         assert self.ncontent[0x34:0x34+len(self.patched_tag)] == self.patched_tag
-        l.debug("added_data_file_start: %#x", self.added_data_file_start)
+        if self.data_fallback:
+            l.debug("added_data_file_start: %#x", self.added_data_file_start)
         added_segments = 0
         original_nsegments = len(self.modded_segments)
 

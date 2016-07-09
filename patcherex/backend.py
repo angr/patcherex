@@ -3,7 +3,7 @@ import logging
 
 import angr
 
-l = logging.getLogger('backend')
+l = logging.getLogger('patcherex.backend')
 
 class Backend(object):
     """

@@ -297,6 +297,7 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.techniques.SimpleCFI").setLevel("INFO")
         logging.getLogger("patcherex.techniques.ShadowStack").setLevel("INFO")
         logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
+        logging.getLogger("patcherex.backend").setLevel("INFO")
         logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
