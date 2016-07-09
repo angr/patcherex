@@ -253,6 +253,14 @@ def ftodir(f,out):
     return res
 
 
+def ftodir2(f,out):
+    sep = os.path.sep
+    dname = sep.join(f.split(sep)[-3:-1])
+    res = os.path.join(out,dname)
+    #print "-->",out,dname,res
+    return res
+
+
 if __name__ == "__main__":
 
 
@@ -318,7 +326,7 @@ if __name__ == "__main__":
         os.chmod(output_fname, 0755)
         print "="*50,"process ended at",str(datetime.datetime.now())
 
-    elif sys.argv[1] == "multi" or sys.argv[1] == "multi_name":
+    elif sys.argv[1] == "multi" or sys.argv[1] == "multi_name" or sys.argv[1] == "multi_name2":
         out = sys.argv[2]
         techniques = sys.argv[3].split(",")
         files = sys.argv[7:]
@@ -329,11 +337,27 @@ if __name__ == "__main__":
                 for t in techniques:
                     outdir = ftodir(f,out)
                     try:
+                        os.makedirs(outdir)
+                    except OSError:
+                        pass
+                    tasks.append((f,t,outdir))
+
+        elif sys.argv[1] == "multi_name2":
+            tasks = []
+            for f in files:
+                for t in techniques:
+                    outdir = ftodir2(f,out)
+                    try:
+                        os.makedirs(outdir)
+                    except OSError:
+                        pass
+                    try:
                         os.mkdir(outdir)
                     except OSError:
                         pass
                     tasks.append((f,t,outdir))
-        else:
+
+        elif sys.argv[1] == "multi":
             tasks = [(f,t,out) for f,t in list(itertools.product(files,techniques))]
 
         print tasks
@@ -344,7 +368,7 @@ if __name__ == "__main__":
         plist = []
         nprocesses = int(sys.argv[5])
         if nprocesses == 0:
-            nprocesses = int(psutil.cpu_count()/2.0)
+            nprocesses = int(psutil.cpu_count()/1.0)
         timeout = int(sys.argv[6])
         for i in xrange(nprocesses):
             p = multiprocessing.Process(target=worker, args=(inq,outq,timeout))
@@ -357,7 +381,8 @@ if __name__ == "__main__":
             inq.put(t)
         for i in xrange(ntasks):
             res = outq.get()
-            key = (os.path.basename(res[1][0]),res[1][1])
+            sep = os.path.sep
+            key = (sep.join(res[1][0].split(sep)[-3:]),res[1][1])
             status = res[0]
             value = res[2]
             print "=" * 20, str(i+1)+"/"+str(ntasks), key, status
@@ -370,7 +395,7 @@ if __name__ == "__main__":
         failed_patches = {k:v for k,v in res_dict.iteritems() if v[0] == False}
         print "FAILED PATCHES",str(len(failed_patches))+"/"+str(ntasks)
         for k,v in failed_patches:
-            print k
+            print k,v
 
         pickle.dump(res_dict,open(sys.argv[4],"wb"))
 
@@ -382,4 +407,5 @@ if __name__ == "__main__":
 unbuffer ./patch_master.py multi  ~/antonio/tmp/cgc1/ shadow_stack,packed,simplecfi   ~/antonio/tmp/cgc1/res.pickle 40 300 ../../binaries-private/cgc_qualifier_event/cgc/002ba801_01 | tee ~/antonio/tmp/cgc1/log.txt
 find /home/cgc/antonio/shared/patcher_dataset/bin/original_selected  -type f -executable -print | xargs -P1 ./patch_master.py multi_name /home/cgc/antonio/shared/patcher_dataset/bin/packed/  packed  /home/cgc/antonio/shared/patcher_dataset/bin/packed/res.pickle 40 300
 ./patch_master.py single ../../binaries-private/cgc_trials/CADET_00003 stackretencryption  ../../vm/shared/patched
+find ../../binaries-private/cgc_samples_multiflags/ -type f -executable | grep CADET_00003 | tr '\n' ' ' | xargs -P1  ./patch_master.py multi_name2 /tmp/cgc4 stackretencryption,backdoor,final,adversarial  /tmp/cgc/res.pickle 0 300
 '''
