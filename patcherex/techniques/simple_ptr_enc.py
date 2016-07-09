@@ -507,6 +507,7 @@ class SimplePointerEncryption(Technique):
 
             ; generate offset
             pop edx
+            and edx, 0x0ffffff0
             mov dword ptr [_POINTER_KEY], edx
 
             ; encrypt all static pointers
