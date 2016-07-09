@@ -384,6 +384,27 @@ def test_fullcfg_properties():
                 instruction_set.add(iaddr)
 
 
+def test_setlongjmp_detection():
+    solutions = [
+            ("cgc_samples_multiflags/CADET_00003/original/CADET_00003",0x80486c8,0x80486e3),
+            ("cgc_samples_multiflags/CROMU_00008/original/CROMU_00008",0x804C3AC,0x804C3C7),
+            ("cgc_samples_multiflags/CROMU_00008/Ofast/CROMU_00008",0x804ABD7,0x804ABF2),
+
+    ]
+
+    for tbin, setjmp, longjmp in solutions:
+        filepath = os.path.join(bin_location, tbin)
+        backend = DetourBackend(filepath)
+        cfg = backend.cfg
+
+        for k,ff in cfg.functions.iteritems():
+            msg = "detection failure in %s (%#x vs %#x)"
+            if cfg_utils.is_setjmp(backend,ff):
+                nose.tools.assert_equal(setjmp,ff.addr,"setjmp " + msg %(tbin,setjmp,ff.addr))
+            elif cfg_utils.is_longjmp(backend,ff):
+                nose.tools.assert_equal(longjmp,ff.addr,"longjmp " + msg %(tbin,setjmp,ff.addr))
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))

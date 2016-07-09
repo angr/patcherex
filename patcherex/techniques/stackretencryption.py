@@ -27,6 +27,8 @@ class StackRetEncryption(object):
         self.allow_reg_reuse = allow_reg_reuse
         self.cfg_exploration_depth = 8
         self.max_cfg_steps = 3000
+        self.found_setjmp = None
+        self.found_longjmp = None
 
         self.relevant_registers = set(["eax","ebx","ecx","edx","esi","edi","ebp"])
         self.reg_free_map, self.reg_not_free_map = self.get_reg_free_map()
@@ -164,7 +166,7 @@ class StackRetEncryption(object):
         return inserted_code
 
     # TODO check if it is possible to do insane trick to always overwrite the same stuff and merge things
-    def add_shadowstack_to_function(self,start,ends):
+    def add_stackretencryption_to_function(self,start,ends):
         # in the grand-plan these patches have higher priority than, for instance, indirect jump ones
         # this only matters in case of conflicts
         l.debug("Trying adding stackretencryption to %08x %s"%(start,map(lambda x:hex(int(x)),ends)))
@@ -186,21 +188,27 @@ class StackRetEncryption(object):
         # TODO tail-call is handled lazily just by considering jumping out functions as not sane
         if cfg_utils.is_sane_function(ff) and cfg_utils.detect_syscall_wrapper(self.patcher,ff) == None \
                 and not cfg_utils.is_floatingpoint_function(self.patcher,ff):
-            start = ff.startpoint
-            ends = set()
-            for ret_site in ff.ret_sites:
-                bb = self.patcher.project.factory.block(ret_site.addr)
-                last_instruction = bb.capstone.insns[-1]
-                if last_instruction.mnemonic != u"ret":
-                    l.debug("bb at %s does not terminate with a ret in function %s" % (hex(int(bb.addr)),ff.name))
-                    break
-                else:
-                    ends.add(last_instruction.address)
+            if cfg_utils.is_longjmp(self.patcher,ff):
+                self.found_longjmp = ff.addr
+            elif cfg_utils.is_setjmp(self.patcher,ff):
+                self.found_setjmp = ff.addr
             else:
-                if len(ends) == 0:
-                    l.debug("cannot find any ret in function %s" %ff.name)
+                start = ff.startpoint
+                ends = set()
+                for ret_site in ff.ret_sites:
+                    bb = self.patcher.project.factory.block(ret_site.addr)
+                    last_instruction = bb.capstone.insns[-1]
+                    if last_instruction.mnemonic != u"ret":
+                        msg = "bb at %s does not terminate with a ret in function %s"
+                        l.debug(msg % (hex(int(bb.addr)),ff.name))
+                        break
+                    else:
+                        ends.add(last_instruction.address)
                 else:
-                    return int(start.addr),map(int,ends) #avoid "long" problems
+                    if len(ends) == 0:
+                        l.debug("cannot find any ret in function %s" %ff.name)
+                    else:
+                        return int(start.addr),map(int,ends) #avoid "long" problems
             
         l.debug("function %s has problems and cannot be patched" % ff.name)
         return None, None
@@ -302,9 +310,36 @@ class StackRetEncryption(object):
         for k,ff in cfg.functions.iteritems():
             start,ends = self.function_to_patch_locations(ff)
             if start!=None and ends !=None:
-                new_patches = self.add_shadowstack_to_function(start,ends)
+                new_patches = self.add_stackretencryption_to_function(start,ends)
                 l.info("added StackRetEncryption to function %s (%s -> %s)",ff.name,hex(start),map(hex,ends))
                 patches += new_patches
+
+        if self.found_setjmp == None:
+            l.warning("setjmp not found!")
+        if self.found_longjmp == None:
+            l.warning("longjmp not found!")
+        if self.found_setjmp != None and self.found_longjmp != None:
+            l.info("setjmp found at %#x" % self.found_setjmp)
+            l.info("long found at %#x" % self.found_longjmp)
+
+            code_setjmp = '''
+                xor dx, WORD [%s]
+                xor edx, DWORD [{rnd_xor_key}]
+            ''' % hex(self.flag_page + 0x123)
+            code_longjmp = '''
+                xor cx, WORD [%s]
+                xor ecx, DWORD [{rnd_xor_key}]
+            ''' % hex(self.flag_page + 0x123)
+
+            p1 = InsertCodePatch(self.found_setjmp+7,code_setjmp,name="setjmp_protection",priority=200)
+            # in theory we could add longjmp encryption it at the end of setjmp, but there is no space
+            p2 = InsertCodePatch(self.found_longjmp+10,code_longjmp,name="longjmp_protection",priority=200)
+            # the two patches are mutual dependent, however given their position they should not fail
+
+            p1.dependencies.append(p2)
+            p2.dependencies.append(p1)
+            patches.append(p1)
+            patches.append(p2)
 
         if self.used_safe_patch:
             patches.append(self.safe_encrypt_patch)

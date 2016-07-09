@@ -93,4 +93,38 @@ def detect_syscall_wrapper(backend,ff):
                         return syscall_number
         return None
 
-    # TODO check and exclude floating point functions in: https://github.com/CyberGrandChallenge/libcgc/blob/master/maths.s
+
+def instruction_to_str(inst):
+    inst_str  = str(inst.mnemonic)+" "+str(inst.op_str)
+    return inst_str
+
+
+def is_setjmp(backend, ff):
+    instructions = backend.project.factory.block(ff.startpoint.addr).capstone.insns
+    expected_init = [
+            "mov ecx, dword ptr [esp + 4]",
+            "mov edx, dword ptr [esp]",
+            "mov dword ptr [ecx], edx",
+    ]
+    if all([instruction_to_str(r)==e for r,e in zip(instructions,expected_init)]):
+        return True
+    else:
+        return False
+    return inst_str
+
+
+def is_longjmp(backend, ff):
+    instructions = backend.project.factory.block(ff.startpoint.addr).capstone.insns
+    expected_init = [
+            "mov edx, dword ptr [esp + 4]",
+            "mov eax, dword ptr [esp + 8]",
+            "mov ecx, dword ptr [edx]",
+            "mov ebx, dword ptr [edx + 4]"
+    ]
+    if all([instruction_to_str(r)==e for r,e in zip(instructions,expected_init)]):
+        return True
+    else:
+        return False
+
+
+
