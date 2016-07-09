@@ -26,7 +26,7 @@ class StackRetEncryption(object):
         self.flag_page = 0x4347c000
         self.allow_reg_reuse = allow_reg_reuse
         self.cfg_exploration_depth = 8
-        self.max_cfg_steps = 5000
+        self.max_cfg_steps = 3000
 
         self.relevant_registers = set(["eax","ebx","ecx","edx","esi","edi","ebp"])
         self.reg_free_map, self.reg_not_free_map = self.get_reg_free_map()
