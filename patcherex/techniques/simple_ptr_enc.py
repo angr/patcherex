@@ -44,14 +44,391 @@ class DerefInstruction(object):
 
 
 class RefInstruction(object):
-    def __init__(self, ins_addr, addr_reg, sources):
+    def __init__(self, ins_addr, addr_reg, sources, store_addr=None):
         self.ins_addr = ins_addr
         self.ins_size = None
         self.addr_reg = addr_reg
         self.sources = sources
+        self.store_addr = store_addr
 
     def __repr__(self):
-        return "<Ref %#08x %s: %s>" % (self.ins_addr, self.addr_reg, self.sources)
+        if self.addr_reg is not None:
+            return "<Ref %#08x %s: %s>" % (self.ins_addr, self.addr_reg, self.sources)
+        else:
+            return "<Ref %#08x %s: %s>" % (self.ins_addr, self.store_addr, self.sources)
+
+
+class BlockTraverser(object):
+
+    OPSTR_TO_OP = {
+        'Iop_Add32': '+',
+        'Iop_Sub32': '-',
+        'Iop_Sub8': '-',
+        'Iop_Shl32': '<<',
+        'Iop_And8': '&',
+        'Iop_And32': '&',
+        'Iop_Sar32': '>>',
+        'Iop_Shr32': '>>',
+        'Iop_Mul32': '*',
+    }
+
+    def __init__(self, cfg):
+        self.cfg = cfg
+
+        self._addr_belongs_to_section = self.cfg._addr_belongs_to_section
+
+        # global temporary variables
+        self._last_instr = None
+        self.ins_addr = None
+        self.instrs = [ ]
+
+        self.ip_offset = self.cfg.project.arch.ip_offset
+        self.sp_offset = self.cfg.project.arch.sp_offset
+        self.bp_offset = self.cfg.project.arch.bp_offset
+
+        self.tmps = {}
+        self.regs = {}
+
+        # begin traversal!
+        self._analyze()
+
+    def _is_addr_valid(self, addr):
+        if self._addr_belongs_to_section(addr) is not None:
+            return True
+
+        if 0x4347c000 <= addr < 0x4347c000 + 0x1000:
+            return True
+
+        return False
+
+    def _ast_to_addr_regs(self, ast):
+        """
+        Pick registers that holds a valid address and return them.
+
+        :param MiniAST ast: The AST
+        :return: A list of register offsets.
+        :rtype: list
+        """
+
+        # we only care about where the base comes from
+        # - if there is only one register, then it must be the base
+        # - if there are a register and a const, the register is the base if and only if the const
+        #   is not a valid address. Otherwise the constant is the base
+        # - if there are two constants, it's gonna be a little complicated... TODO
+
+        is_addr_valid = self._is_addr_valid
+
+        if len(ast.args) == 2:
+            # binary operations
+            if ast.op == '+':
+                if ast.args[1].op == 'const':
+                    # something + constant
+                    if is_addr_valid(ast.args[1].args[0]):
+                        # base address + some offset
+                        return []
+                    else:
+                        if ast.args[0].op == 'reg':
+                            # this register must be the base address
+                            return [ast.args[0].args[0]]
+                        elif ast.args[0].op == 'const' and is_addr_valid(ast.args[0].args[0]):
+                            # the constant is the base address
+                            return []
+                        else:
+                            return self._ast_to_addr_regs(ast.args[0])
+
+                elif ast.args[1].op in ('<<',):
+                    # arg1 must be used as an offset or index
+                    # arg0 is the base address
+                    if ast.args[0].op == 'reg':
+                        return [ast.args[0].args[0]]
+                    elif ast.args[0].op == 'const':
+                        return []
+                elif ast.args[0].op == 'reg':
+                    # let's see if we can extract a base address from other arguments
+                    regs = self._ast_to_addr_regs(ast.args[1])
+                    if not regs:
+                        # nice! the first argument must be the base register
+                        return ast.args[0].args[0]
+
+            elif ast.op == '-':
+                if ast.args[0].op == 'reg':
+                    return [ast.args[0].args[0]]
+                elif ast.args[0].op == 'const':
+                    return []
+
+        elif len(ast.args) == 1:
+            if ast.op == 'reg':
+                # directly using the register as the address
+                return ast.args
+            elif ast.op == 'const':
+                # using a constant as the address
+                return []
+
+        print "Unresolved AST", ast
+        import ipdb; ipdb.set_trace()
+
+    def _ast_to_indir_memrefs(self, ast):
+        """
+
+        :param ast:
+        :return:
+        """
+
+        if len(ast.args) == 2:
+            import ipdb; ipdb.set_trace()
+
+        elif len(ast.args) == 1:
+            if ast.op == 'const':
+                return 'dword ptr [%#x]' % ast.args[0]
+            elif ast.op == 'reg':
+                reg_offset = ast.args[0]
+                return 'dword ptr [%s]' % (self.cfg.project.arch.register_names[reg_offset])
+            else:
+                print "Unresolved AST", ast
+                import ipdb; ipdb.set_trace()
+
+    def _filter_instrs(self):
+        raise NotImplementedError()
+
+    def _analyze(self):
+
+        for function in self.cfg.functions.values():  # type: angr.knowledge.Function
+            for block in function.blocks:
+
+                self.last_instr = None  # type: DerefInstruction
+
+                vex_block_noopt = self.cfg.project.factory.block(block.addr, opt_level=0, max_size=block.size).vex
+
+                self.ins_addr = None
+                self.tmps = {}
+                self.regs = {}
+
+                for stmt in vex_block_noopt.statements:
+
+                    handler = getattr(self, '_handle_statement_%s' % (stmt.__class__.__name__), None)
+
+                    if handler is not None:
+                        handler(stmt)
+
+                if self.last_instr is not None and self.last_instr.ins_size is None:
+                    self.last_instr.ins_size = block.addr + vex_block_noopt.size - self.last_instr.ins_addr
+                    self.last_instr = None
+
+                self._handle_next(vex_block_noopt.next)
+
+                if self.last_instr is not None and self.last_instr.ins_size is None:
+                    self.last_instr.ins_size = block.addr + vex_block_noopt.size - self.last_instr.ins_addr
+                    self.last_instr = None
+
+        self._filter_instrs()
+
+    def _handle_next(self, next_expr):
+        pass
+
+    def _handle_statement_IMark(self, stmt):
+        self.ins_addr = stmt.addr + stmt.delta
+        # update the instruction size of the previous DerefInstruction object
+        if self.last_instr is not None and self.last_instr.ins_size is None:
+            self.last_instr.ins_size = self.ins_addr - self.last_instr.ins_addr
+
+    def _handle_statement_WrTmp(self, stmt):
+        tmp = stmt.tmp
+        data = stmt.data
+
+        data = self._handle_expression(data)
+
+        if data is not None:
+            self.tmps[tmp] = data
+
+    def _handle_statement_Put(self, stmt):
+        # loading data into a register
+        if self.last_instr is not None and self.last_instr.addr_regs_used is None and \
+                        len(self.last_instr.addr_regs) == 1 and \
+                        stmt.offset in self.last_instr.addr_regs:
+            self.last_instr.addr_regs_used = False
+
+        data = self._handle_expression(stmt.data)
+        if data is not None:
+            self.regs[stmt.offset] = data
+
+        return data
+
+    def _handle_expression(self, expr, allow_override=True):
+
+        if allow_override:
+            expr_handler = getattr(self.__class__, '_handle_expression_%s' % (expr.__class__.__name__), None)
+        else:
+            expr_handler = getattr(BlockTraverser, '_handle_expression_%s' % (expr.__class__.__name__), None)
+
+
+        if expr_handler is not None:
+            return expr_handler(self, expr)
+        else:
+            return None
+
+    def _handle_expression_Get(self, expr):
+        # read from register
+        if expr.offset not in (self.ip_offset, self.bp_offset, self.sp_offset):
+            return MiniAST('reg', [ expr.offset ])
+
+    def _handle_expression_Binop(self, expr):
+        # some sort of arithmetic operations
+        if expr.op.startswith('Iop_Cmp') or \
+                expr.op.startswith('Iop_Div') or \
+                expr.op.startswith('Iop_Or') or \
+                expr.op.startswith('Iop_Xor') or \
+                expr.op in ('Iop_32HLto64',):
+            # ignore them.
+            return None
+        elif expr.op in self.OPSTR_TO_OP:
+            op = self.OPSTR_TO_OP[expr.op]
+        else:
+            op = expr.op
+
+        args = []
+        for arg in expr.args:
+            arg_data = self._handle_expression(arg, False)
+            if arg_data is None:
+                return None
+            args.append(arg_data)
+
+        return MiniAST(op, args)
+
+    def _handle_expression_RdTmp(self, expr):
+        data_tmp = expr.tmp
+        if data_tmp in self.tmps:
+            return self.tmps[data_tmp]
+
+    def _handle_expression_Const(self, expr):
+        value = expr.con.value
+        return MiniAST('const', [ value ])
+
+
+class MemoryRefCollector(BlockTraverser):
+    def __init__(self, cfg):
+        super(MemoryRefCollector, self).__init__(cfg)
+
+    def _has_regs(self, ast, reg_offsets):
+
+        if not isinstance(ast, MiniAST):
+            return False
+        if ast.op == 'reg' and ast.args[0] in reg_offsets:
+            return True
+        for arg in ast.args:
+            if self._has_regs(arg, reg_offsets):
+                return True
+        return False
+
+    def _filter_instrs(self):
+
+        # filtering
+        self.instrs = [i for i in self.instrs if i.addr_reg not in (self.ip_offset, self.sp_offset, self.bp_offset)
+                       and i.addr_reg < 40  # this is x86 only - 40 is cc_op
+                       ]
+
+    def _handle_statement_Put(self, stmt):
+        data = self._handle_expression(stmt.data)
+
+        if data is not None and stmt.offset != self.ip_offset:
+            # check whether data is a memory reference or not
+            if data.op == 'const' or \
+                    (self._has_regs(data, (self.sp_offset, self.bp_offset)) and
+                         (stmt.offset not in (self.sp_offset, self.bp_offset))
+                     ):
+                self.last_instr = RefInstruction(self.ins_addr, stmt.offset, data)
+                self.instrs.append(self.last_instr)
+
+    def _handle_statement_Store(self, stmt):
+
+        data = self._handle_expression(stmt.data)
+        addr = self._handle_expression(stmt.addr)
+
+        if data is not None and addr is not None:
+            # check whether data is a memory reference or not
+            if data.op == 'const' and not self._has_regs(addr, (self.sp_offset, self.bp_offset)):
+                self.last_instr = RefInstruction(self.ins_addr, None, data, store_addr=self._ast_to_indir_memrefs(addr))
+                self.instrs.append(self.last_instr)
+
+    def _handle_expression_Get(self, expr):
+        # read from register
+        if expr.offset != self.ip_offset:
+            return MiniAST('reg', [ expr.offset ])
+
+    def _handle_expression_Const(self, expr):
+        value = expr.con.value
+        # is it using an effective address?
+        if self._is_addr_valid(value):
+            # it is... or at least very likely
+            return MiniAST('const', [value])
+        else:
+            return None
+
+class MemoryDerefCollector(BlockTraverser):
+    def __init__(self, cfg):
+        super(MemoryDerefCollector, self).__init__(cfg)
+
+    def _filter_instrs(self):
+        # filtering
+        instrs = []
+        for i in self.instrs:
+            if not i.addr_regs or any(r for r in i.addr_regs if r in (self.sp_offset, self.bp_offset, self.ip_offset)):
+                continue
+            instrs.append(i)
+        self.instrs = instrs
+
+    def _handle_statement_Store(self, stmt):
+        # writing some stuff into memory
+        addr = self._handle_expression(stmt.addr)
+
+        if addr is not None:
+            self.last_instr = DerefInstruction(self.ins_addr, 'store',
+                                               self._ast_to_addr_regs(addr)
+                                               )
+            self.instrs.append(self.last_instr)
+
+    def _handle_statement_Put(self, stmt):
+        data = super(MemoryDerefCollector, self)._handle_statement_Put(stmt)
+
+        if stmt.offset in (self.sp_offset, self.bp_offset) and data is not None:
+            self.last_instr = DerefInstruction(self.ins_addr, 'to-sp',
+                                               self._ast_to_addr_regs(data)
+                                               )
+            self.instrs.append(self.last_instr)
+
+    def _handle_next(self, next_expr):
+        data = self._handle_expression(next_expr)
+
+        if data is not None:
+            self.last_instr = DerefInstruction(self.ins_addr, 'jump',
+                                               self._ast_to_addr_regs(data)
+                                               )
+            self.instrs.append(self.last_instr)
+
+    def _handle_expression_Get(self, expr):
+        if expr.offset == self.ip_offset and expr.offset in self.regs:
+            return self.regs[expr.offset]
+        else:
+            if self.last_instr is not None and self.last_instr.addr_regs_used is None and \
+                            expr.offset in self.last_instr.addr_regs:
+                self.last_instr.addr_regs_used = True
+
+            return MiniAST('reg', [expr.offset])
+
+    def _handle_expression_Load(self, expr):
+        # loading from memory!
+        addr = expr.addr
+        if isinstance(addr, pyvex.IRExpr.RdTmp):
+            tmp_addr = addr.tmp
+            if tmp_addr in self.tmps:
+                self.last_instr = DerefInstruction(self.ins_addr, 'load',
+                                              self._ast_to_addr_regs(self.tmps[tmp_addr])
+                                              )
+                self.instrs.append(self.last_instr)
+
+    def _handle_expression_Const(self, expr):
+        value = expr.con.value
+        if self._is_addr_valid(value):
+            return MiniAST('const', [value])
 
 
 class SimplePointerEncryption(Technique):
@@ -165,10 +542,22 @@ class SimplePointerEncryption(Technique):
         # insert an encryption patch after each memory referencing instruction
 
         for ref in mem_ref_instrs:  # type: RefInstruction
-            dst_reg = arch.register_names[ref.addr_reg]
-            asm_code = """
-            add {dst_reg}, dword ptr [_POINTER_KEY]
-            """.format(dst_reg=dst_reg)
+
+            if ref.addr_reg is not None:
+                dst_reg = arch.register_names[ref.addr_reg]
+                asm_code = """
+                add {dst_reg}, dword ptr [_POINTER_KEY]
+                """.format(dst_reg=dst_reg)
+
+            else:
+                mem_dst_operand = ref.store_addr
+                asm_code = """
+                push esi
+                mov esi, dword ptr [_POINTER_KEY]
+                add {mem_dst}, esi
+                pop esi
+                """.format(mem_dst=mem_dst_operand)
+
             patch = InsertCodePatch(ref.ins_addr + ref.ins_size, asm_code)
 
             patches.append(patch)
@@ -193,7 +582,7 @@ class SimplePointerEncryption(Technique):
             # for example: movsx eax, byte ptr [eax]
             # apparently we don't decrypt eax since it's already overwritten
 
-            if deref.action in ('load', 'store') and deref.addr_regs_used is not False:
+            if deref.action in ('load', 'store', 'to-sp') and deref.addr_regs_used is not False:
                 # re-encryption patch
                 asm_code = """
                 pushfd
@@ -279,71 +668,6 @@ class SimplePointerEncryption(Technique):
 
         return patches
 
-    def _ast_to_addr_regs(self, ast, is_addr_valid):
-        """
-        Pick registers that holds a valid address and return them.
-
-        :param MiniAST ast: The AST
-        :param is_addr_valid: A function that takes in an address and returns True iff the address is valid.
-        :return: A list of register offsets.
-        :rtype: list
-        """
-
-        # we only care about where the base comes from
-        # - if there is only one register, then it must be the base
-        # - if there are a register and a const, the register is the base if and only if the const
-        #   is not a valid address. Otherwise the constant is the base
-        # - if there are two constants, it's gonna be a little complicated... TODO
-
-        if len(ast.args) == 2:
-            # binary operations
-            if ast.op == '+':
-                if ast.args[1].op == 'const':
-                    # something + constant
-                    if is_addr_valid(ast.args[1].args[0]):
-                        # base address + some offset
-                        return [ ]
-                    else:
-                        if ast.args[0].op == 'reg':
-                            # this register must be the base address
-                            return [ ast.args[0].args[0] ]
-                        elif ast.args[0].op == 'const' and is_addr_valid(ast.args[0].args[0]):
-                            # the constant is the base address
-                            return [ ]
-                        else:
-                            return self._ast_to_addr_regs(ast.args[0], is_addr_valid)
-
-                elif ast.args[1].op in ('<<', ):
-                    # arg1 must be used as an offset or index
-                    # arg0 is the base address
-                    if ast.args[0].op == 'reg':
-                        return [ ast.args[0].args[0] ]
-                    elif ast.args[0].op == 'const':
-                        return [ ]
-                elif ast.args[0].op == 'reg':
-                    # let's see if we can extract a base address from other arguments
-                    regs = self._ast_to_addr_regs(ast.args[1], is_addr_valid)
-                    if not regs:
-                        # nice! the first argument must be the base register
-                        return ast.args[0].args[0]
-
-            elif ast.op == '-':
-                if ast.args[0].op == 'reg':
-                    return [ ast.args[0].args[0] ]
-                elif ast.args[0].op == 'const':
-                    return [ ]
-
-        elif len(ast.args) == 1:
-            if ast.op == 'reg':
-                # directly using the register as the address
-                return ast.args
-            elif ast.op == 'const':
-                # using a constant as the address
-                return [ ]
-
-        print "Unresolved AST", ast
-        import ipdb; ipdb.set_trace()
-
     def _memory_deref_instructions(self, cfg):
         """
         Iterate through all basic blocks in the CFG, and find all instructions that load data from memory
@@ -353,153 +677,9 @@ class SimplePointerEncryption(Technique):
         :rtype: list
         """
 
-        instrs = [ ]
+        collector = MemoryDerefCollector(cfg)
 
-        ip_offset = self.patcher.cfg.project.arch.ip_offset
-        sp_offset = self.patcher.cfg.project.arch.sp_offset
-        bp_offset = self.patcher.cfg.project.arch.bp_offset
-
-        def is_addr_valid(addr):
-            if cfg._addr_belongs_to_section(addr) is not None:
-                return True
-
-            if 0x4347c000 <= addr < 0x4347c000 + 0x1000:
-                return True
-
-            return False
-
-        OPSTR_TO_OP = {
-            'Iop_Add32': '+',
-            'Iop_Sub32': '-',
-            'Iop_Sub8': '-',
-            'Iop_Shl32': '<<',
-            'Iop_And8': '&',
-            'Iop_And32': '&',
-            'Iop_Sar32': '>>',
-            'Iop_Shr32': '>>',
-            'Iop_Mul32': '*',
-        }
-
-        for function in cfg.functions.values():  # type: angr.knowledge.Function
-            for block in function.blocks:
-
-                last_instr = None  # type: DerefInstruction
-
-                vex_block_noopt = cfg.project.factory.block(block.addr, opt_level=0, max_size=block.size).vex
-
-                ins_addr = None
-                tmps = {}
-                regs = {}
-
-                for stmt in vex_block_noopt.statements:
-                    if isinstance(stmt, pyvex.IRStmt.IMark):
-                        ins_addr = stmt.addr + stmt.delta
-                        # update the instruction size of the previous DerefInstruction object
-                        if last_instr is not None and last_instr.ins_size is None:
-                            last_instr.ins_size = ins_addr - last_instr.ins_addr
-
-                    elif isinstance(stmt, pyvex.IRStmt.WrTmp):
-                        tmp = stmt.tmp
-                        data = stmt.data
-                        if isinstance(data, pyvex.IRExpr.Get):
-                            # read from register
-                            if data.offset == ip_offset and data.offset in regs:
-                                tmps[tmp] = regs[data.offset]
-                            else:
-                                tmps[tmp] = MiniAST('reg', [ data.offset ])
-                                if last_instr is not None and last_instr.addr_regs_used is None and \
-                                        data.offset in last_instr.addr_regs:
-                                    last_instr.addr_regs_used = True
-                        elif isinstance(data, pyvex.IRExpr.Binop):
-                            # some sort of arithmetic operations
-                            if data.op.startswith('Iop_Cmp') or \
-                                    data.op.startswith('Iop_Div') or \
-                                    data.op.startswith('Iop_Or') or \
-                                    data.op.startswith('Iop_Xor') or \
-                                    data.op in ('Iop_32HLto64', ):
-                                # ignore them.
-                                continue
-                            elif data.op in OPSTR_TO_OP:
-                                op = OPSTR_TO_OP[data.op]
-                            else:
-                                op = data.op
-
-                            args = [ ]
-                            for arg in data.args:
-                                if isinstance(arg, pyvex.IRExpr.RdTmp):
-                                    if arg.tmp in tmps:
-                                        args.append(tmps[arg.tmp])
-                                    else:
-                                        args.append(MiniAST('unknown'))
-                                elif isinstance(arg, pyvex.IRExpr.Const):
-                                    val = arg.con.value
-                                    args.append(MiniAST('const', [ val ]))
-
-                            tmps[tmp] = MiniAST(op, args)
-
-                        elif isinstance(data, pyvex.IRExpr.Load):
-                            # loading from memory!
-                            addr = data.addr
-                            if isinstance(addr, pyvex.IRExpr.RdTmp):
-                                tmp_addr = addr.tmp
-                                if tmp_addr in tmps:
-                                    last_instr = DerefInstruction(ins_addr, 'load',
-                                                                  self._ast_to_addr_regs(tmps[tmp_addr], is_addr_valid)
-                                                                  )
-                                    instrs.append(last_instr)
-                        elif isinstance(data, pyvex.IRExpr.RdTmp):
-                            data_tmp = data.tmp
-                            if data_tmp in tmps:
-                                tmps[tmp] = tmps[data_tmp]
-                        elif isinstance(data, pyvex.IRExpr.Const):
-                            # loading a const address
-                            value = data.con.value
-                            if is_addr_valid(value):
-                                tmps[tmp] = MiniAST('const', [ value ])
-                    elif isinstance(stmt, pyvex.IRStmt.Store):
-                        # writing some stuff into memory
-                        addr = stmt.addr
-                        if isinstance(addr, pyvex.IRExpr.RdTmp):
-                            tmp_addr = addr.tmp
-                            if tmp_addr in tmps:
-                                last_instr = DerefInstruction(ins_addr, 'store',
-                                                              self._ast_to_addr_regs(tmps[tmp_addr], is_addr_valid)
-                                                              )
-                                instrs.append(last_instr)
-                    elif isinstance(stmt, pyvex.IRStmt.Put):
-                        # loading data into a register
-                        if last_instr is not None and last_instr.addr_regs_used is None and \
-                                len(last_instr.addr_regs) == 1 and \
-                                stmt.offset in last_instr.addr_regs:
-                            last_instr.addr_regs_used = False
-
-                        if isinstance(stmt.data, pyvex.IRExpr.RdTmp) and stmt.data.tmp in tmps:
-                            regs[stmt.offset] = tmps[stmt.data.tmp]
-
-                if last_instr is not None and last_instr.ins_size is None:
-                    last_instr.ins_size = block.addr + vex_block_noopt.size - last_instr.ins_addr
-                    last_instr = None
-
-                if isinstance(vex_block_noopt.next, pyvex.IRExpr.RdTmp):
-                    tmp = vex_block_noopt.next.tmp
-                    if tmp in tmps:
-                        last_instr = DerefInstruction(ins_addr, 'jump',
-                                                      self._ast_to_addr_regs(tmps[tmp], is_addr_valid)
-                                                      )
-                        instrs.append(last_instr)
-
-                if last_instr is not None and last_instr.ins_size is None:
-                    last_instr.ins_size = block.addr + vex_block_noopt.size - last_instr.ins_addr
-                    last_instr = None
-
-        # filtering
-        filtered = [ ]
-        for i in instrs:
-            if not i.addr_regs or any(r for r in i.addr_regs if r in (sp_offset, bp_offset, ip_offset)):
-                continue
-            filtered.append(i)
-
-        return filtered
+        return collector.instrs
 
     def _memory_ref_instructions(self, cfg):
         """
@@ -514,96 +694,9 @@ class SimplePointerEncryption(Technique):
         :rtype: list
         """
 
-        instrs = [ ]
+        collector = MemoryRefCollector(cfg)
 
-        ip_offset = self.patcher.cfg.project.arch.ip_offset
-        sp_offset = self.patcher.cfg.project.arch.sp_offset
-        bp_offset = self.patcher.cfg.project.arch.bp_offset
-
-        addr_belongs_to_section = self.patcher.cfg._addr_belongs_to_section
-
-        def is_addr_valid(addr):
-            if addr_belongs_to_section(addr) is not None:
-                return True
-
-            if 0x4347c000 <= addr < 0x4347c000 + 0x1000:
-                return True
-
-            return False
-
-        for function in cfg.functions.values():
-            for block in function.blocks:
-                last_instr = None  # type:RefInstruction
-
-                vex_block_noopt = cfg.project.factory.block(block.addr, opt_level=0, max_size=block.size).vex
-
-                ins_addr = None
-                tmps = {}
-
-                for stmt in vex_block_noopt.statements:
-                    if isinstance(stmt, pyvex.IRStmt.IMark):
-                        ins_addr = stmt.addr + stmt.delta
-
-                        # update ins_size of the previous RefInstruction object
-                        if last_instr is not None and last_instr.ins_size is None:
-                            last_instr.ins_size = ins_addr - last_instr.ins_addr
-                            last_instr = None
-
-                    elif isinstance(stmt, pyvex.IRStmt.WrTmp):
-                        tmp = stmt.tmp
-                        data = stmt.data
-                        if isinstance(data, pyvex.IRExpr.Get):
-                            # esp, ebp
-                            # TODO: identify cases where ebp is not used as base pointer in a function
-                            if data.offset in (sp_offset, bp_offset):
-                                tmps[tmp] = [('reg', data.offset)]
-                        elif isinstance(data, pyvex.IRExpr.Const):
-                            # is it using an effective address?
-                            value = data.con.value
-                            if is_addr_valid(value):
-                                # it is... or at least very likely
-                                tmps[tmp] = [('const', value)]
-                        elif isinstance(data, pyvex.IRExpr.RdTmp):
-                            tmp_data = data.tmp
-                            if tmp_data in tmps:
-                                tmps[tmp] = tmps[tmp_data]
-                        elif isinstance(data, pyvex.IRExpr.Binop):
-                            args = data.args
-                            source = [ ]
-                            for arg in args:
-                                if isinstance(arg, pyvex.IRExpr.RdTmp):
-                                    arg_tmp = arg.tmp
-                                    if arg_tmp in tmps:
-                                        source.extend(tmps[arg_tmp])
-                                elif isinstance(arg, pyvex.IRExpr.Const):
-                                    value = arg.con.value
-                                    if is_addr_valid(value):
-                                        source.extend(('const', value))
-                            if source:
-                                tmps[tmp] = source
-                    elif isinstance(stmt, pyvex.IRStmt.Put) and stmt.offset != ip_offset:
-                        data = stmt.data
-                        if isinstance(data, pyvex.IRExpr.RdTmp):
-                            data_tmp = data.tmp
-                            if data_tmp in tmps:
-                                last_instr = RefInstruction(ins_addr, stmt.offset, tmps[data_tmp])
-                                instrs.append(last_instr)
-                        elif isinstance(data, pyvex.IRExpr.Const):
-                            value = data.con.value
-                            if is_addr_valid(value):
-                                last_instr = RefInstruction(ins_addr, stmt.offset, [('const', value)])
-                                instrs.append(last_instr)
-
-                if last_instr is not None and last_instr.ins_size is None:
-                    last_instr.ins_size = block.addr + vex_block_noopt.size - last_instr.ins_addr
-                    last_instr = None
-
-        # filtering
-        instrs = [ i for i in instrs if i.addr_reg not in (ip_offset, sp_offset, bp_offset)
-                   and i.addr_reg < 40  # this is x86 only - 40 is cc_op
-                   ]
-
-        return instrs
+        return collector.instrs
 
     def _constant_pointers(self, cfg):
         """
