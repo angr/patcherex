@@ -528,6 +528,9 @@ class SimplePointerEncryption(Technique):
             pop ecx
             pop ebx
             pop eax
+
+            ; encrypt ecx. ecx holds the address to flag page upon program starts.
+            add ecx, dword ptr [_POINTER_KEY]
         """.format(
             begin_label=begin_label,
             end_label=end_label
