@@ -320,7 +320,7 @@ class StackRetEncryption(object):
             l.warning("longjmp not found!")
         if self.found_setjmp != None and self.found_longjmp != None:
             l.info("setjmp found at %#x" % self.found_setjmp)
-            l.info("long found at %#x" % self.found_longjmp)
+            l.info("longjmp found at %#x" % self.found_longjmp)
 
             code_setjmp = '''
                 xor dx, WORD [%s]
@@ -332,10 +332,9 @@ class StackRetEncryption(object):
             ''' % hex(self.flag_page + 0x123)
 
             p1 = InsertCodePatch(self.found_setjmp+7,code_setjmp,name="setjmp_protection",priority=200)
-            # in theory we could add longjmp encryption it at the end of setjmp, but there is no space
             p2 = InsertCodePatch(self.found_longjmp+10,code_longjmp,name="longjmp_protection",priority=200)
-            # the two patches are mutual dependent, however given their position they should not fail
 
+            # the two patches are mutual dependent, however given their position they should not fail
             p1.dependencies.append(p2)
             p2.dependencies.append(p1)
             patches.append(p1)

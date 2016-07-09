@@ -243,6 +243,7 @@ def test_stackretencryption():
     from patcherex.techniques.stackretencryption import StackRetEncryption
     filepath1 = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
     filepath2 = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
+    filepath3 = os.path.join(bin_location, "cgc_samples_multiflags/CROMU_00008/original/CROMU_00008")
     pipe = subprocess.PIPE
 
     p = subprocess.Popen([qemu_location, filepath1], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -254,6 +255,11 @@ def test_stackretencryption():
     exploiting_input = "AAAA"+"\x00"*80+struct.pack("<I",0x80480a0)*20+"\n"
     expected1 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: " \
             "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tNope,"
+    input3 = 'login\ninsert\na\na\na\n11/11/11 11:11:11\nfind\nusername <"xdDVRNBQTTrhqk" AND birthdate <6/9/1 20:33:47())\n\n'
+    expected3 = '> You logged in.\n> First name: Last name: User name: Birthdate (mm/dd/yy hh:mm:ss): Date ' \
+        'is: 11/11/2011 11:11:11\nData added, record 0\n> Enter search express (firstname or fn, lastname or ' \
+        'ln, username or un, birthdate or bd, operators ==, !=, >, <, AND and OR):\nSyntax error\n> Command' \
+        ' not found.\n> '
     p = subprocess.Popen([qemu_location, filepath1], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(exploiting_input)
     print res, p.returncode
@@ -301,6 +307,18 @@ def test_stackretencryption():
         print res
         nose.tools.assert_equal(res[0] == sane_stdout, True)
         nose.tools.assert_equal(p.returncode == sane_retcode, True)
+
+        tmp_file = os.path.join(td, "patched3")
+        backend = DetourBackend(filepath3,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        cp = StackRetEncryption(filepath3, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(input3)
+        print res, p.returncode
+        nose.tools.assert_equal(res[0], expected3)
+        nose.tools.assert_equal(p.returncode, 1)
 
 
 @add_fallback_strategy
