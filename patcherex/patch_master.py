@@ -124,17 +124,53 @@ class PatchMaster():
         backend.apply_patches(patches)
         return backend.get_final_content()
 
-    def generate_final_binary(self):
+
+    ##################
+
+    def generate_light_binary(self):
         backend = DetourBackend(self.infile)
-        cp = StackRetEncryption(self.infile,backend)
-        patches1 = cp.get_patches()
         cp = IndirectCFI(self.infile,backend)
-        patches2 = cp.get_patches()
+        patches1 = cp.get_patches()
         cp = TransmitProtection(self.infile,backend)
-        patches3 = cp.get_patches()
+        patches2 = cp.get_patches()
         cp = ShiftStack(self.infile,backend)
+        patches3 = cp.get_patches()
+
+        backend.apply_patches(patches1+patches2+patches3)
+        return backend.get_final_content()
+
+    def generate_heavy_binary(self):
+        backend = DetourBackend(self.infile)
+        cp = IndirectCFI(self.infile,backend)
+        patches1 = cp.get_patches()
+        cp = TransmitProtection(self.infile,backend)
+        patches2 = cp.get_patches()
+        cp = ShiftStack(self.infile,backend)
+        patches3 = cp.get_patches()
+        cp = Adversarial(self.infile,backend)
         patches4 = cp.get_patches()
-        backend.apply_patches(patches1+patches2+patches3+patches4)
+        cp = Backdoor(self.infile,backend)
+        patches5 = cp.get_patches()
+
+        backend.apply_patches(patches1+patches2+patches3+patches4+patches5)
+        return backend.get_final_content()
+
+    def generate_heavy_binary(self):
+        backend = DetourBackend(self.infile)
+        cp = IndirectCFI(self.infile,backend)
+        patches1 = cp.get_patches()
+        cp = TransmitProtection(self.infile,backend)
+        patches2 = cp.get_patches()
+        cp = ShiftStack(self.infile,backend)
+        patches3 = cp.get_patches()
+        cp = Adversarial(self.infile,backend)
+        patches4 = cp.get_patches()
+        cp = Backdoor(self.infile,backend)
+        patches5 = cp.get_patches()
+        cp = StackRetEncryption(self.infile,backend)
+        patches6 = cp.get_patches()
+
+        backend.apply_patches(patches1+patches2+patches3+patches4+patches5+patches6)
         return backend.get_final_content()
 
 
