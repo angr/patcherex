@@ -711,7 +711,6 @@ def test_adversarial():
     logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
     from patcherex.techniques.adversarial import Adversarial
     pipe = subprocess.PIPE
-    qemu_location = shellphish_qemu.qemu_path('cgc-base')
     tinput = "1\n"*50+"2\n"*50
     filepath = os.path.join(bin_location, "cfe_original/CROMU_00044/CROMU_00044")
 
@@ -722,7 +721,7 @@ def test_adversarial():
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        backend.save("/tmp/adv")
+        # backend.save("/tmp/adv")
 
         original_p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
         original_res = original_p.communicate(tinput)
