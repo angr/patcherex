@@ -100,14 +100,14 @@ class StackRetEncryption(object):
         if debug: print "\t"*level,"--------",hex(addr)
         if level >= self.cfg_exploration_depth:
             # we reached max depth: we assume that everything else may use any reg
-            return set()
+            return set(), set(self.relevant_registers)
 
         # a reg is free if
         # 1) an instruction in the current bb writes on it before any other read, or
         if not ignore_current_bb:
             if not addr in self.reg_free_map:
                 # we reached some weird bb
-                return set()
+                return set(), set(self.relevant_registers)
             free_regs = set([s for s in self.reg_free_map[addr]])
             not_free_regs = set([s for s in self.reg_not_free_map[addr]])
         else:
@@ -126,27 +126,30 @@ class StackRetEncryption(object):
         except CfgError:
             l.warning("CFGError detected at %#x" % addr)
             # something weird is happening in the cfg, let's assume no reg is free
-            return set()
+            return set(), set(self.relevant_registers)
         free_regs_in_succ_list = []
         for s in succ:
             if s in prev:
-                continue # avoid exploring already exploring nodes (except the first one).
+                continue # avoid exploring already explored nodes (except the first one).
             prev.add(s)
-            free_regs_in_succ_list.append(self.get_free_regs(s,False,level+1,total_steps=total_steps,prev=prev))
+            new_free_regs, new_not_free_regs = self.get_free_regs(s,False,level+1, \
+                    total_steps=total_steps,prev=prev,debug=debug)
+            free_regs_in_succ_list.append(new_free_regs)
+            not_free_regs = not_free_regs.union(new_not_free_regs)
         
-        if debug: print "\t"*level,free_regs_in_succ_list,not_free_regs
+        if debug: print "-","\t"*level,free_regs_in_succ_list,not_free_regs
         for r in (self.relevant_registers-not_free_regs):
             # note that this is always true if no successors
             if all([r in succ for succ in free_regs_in_succ_list]):
                 free_regs.add(r)
         if debug: print "\t"*level,hex(addr),free_regs
-        return free_regs
+        return free_regs, not_free_regs-free_regs
 
 
     def add_patch_at_bb(self,addr,is_tail=False):
         try:
             total_steps = [0]
-            free_regs = self.get_free_regs(addr,ignore_current_bb=is_tail,total_steps=total_steps)
+            free_regs, _ = self.get_free_regs(addr,ignore_current_bb=is_tail,total_steps=total_steps)
         except TooManyBB:
             l.warning("Too many steps (%d) while exploring bb at %#x" % (self.max_cfg_steps,addr))
             free_regs = set()
@@ -177,12 +180,12 @@ class StackRetEncryption(object):
             bb_addr = self.patcher.cfg.get_any_node(e,anyaddr=True).addr
             code = self.add_patch_at_bb(bb_addr,is_tail=True)
             tailp.append(InsertCodePatch(e,code,name="stackretencryption_tail_%d_%d_%#x"%(self.npatch,i,start),priority=100))
-            for p in tailp:
-                headp.dependencies.append(p)
-                p.dependencies.append(headp)
-            self.npatch += 1
 
-            return [headp]+tailp
+        for p in tailp:
+            headp.dependencies.append(p)
+            p.dependencies.append(headp)
+        self.npatch += 1
+        return [headp]+tailp
 
     def function_to_patch_locations(self,ff):
         # TODO tail-call is handled lazily just by considering jumping out functions as not sane
