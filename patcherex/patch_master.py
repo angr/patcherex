@@ -139,7 +139,7 @@ class PatchMaster():
         backend.apply_patches(patches1+patches2+patches3)
         return backend.get_final_content()
 
-    def generate_heavy_binary(self):
+    def generate_medium_binary(self):
         backend = DetourBackend(self.infile)
         cp = IndirectCFI(self.infile,backend)
         patches1 = cp.get_patches()
@@ -252,7 +252,7 @@ def exec_cmd(args,cwd=None,shell=False,debug=False,pkill=True):
     return res
 
 
-def worker(inq,outq,timeout=60*3):
+def worker(inq,outq,filename_with_technique=True,timeout=60*3):
     def delete_if_exists(fname):
         try:
             os.unlink(fname)
@@ -263,7 +263,10 @@ def worker(inq,outq,timeout=60*3):
 
     while True:
         input_file,technique,output_dir = inq.get()
-        output_fname = os.path.join(output_dir,os.path.basename(input_file)+"_"+technique)
+        if filename_with_technique:
+            output_fname = os.path.join(output_dir,os.path.basename(input_file)+"_"+technique)
+        else:
+            output_fname = os.path.join(output_dir,os.path.basename(input_file))
         delete_if_exists(output_fname)
         delete_if_exists(output_fname+"_log")
         args = ["timeout","-s","9",str(timeout),os.path.realpath(__file__),"single",input_file,technique,output_fname]
@@ -289,11 +292,10 @@ def ftodir(f,out):
     return res
 
 
-def ftodir2(f,out):
+def ftodir2(f,technique,out):
     sep = os.path.sep
-    dname = sep.join(f.split(sep)[-3:-1])
-    res = os.path.join(out,dname)
-    #print "-->",out,dname,res
+    cb_name, flavour = f.split(sep)[-3:-1]
+    res = os.path.join(*[out,flavour,technique,cb_name])
     return res
 
 
@@ -366,6 +368,7 @@ if __name__ == "__main__":
         out = sys.argv[2]
         techniques = sys.argv[3].split(",")
         files = sys.argv[7:]
+        technique_in_filename = True
 
         if sys.argv[1] == "multi_name":
             tasks = []
@@ -380,9 +383,10 @@ if __name__ == "__main__":
 
         elif sys.argv[1] == "multi_name2":
             tasks = []
+            technique_in_filename = False
             for f in files:
                 for t in techniques:
-                    outdir = ftodir2(f,out)
+                    outdir = ftodir2(f,t,out)
                     try:
                         os.makedirs(outdir)
                     except OSError:
@@ -404,10 +408,10 @@ if __name__ == "__main__":
         plist = []
         nprocesses = int(sys.argv[5])
         if nprocesses == 0:
-            nprocesses = int(psutil.cpu_count()/1.0)
+            nprocesses = int(psutil.cpu_count()*1.0)
         timeout = int(sys.argv[6])
         for i in xrange(nprocesses):
-            p = multiprocessing.Process(target=worker, args=(inq,outq,timeout))
+            p = multiprocessing.Process(target=worker, args=(inq,outq,technique_in_filename,timeout))
             p.start()
             plist.append(p)
 
