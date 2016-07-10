@@ -70,6 +70,7 @@ class Adversarial(object):
         patches.append(AddRWDataPatch(4,"evil_fail_ptr"))
 
         # 0) destroy section header pointers
+        # remove these if you want to be able to run the patched binary in GDB
         patches.append(RawFilePatch(0x20,struct.pack("<I",0xfffffefe)))
         patches.append(RawFilePatch(0x30,struct.pack("<H",0xfefe)))
         patches.append(RawFilePatch(0x30,struct.pack("<H",0xffff)))
@@ -151,7 +152,13 @@ class Adversarial(object):
 
         ; 2) copy the rest of the stuff on the stack
         mov ebx, 0xbaaaa004
-        mov ecx, 0x42; 0x108/4 change this if more code is added later
+        mov ecx, 0x3c; 0xf0/4 change this if more code is added later
+
+        ; WARNING!!!
+        ; if you change this code you should also change this instruction: mov ecx, 0x3c
+        ; to exactly copy the right amount of bytes
+        ; if you copy more you can get SIGSEV based on the original allignment of the segment
+
         call _get_eip2
         _get_eip2:
         pop eax
@@ -264,10 +271,22 @@ class Adversarial(object):
         xor ebx, ebx
         inc ebx
         jmp eax
+        nop
+        nop
+        nop
+        nop
+        nop
 
         _real_exit_outside_stack:
+        ; this code is not anymore on the stack
+        ; after this there will be code to restore registers and jmp to the oep
         ;int 3
         ;mov eax, DWORD [0x00000000]
+
+        ; WARNING!!!
+        ; if you change this code you should also change this instruction: mov ecx, 0x3c
+        ; to exactly copy the right amount of bytes
+        ; if you copy more you can get SIGSEV based on the original allignment of the segment
         '''
         patches.append(AddEntryPointPatch(code,"adversarial"))
 
