@@ -710,6 +710,9 @@ def test_shiftstack():
 def test_adversarial():
     logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
     from patcherex.techniques.adversarial import Adversarial
+    pipe = subprocess.PIPE
+    qemu_location = shellphish_qemu.qemu_path('cgc-base')
+    tinput = "1\n"*50+"2\n"*50
     filepath = os.path.join(bin_location, "cfe_original/CROMU_00044/CROMU_00044")
 
     with patcherex.utils.tempdir() as td:
@@ -719,11 +722,17 @@ def test_adversarial():
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        # TODO I cannot check if it works until QEMU is fully able to deal with it
-        # see: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/4
-        fsize = os.path.getsize(tmp_file)
-        print hex(fsize)
-        nose.tools.assert_true(fsize > 0x1000)
+        backend.save("/tmp/adv")
+
+        original_p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+        original_res = original_p.communicate(tinput)
+        patched_p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        patched_res = patched_p.communicate(tinput)
+
+        nose.tools.assert_equal(original_res[0],patched_res[0])
+        nose.tools.assert_equal(original_p.returncode,patched_p.returncode)
+        # stderr is different since we leak the flag page there
+        nose.tools.assert_true(original_res[1] != patched_res[1])
 
 
 @add_fallback_strategy
