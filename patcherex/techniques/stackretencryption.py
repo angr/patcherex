@@ -30,7 +30,7 @@ class StackRetEncryption(object):
         self.found_setjmp = None
         self.found_longjmp = None
 
-        self.relevant_registers = set(["eax","ebx","ecx","edx","esi","edi","ebp"])
+        self.relevant_registers = set(["eax","ebx","ecx","edx","esi","edi"])
         self.reg_free_map, self.reg_not_free_map = self.get_reg_free_map()
 
         added_code = '''
@@ -133,7 +133,7 @@ class StackRetEncryption(object):
                 continue # avoid exploring already explored nodes (except the first one).
             prev.add(s)
             new_free_regs, new_not_free_regs = self.get_free_regs(s,False,level+1, \
-                    total_steps=total_steps,prev=prev,debug=debug)
+                    total_steps=total_steps,prev=set(prev),debug=debug)
             free_regs_in_succ_list.append(new_free_regs)
             not_free_regs = not_free_regs.union(new_not_free_regs)
         

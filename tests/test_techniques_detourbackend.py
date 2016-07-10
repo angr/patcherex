@@ -498,6 +498,48 @@ def test_indirectcfi():
                 nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
 
 
+def test_freeregs():
+    def bin_str(name,btype="original"):
+        return "cgc_samples_multiflags/%s/%s/%s" % (name,btype,name)
+
+    from patcherex.techniques.stackretencryption import StackRetEncryption, TooManyBB
+    original_bin_str = "cgc_samples_multiflags/%s/original/CADET_000"
+    tests = [
+            (bin_str("CADET_00003"),0x08048400,False,set(["ecx","edx"]),set()),
+            (bin_str("CADET_00003"),0x080484DC,True,set(["ecx","edx"]),set(["eax","ebx","esi","edi"])),
+            (bin_str("KPRCA_00038"),0x804C070,False,set(["eax"]),set(["ebx","esi","edi","ecx","edx"])),
+            (bin_str("KPRCA_00038"),0x804B390,False,set(["eax"]),set(["ebx","esi","edi","ecx"])),
+            (bin_str("KPRCA_00038"),0x804AAD0,False,set(["ecx","eax"]),set(["edx","esi","edi"])),
+            (bin_str("CROMU_00012"),0x80498B4,True,set(["eax"]),set()),
+            (bin_str("CROMU_00012"),0x8048650,False,set(["eax"]),set()),
+
+    ]
+
+    cached_backend = {}
+    for tbin, addr, is_tail, free, not_free in tests:
+        fname = os.path.join(bin_location, tbin)
+        if fname in cached_backend:
+            backend, sr = cached_backend[fname]
+        else:
+            backend = DetourBackend(fname)
+            sr = StackRetEncryption(fname, backend)
+            cached_backend[fname] = backend, sr
+
+        try:
+            total_steps = [0]
+            cfree, _ = sr.get_free_regs(addr,ignore_current_bb=is_tail,total_steps=total_steps,debug=True,prev=set())
+        except TooManyBB:
+            cfree = set()
+        print cfree
+
+        for r in free:
+            nose.tools.assert_true(r in cfree)
+        for r in not_free:
+            nose.tools.assert_true(r not in cfree)
+
+    #import IPython; IPython.embed()
+
+
 @add_fallback_strategy
 def test_transmitprotection():
     def check_test(test):
