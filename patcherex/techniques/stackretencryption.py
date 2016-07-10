@@ -13,7 +13,7 @@ class CfgError(Exception):
     pass
 
 
-class TooManyBB(Exception):
+class RegUsed(Exception):
     pass
 
 
@@ -26,7 +26,7 @@ class StackRetEncryption(object):
         self.flag_page = 0x4347c000
         self.allow_reg_reuse = allow_reg_reuse
         self.cfg_exploration_depth = 8
-        self.max_cfg_steps = 3000
+        self.max_cfg_steps = 2000
         self.found_setjmp = None
         self.found_longjmp = None
 
@@ -64,6 +64,7 @@ class StackRetEncryption(object):
         self.used_edx_patch = False
         self.used_safe_patch = False
         self.inv_callsites = self.map_callsites()
+        self.terminate_function = None
 
     def map_callsites(self):
         callsites = dict()
@@ -96,69 +97,68 @@ class StackRetEncryption(object):
         common_patches.append(AddEntryPointPatch(added_code,name="set_rnd_xor_key"))
         return common_patches
 
-    def get_free_regs(self,addr,ignore_current_bb=False,level=0,debug=False,total_steps=[],prev=set()):
-        if debug: print "\t"*level,"--------",hex(addr)
-        if level >= self.cfg_exploration_depth:
-            # we reached max depth: we assume that everything else may use any reg
-            return set(), set(self.relevant_registers)
 
-        # a reg is free if
-        # 1) an instruction in the current bb writes on it before any other read, or
+    def is_reg_free(self,addr,reg,ignore_current_bb,debug=False):
+        try:
+            tsteps = [0]
+            chain = self._is_reg_free(addr,reg,ignore_current_bb,level=0,prev=[],total_steps=tsteps,debug=debug)
+            if debug:
+                print chain
+                print tsteps
+            return True
+        except RegUsed as e:
+            if debug:
+                print e.message
+                print tsteps
+            return False
+
+    def _is_reg_free(self,addr,reg,ignore_current_bb,level,total_steps,debug=False,prev=[]):
+        if level >= self.cfg_exploration_depth:
+            raise RegUsed("Max depth %#x %s" % (addr,map(hex,prev)))
+
         if not ignore_current_bb:
             if not addr in self.reg_free_map:
                 # we reached some weird bb
-                return set(), set(self.relevant_registers)
-            free_regs = set([s for s in self.reg_free_map[addr]])
-            not_free_regs = set([s for s in self.reg_not_free_map[addr]])
-        else:
-            # we use this option when we inject stuff before ret
-            # in this case we do not care about the current bb since our injected code is at the end of it
-            free_regs = set()
-            not_free_regs = set()
+                raise RegUsed("Weird block %#x %s" % (addr,map(hex,prev)))
+            if reg in self.reg_free_map[addr]:
+                return [addr]
+            if reg in self.reg_not_free_map[addr]:
+                raise RegUsed("Not free in bb %#x %s" % (addr,map(hex,prev)))
 
-        # 2) it is free in all the successors bb and not used in current
         try:
-            succ = self.get_all_succ(addr)
+            succ, is_terminate = self.get_all_succ(addr)
+            if addr==0x0804B390:
+                import IPython; IPython.embed()
+            if is_terminate:
+                return [addr]
+            if len(succ)==0:
+                # no successors is weird, the cfg may be incomplete (e.g., NRFIN_00026 original 0x0897F4D5)
+                raise RegUsed("No successors  %#x %s" % (addr,map(hex,prev)))
             total_steps[0] += 1
             if total_steps[0] >= self.max_cfg_steps:
-                raise TooManyBB("too many steps")
-            if debug: print "\t"*level,map(hex,succ)
+                raise RegUsed("Too many steps  %#x %s" % (addr,map(hex,prev)))
         except CfgError:
-            l.warning("CFGError detected at %#x" % addr)
             # something weird is happening in the cfg, let's assume no reg is free
-            return set(), set(self.relevant_registers)
+            raise RegUsed("CFG error %#x %s" % (addr,map(hex,prev)))
+
         free_regs_in_succ_list = []
+        chain = []
         for s in succ:
             if s in prev:
                 continue # avoid exploring already explored nodes (except the first one).
-            prev.add(s)
-            new_free_regs, new_not_free_regs = self.get_free_regs(s,False,level+1, \
-                    total_steps=total_steps,prev=set(prev),debug=debug)
-            free_regs_in_succ_list.append(new_free_regs)
-            not_free_regs = not_free_regs.union(new_not_free_regs)
-        
-        if debug: print "-","\t"*level,free_regs_in_succ_list,not_free_regs
-        for r in (self.relevant_registers-not_free_regs):
-            # note that this is always true if no successors
-            if all([r in succ for succ in free_regs_in_succ_list]):
-                free_regs.add(r)
-        if debug: print "\t"*level,hex(addr),free_regs
-        return free_regs, not_free_regs-free_regs
-
+            new_prev = list(prev)
+            new_prev.append(s)
+            pchain = self._is_reg_free(s,reg,False,level=level+1,total_steps=total_steps,prev=new_prev,debug=debug)
+            chain.append(pchain)
+        chain.append(addr)
+        return chain
 
     def add_patch_at_bb(self,addr,is_tail=False):
-        try:
-            total_steps = [0]
-            free_regs, _ = self.get_free_regs(addr,ignore_current_bb=is_tail,total_steps=total_steps)
-        except TooManyBB:
-            l.warning("Too many steps (%d) while exploring bb at %#x" % (self.max_cfg_steps,addr))
-            free_regs = set()
-        # print total_steps[0]
-        if "ecx" in free_regs and self.allow_reg_reuse:
+        if self.is_reg_free(addr,"ecx",is_tail) and self.allow_reg_reuse:
             l.debug("using encrypt_using_ecx method for bb at %s" % hex(int(addr)))
             self.used_ecx_patch = True
             inserted_code = "call {encrypt_using_ecx}"
-        elif "edx" in free_regs and self.allow_reg_reuse:
+        elif self.is_reg_free(addr,"edx",is_tail) and self.allow_reg_reuse:
             l.debug("using encrypt_using_edx method for bb at %s" % hex(int(addr)))
             self.used_edx_patch = True
             inserted_code = "call {encrypt_using_edx}"
@@ -216,16 +216,12 @@ class StackRetEncryption(object):
         l.debug("function %s has problems and cannot be patched" % ff.name)
         return None, None
 
-    def is_last_returning_block(self,addr):
-        node = self.patcher.cfg.get_any_node(addr)
+    def is_last_returning_block(self,node):
+        node = self.patcher.cfg.get_any_node(node.addr)
         function = self.patcher.cfg.functions[node.function_address]
-        if not function.returning:
-            return False
-        bb = self.patcher.project.factory.block(addr)
-        last_instruction = bb.capstone.insns[-1]
-        if last_instruction.mnemonic != u"ret":
-            return False
-        return True
+        if any([node.addr == e.addr for e in function.ret_sites]):
+            return True
+        return False
 
     def last_block_to_return_locations(self,addr):
         node = self.patcher.cfg.get_any_node(addr)
@@ -297,13 +293,19 @@ class StackRetEncryption(object):
             raise CfgError()
         n = all_nodes[0]
 
-        if self.is_last_returning_block(addr):
-            return [n.addr for n in self.last_block_to_return_locations(addr)]
+        # this is "context insensitive": it does not consider call stack
+        if self.is_last_returning_block(n):
+            return [n.addr for n in self.last_block_to_return_locations(addr)], False
 
         all_succ = set()
         for s, jk in cfg.get_successors_and_jumpkind(n):
-            all_succ.add(s.addr)
-        return all_succ
+            if not jk.startswith("Ijk_Sys"):
+                all_succ.add(s.addr)
+                # a syscall writes in eax, I do not handle it explicitly
+                # because the syscall wrappers already unfree everything
+            elif s.name == "_terminate":
+                return [], True
+        return all_succ, False
 
     def get_patches(self):
         common_patches = self.get_common_patches()
