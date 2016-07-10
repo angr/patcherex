@@ -508,12 +508,13 @@ def test_freeregs():
             (bin_str("CADET_00003"),0x0804860C,False,True,True),
             (bin_str("KPRCA_00038"),0x0804C070,False,False,False),
             (bin_str("KPRCA_00038"),0x0804B390,False,False,False),
-            (bin_str("KPRCA_00038"),0x804AC20,False,True,True),
+            (bin_str("KPRCA_00038"),0x0804AC20,False,True,True),
             (bin_str("KPRCA_00038"),0x0804AAD0,False,True,False),
             (bin_str("CROMU_00012"),0x080498B4,True,False,False),
             (bin_str("CROMU_00012"),0x08048650,False,True,False),
             (bin_str("NRFIN_00026"),0x083BA7e0,False,True,True),
             (bin_str("NRFIN_00026"),0x0897F4D5,True,False,False),
+            (bin_str("CROMU_00008","Ofast"),0x804A7F0,False,True,False),
     ]
 
     cached_backend = {}
