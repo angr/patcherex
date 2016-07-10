@@ -197,7 +197,7 @@ class PatchMaster():
             print "ERROR","during generation of light_binary"
             traceback.print_exc()
         if binary != None:
-            to_be_submitted["light"] = light_binary
+            to_be_submitted["light"] = binary
         l.info("light_binary created")
 
         l.info("creating medium_binary...")
@@ -208,7 +208,7 @@ class PatchMaster():
             print "ERROR","during generation of medium_binary"
             traceback.print_exc()
         if binary != None:
-            to_be_submitted["medium"] = medium_binary
+            to_be_submitted["medium"] = binary
         l.info("medium_binary created")
 
         l.info("creating heavy_binary...")
@@ -219,7 +219,7 @@ class PatchMaster():
             print "ERROR","during generation of heavy_binary"
             traceback.print_exc()
         if binary != None:
-            to_be_submitted["heavy"] = heavy_binary
+            to_be_submitted["heavy"] = binary
         l.info("heavy_binary created")
 
         if return_dict:
