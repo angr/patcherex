@@ -45,7 +45,7 @@ class PatchMaster():
     def __init__(self,infile):
         self.infile = infile
         # to ease autotesting:
-        self.ngenerated_patches = 4
+        self.ngenerated_patches = 3
 
     def generate_shadow_stack_binary(self):
         backend = DetourBackend(self.infile)
@@ -153,38 +153,38 @@ class PatchMaster():
             to_be_submitted["stackretencryption"] = stackretencryption_binary
         l.info("stackretencryption_binary created")
 
-        l.info("creating final binary...")
-        final_binary = None
+        l.info("creating light_binary...")
+        binary = None
         try:
-            final_binary = self.generate_final_binary()
+            binary = self.generate_light_binary()
         except Exception as e:
-            print "ERROR","during generation of final_binary"
+            print "ERROR","during generation of light_binary"
             traceback.print_exc()
-        if final_binary != None:
-            to_be_submitted["final"] = final_binary
-        l.info("final_binary created")
+        if binary != None:
+            to_be_submitted["light"] = light_binary
+        l.info("light_binary created")
 
-        l.info("creating backdoor_binary...")
-        backdoor_binary = None
+        l.info("creating medium_binary...")
+        binary = None
         try:
-            backdoor_binary = self.generate_backdoor_binary()
+            binary = self.generate_medium_binary()
         except Exception as e:
-            print "ERROR","during generation of backdoor_binary"
+            print "ERROR","during generation of medium_binary"
             traceback.print_exc()
-        if backdoor_binary != None:
-            to_be_submitted["backdoor"] = backdoor_binary
-        l.info("backdoor_binary created")
+        if binary != None:
+            to_be_submitted["medium"] = medium_binary
+        l.info("medium_binary created")
 
-        l.info("creating adversarial_binary...")
-        adversarial_binary = None
+        l.info("creating heavy_binary...")
+        binary = None
         try:
-            adversarial_binary = self.generate_adversarial_binary()
+            binary = self.generate_heavy_binary()
         except Exception as e:
-            print "ERROR","during generation of adversarial_binary"
+            print "ERROR","during generation of heavy_binary"
             traceback.print_exc()
-        if adversarial_binary != None:
-            to_be_submitted["adversarial"] = adversarial_binary
-        l.info("adversarial_binary created")
+        if binary != None:
+            to_be_submitted["heavy"] = heavy_binary
+        l.info("heavy_binary created")
 
         if return_dict:
             return to_be_submitted

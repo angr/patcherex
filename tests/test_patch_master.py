@@ -31,11 +31,6 @@ def test_run():
 
     with patcherex.utils.tempdir() as td:
         for i,p in enumerate(patches):
-            # TODO for now I expect the last patch to fail since it is the adversarial one
-            # see: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/4
-            if i == len(patches)-1:
-                continue
-
             tmp_fname = os.path.join(td,str(i))
             fp = open(tmp_fname,"wb")
             fp.write(p)
@@ -57,15 +52,14 @@ def test_cfe_trials():
 
     tfolder = os.path.join(bin_location, "cfe_original")
     tests = utils.find_files(tfolder,"*",only_exec=True)
-    #tests = [t for t in tests if "KPRCA_00016_2" in t]
     inputs = ["","\x00"*10000,"A"*10000]
 
-    titerator = list(tests[::3][:4])
+    titerator = list(tests[::3][:5])
     for tnumber,test in enumerate(titerator):
         with patcherex.utils.tempdir() as td:
             print "=====",str(tnumber+1)+"/"+str(len(titerator)),"building patches for",test
             pm = PatchMaster(test)
-            patches = pm.run()
+            patches = pm.run(return_dict=True)
             nose.tools.assert_equal(len(patches),pm.ngenerated_patches)
 
             for stdin in inputs:
@@ -73,23 +67,18 @@ def test_cfe_trials():
                 pipe = subprocess.PIPE
                 p = subprocess.Popen([qemu_location, test], stdin=pipe, stdout=pipe, stderr=pipe)
                 res = p.communicate(stdin)
-                expected = (res[0],res[1],p.returncode)
+                expected = (res[0],p.returncode)
                 print expected
 
-                for i,patch in enumerate(patches):
-                    print "testing:",os.path.basename(test),stdin[:10].encode("hex"),i
-                    tmp_fname = os.path.join(td,str(i))
+                for pname,patch in patches.iteritems():
+                    print "testing:",os.path.basename(test),stdin[:10].encode("hex"),pname
+                    tmp_fname = os.path.join(td,pname)
                     save_patch(tmp_fname,patch)
                     nose.tools.assert_true(os.path.getsize(tmp_fname) > 1000)
 
-                    # TODO for now I expect the last patch to fail since it is the adversarial one
-                    # see: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/4
-                    if i == len(patches)-1:
-                        continue
-
                     p = subprocess.Popen([qemu_location, tmp_fname], stdin=pipe, stdout=pipe, stderr=pipe)
                     res = p.communicate(stdin)
-                    real = (res[0],res[1],p.returncode)
+                    real = (res[0],p.returncode)
                     # there may be special cases in which the behavior changes
                     # because the patch prevent exploitation
                     # this is unlikely, given the naive inputs

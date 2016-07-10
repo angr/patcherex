@@ -126,6 +126,7 @@ class StackRetEncryption(object):
                 raise RegUsed("Not free in bb %#x %s" % (addr,map(hex,prev)))
 
         try:
+<<<<<<< Updated upstream
             succ, is_terminate = self.get_all_succ(addr)
             # if addr==0x0804B390:
             #    import IPython; IPython.embed()
@@ -134,6 +135,12 @@ class StackRetEncryption(object):
             if len(succ)==0:
                 # no successors is weird, the cfg may be incomplete (e.g., NRFIN_00026 original 0x0897F4D5)
                 raise RegUsed("No successors  %#x %s" % (addr,map(hex,prev)))
+=======
+            succ = self.get_all_succ(addr)
+            if len(succ) == 0:
+                # no successors is weird, the cfg may be incomplete (e.g., NRFIN_00026 original 0x0897F4D5)
+                return set(), set(self.relevant_registers)
+>>>>>>> Stashed changes
             total_steps[0] += 1
             if total_steps[0] >= self.max_cfg_steps:
                 raise RegUsed("Too many steps  %#x %s" % (addr,map(hex,prev)))
