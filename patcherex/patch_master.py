@@ -178,17 +178,6 @@ class PatchMaster():
         #TODO this should implement all the high level logic of patching
         to_be_submitted = {}
 
-        l.info("creating stackretencryption_binary...")
-        stackretencryption_binary = None
-        try:
-            stackretencryption_binary = self.generate_stackretencryption_binary()
-        except Exception as e:
-            print "ERROR","during generation of stackretencryption_binary"
-            traceback.print_exc()
-        if stackretencryption_binary != None:
-            to_be_submitted["stackretencryption"] = stackretencryption_binary
-        l.info("stackretencryption_binary created")
-
         l.info("creating light_binary...")
         binary = None
         try:
