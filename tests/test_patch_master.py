@@ -54,7 +54,8 @@ def test_cfe_trials():
     tests = utils.find_files(tfolder,"*",only_exec=True)
     inputs = ["","\x00"*10000,"A"*10000]
 
-    titerator = list(tests[::3][:5])
+    bins = ["CROMU_00070","KPRCA_00016_1","KPRCA_00056","NRFIN_00073","CROMU_00071"]
+    titerator = [t for t in tests if any([b in t for b in bins])]
     for tnumber,test in enumerate(titerator):
         with patcherex.utils.tempdir() as td:
             print "=====",str(tnumber+1)+"/"+str(len(titerator)),"building patches for",test
@@ -71,9 +72,10 @@ def test_cfe_trials():
                 print expected
 
                 for pname,patch in patches.iteritems():
-                    print "testing:",os.path.basename(test),stdin[:10].encode("hex"),pname
+                    print "testing:",os.path.basename(test),"input:",stdin[:10].encode("hex"),pname
                     tmp_fname = os.path.join(td,pname)
                     save_patch(tmp_fname,patch)
+                    # save_patch("/tmp/aaa",patch)
                     nose.tools.assert_true(os.path.getsize(tmp_fname) > 1000)
 
                     p = subprocess.Popen([qemu_location, tmp_fname], stdin=pipe, stdout=pipe, stderr=pipe)
