@@ -103,8 +103,8 @@ class StackRetEncryption(object):
             tsteps = [0]
             chain = self._is_reg_free(addr,reg,ignore_current_bb,level=0,prev=[],total_steps=tsteps,debug=debug)
             if debug:
-                print chain
-                print tsteps
+                print chain # the explored tree
+                print tsteps # global number of steps
             return True
         except RegUsed as e:
             if debug:
@@ -127,8 +127,8 @@ class StackRetEncryption(object):
 
         try:
             succ, is_terminate = self.get_all_succ(addr)
-            if addr==0x0804B390:
-                import IPython; IPython.embed()
+            # if addr==0x0804B390:
+            #    import IPython; IPython.embed()
             if is_terminate:
                 return [addr]
             if len(succ)==0:
