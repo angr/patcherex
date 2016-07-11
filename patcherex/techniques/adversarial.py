@@ -73,7 +73,6 @@ class Adversarial(object):
         # remove these if you want to be able to run the patched binary in GDB
         patches.append(RawFilePatch(0x20,struct.pack("<I",0xfffffefe)))
         patches.append(RawFilePatch(0x30,struct.pack("<H",0xfefe)))
-        patches.append(RawFilePatch(0x30,struct.pack("<H",0xffff)))
 
         fail_code = '''
             ; infinite loop allocating and writing memory
@@ -158,6 +157,8 @@ class Adversarial(object):
         ; if you change this code you should also change this instruction: mov ecx, 0x3c
         ; to exactly copy the right amount of bytes
         ; if you copy more you can get SIGSEV based on the original allignment of the segment
+
+        nop; int 3
 
         call _get_eip2
         _get_eip2:
@@ -268,9 +269,10 @@ class Adversarial(object):
         ; int 3
         mov eax, DWORD [{saved_return_outside_stack}]
         add eax, 8
-        xor ebx, ebx
-        inc ebx
         jmp eax
+        nop
+        nop
+        nop
         nop
         nop
         nop
@@ -281,7 +283,24 @@ class Adversarial(object):
         ; this code is not anymore on the stack
         ; after this there will be code to restore registers and jmp to the oep
         ;int 3
-        ;mov eax, DWORD [0x00000000]
+
+        ; 8 ) clean the stack , this is neccessary for KPRCA_00056
+        mov ebx, 0xbaaaa004
+        mov ecx, 0x3c; 0xf0/4  change this if more code is added later
+
+        ; WARNING!!!
+        ; if you change this code you should also change this instruction: mov ecx, 0x3c
+        ; to exactly copy the right amount of bytes
+        ; if you copy more you can get SIGSEV based on the original allignment of the segment
+
+        xor edx, edx
+        _clean_loop:
+            mov DWORD[ebx], edx
+            dec ecx
+            add ebx, 4
+            test ecx, ecx
+            jne _clean_loop
+        ;int 3
 
         ; WARNING!!!
         ; if you change this code you should also change this instruction: mov ecx, 0x3c
@@ -289,6 +308,7 @@ class Adversarial(object):
         ; if you copy more you can get SIGSEV based on the original allignment of the segment
         '''
         patches.append(AddEntryPointPatch(code,"adversarial"))
+        # TODO memory copy/zero optimizations
 
         #return self.get_debug_patches() + patches
         return patches
