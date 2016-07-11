@@ -332,18 +332,45 @@ class StackRetEncryption(object):
                 xor edx, DWORD [{rnd_xor_key}]
             ''' % hex(self.flag_page + 0x123)
             code_longjmp = '''
+                mov [{saved_eip_longjmp}], ecx
                 xor cx, WORD [%s]
                 xor ecx, DWORD [{rnd_xor_key}]
+
+                pusha
+                cmp ecx, 0x1000
+                jb _fail_read
+                mov esi,ecx
+                xor eax, eax
+                mov al,4 ;fdwait
+                xor ebx,ebx
+                dec ebx ;nfds<0
+                xor ecx,ecx
+                xor edx,edx
+                xor edi, edi
+                int 0x80
+
+                cmp al,3 ;EFAULT
+                popa
+                jne _fail_read
+                jmp _end_test_read
+                _fail_read:
+                    mov ecx, [{saved_eip_longjmp}]
+                _end_test_read:
             ''' % hex(self.flag_page + 0x123)
+            # I suse cgrex to check if the unencrypted jump target is at least readable,
+            # unfortunately KPRCA_00026 manually create setjmp structures
+            # now the defense is weaker, since this cannot prevent its usage with ROP
 
             p1 = InsertCodePatch(self.found_setjmp+7,code_setjmp,name="setjmp_protection",priority=200)
             p2 = InsertCodePatch(self.found_longjmp+10,code_longjmp,name="longjmp_protection",priority=200)
+            p3 = AddRWDataPatch(4,"saved_eip_longjmp")
 
             # the two patches are mutual dependent, however given their position they should not fail
             p1.dependencies.append(p2)
             p2.dependencies.append(p1)
             patches.append(p1)
             patches.append(p2)
+            patches.append(p3)
 
         if self.used_safe_patch:
             patches.append(self.safe_encrypt_patch)
