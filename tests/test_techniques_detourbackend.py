@@ -330,6 +330,7 @@ def test_stackretencryption():
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(tmp_file)
+        # backend.save("/tmp/aaa")
         p = subprocess.Popen([qemu_location, "-seed", seed, filepath4], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(input4)
         expected = (res[0],p.returncode)
