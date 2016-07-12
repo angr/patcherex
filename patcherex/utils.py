@@ -186,7 +186,7 @@ def compile_asm(code, base=None, name_map=None):
             print "NASM error:"
             print res[0]
             print res[1]
-            fp = open(c_fname, 'r')
+            fp = open(asm_fname, 'r')
             fcontent = fp.read()
             fp.close()
             print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))])

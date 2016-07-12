@@ -851,6 +851,47 @@ def test_backdoor():
                 nose.tools.assert_equal(res,False)
 
 
+@add_fallback_strategy
+def test_bitflip():
+    all_chars = [chr(c) for c in xrange(256)]
+    pipe = subprocess.PIPE
+    from patcherex.techniques.bitflip import Bitflip
+    tests = []
+    tests.append(os.path.join(bin_location, "tests/i386/patchrex/CADET_00003_fixed"))
+    tests.append(os.path.join(bin_location, "tests/i386/patchrex/echo1"))
+    tests.append(os.path.join(bin_location, "tests/i386/patchrex/echo2"))
+    slens = [0,1,0x1000,0xfff,0x1001]
+    i = 1
+    while True:
+        i *= 5.4
+        slens.append(int(i))
+        if int(i) > 0x100000:
+            break
+
+    with patcherex.utils.tempdir() as td:
+        for test in tests:
+            tmp_file = os.path.join(td, "patched")
+            backend = DetourBackend(test,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            cp = Bitflip(test, backend)
+            patches = cp.get_patches()
+            backend.apply_patches(patches)
+            backend.save(tmp_file)
+            # backend.save("/tmp/aaa")
+
+            for tlen in slens:
+                ostr = ''.join(random.choice(all_chars) for _ in range(tlen))
+                fstr = ''.join([chr((ord(c)^0xff) & 0xff) for c in ostr])
+
+                p = subprocess.Popen([qemu_location, test], stdin=pipe, stdout=pipe, stderr=pipe)
+                res = p.communicate(ostr)
+                expected = (res[0],p.returncode)
+                p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+                res = p.communicate(fstr)
+                patched = (res[0],p.returncode)
+                print test, tlen
+                nose.tools.assert_equal(expected,patched)
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
