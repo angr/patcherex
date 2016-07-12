@@ -319,31 +319,19 @@ class StackRetEncryption(object):
                 l.info("added StackRetEncryption to function %s (%s -> %s)",ff.name,hex(start),map(hex,ends))
                 patches += new_patches
 
-        if self.found_setjmp == None:
-            l.warning("setjmp not found!")
         if self.found_longjmp == None:
             l.warning("longjmp not found!")
-        if self.found_setjmp != None and self.found_longjmp != None:
-            l.info("setjmp found at %#x" % self.found_setjmp)
-            l.info("longjmp found at %#x" % self.found_longjmp)
-
-            code_setjmp = '''
-                xor dx, WORD [%s]
-                xor edx, DWORD [{rnd_xor_key}]
-            ''' % hex(self.flag_page + 0x123)
+        else:
             code_longjmp = '''
-                xor cx, WORD [%s]
-                xor ecx, DWORD [{rnd_xor_key}]
-            ''' % hex(self.flag_page + 0x123)
-
-            p1 = InsertCodePatch(self.found_setjmp+7,code_setjmp,name="setjmp_protection",priority=200)
-            p2 = InsertCodePatch(self.found_longjmp+10,code_longjmp,name="longjmp_protection",priority=200)
-
-            # the two patches are mutual dependent, however given their position they should not fail
-            p1.dependencies.append(p2)
-            p2.dependencies.append(p1)
+                mov bl, BYTE [ecx] ; ebp is free at this point of longjmp
+            '''
+            # unfortunately KPRCA_00026 manually creates setjmp structures
+            # I just check that the place where we are jumping to is readable, this does not prevent ROP
+            # a more sophosticated thing is to use cgrex or check that
+            # we are jumping either after setjmp or to a function
+            p1 = InsertCodePatch(self.found_longjmp+10,code_longjmp,name="longjmp_protection",priority=200)
             patches.append(p1)
-            patches.append(p2)
+
 
         if self.used_safe_patch:
             patches.append(self.safe_encrypt_patch)
