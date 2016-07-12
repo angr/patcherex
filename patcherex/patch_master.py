@@ -30,10 +30,12 @@ from patcherex.techniques.transmitprotection import TransmitProtection
 from patcherex.techniques.shiftstack import ShiftStack
 from patcherex.techniques.adversarial import Adversarial
 from patcherex.techniques.backdoor import Backdoor
+from patcherex.techniques.bitflip import Bitflip
 
 from patcherex import utils
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import *
+from networkrules import NetworkRules
 
 
 l = logging.getLogger("patcherex.PatchMaster")
@@ -128,6 +130,7 @@ class PatchMaster():
     ##################
 
     def generate_light_binary(self):
+        nr = NetworkRules()
         backend = DetourBackend(self.infile)
         cp = IndirectCFI(self.infile,backend)
         patches1 = cp.get_patches()
@@ -137,9 +140,10 @@ class PatchMaster():
         patches3 = cp.get_patches()
 
         backend.apply_patches(patches1+patches2+patches3)
-        return backend.get_final_content()
+        return (backend.get_final_content(),"")
 
     def generate_medium_binary(self):
+        nr = NetworkRules()
         backend = DetourBackend(self.infile)
         cp = IndirectCFI(self.infile,backend)
         patches1 = cp.get_patches()
@@ -153,9 +157,11 @@ class PatchMaster():
         patches5 = cp.get_patches()
 
         backend.apply_patches(patches1+patches2+patches3+patches4+patches5)
-        return backend.get_final_content()
+        return (backend.get_final_content(),"")
+        # TODO put the bitflip rule also here, handle the conflict with the backdoor
 
     def generate_heavy_binary(self):
+        nr = NetworkRules()
         backend = DetourBackend(self.infile)
         cp = IndirectCFI(self.infile,backend)
         patches1 = cp.get_patches()
@@ -165,13 +171,16 @@ class PatchMaster():
         patches3 = cp.get_patches()
         cp = Adversarial(self.infile,backend)
         patches4 = cp.get_patches()
-        cp = Backdoor(self.infile,backend)
+        #cp = Backdoor(self.infile,backend)
+        #patches5 = cp.get_patches()
+        cp = Bitflip(self.infile,backend)
         patches5 = cp.get_patches()
         cp = StackRetEncryption(self.infile,backend)
         patches6 = cp.get_patches()
 
         backend.apply_patches(patches1+patches2+patches3+patches4+patches5+patches6)
-        return backend.get_final_content()
+        return (backend.get_final_content(),nr.get_bitflip_rule())
+        # TODO reinsert the backdoor and do not make it conflict with the bitflip
 
 
     def run(self,return_dict = False):
@@ -181,34 +190,34 @@ class PatchMaster():
         l.info("creating light_binary...")
         binary = None
         try:
-            binary = self.generate_light_binary()
+            binary, nrule = self.generate_light_binary()
         except Exception as e:
             print "ERROR","during generation of light_binary"
             traceback.print_exc()
         if binary != None:
-            to_be_submitted["light"] = binary
+            to_be_submitted["light"] = (binary, nrule)
         l.info("light_binary created")
 
         l.info("creating medium_binary...")
         binary = None
         try:
-            binary = self.generate_medium_binary()
+            binary, nrule = self.generate_medium_binary()
         except Exception as e:
             print "ERROR","during generation of medium_binary"
             traceback.print_exc()
         if binary != None:
-            to_be_submitted["medium"] = binary
+            to_be_submitted["medium"] = (binary, nrule)
         l.info("medium_binary created")
 
         l.info("creating heavy_binary...")
         binary = None
         try:
-            binary = self.generate_heavy_binary()
+            binary, nrule = self.generate_heavy_binary()
         except Exception as e:
             print "ERROR","during generation of heavy_binary"
             traceback.print_exc()
         if binary != None:
-            to_be_submitted["heavy"] = binary
+            to_be_submitted["heavy"] = (binary, nrule)
         l.info("heavy_binary created")
 
         if return_dict:
@@ -314,7 +323,7 @@ if __name__ == "__main__":
         with open(sys.argv[2]) as fp:
             original_content = fp.read()
         res["original"] = original_content
-        for k,v in res.iteritems():
+        for k,(v,rule) in res.iteritems():
             output_fname = out+"_"+k
             fp = open(output_fname,"wb")
             fp.write(v)
@@ -347,6 +356,9 @@ if __name__ == "__main__":
         pm = PatchMaster(input_fname)
         m = getattr(pm,"generate_"+technique+"_binary")
         res = m()
+        # handle generate_ methods returning also a network rule
+        if len(res) == 2:
+            res = res[0]
         fp = open(output_fname,"wb")
         fp.write(res)
         fp.close()

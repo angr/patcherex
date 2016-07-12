@@ -30,7 +30,7 @@ def test_run():
     #nose.tools.assert_equal(no_duplicate(patches), True)
 
     with patcherex.utils.tempdir() as td:
-        for i,p in enumerate(patches):
+        for i,(p,nrule) in enumerate(patches):
             tmp_fname = os.path.join(td,str(i))
             fp = open(tmp_fname,"wb")
             fp.write(p)
@@ -71,7 +71,7 @@ def test_cfe_trials():
                 expected = (res[0],p.returncode)
                 print expected
 
-                for pname,patch in patches.iteritems():
+                for pname,(patch,nrule) in patches.iteritems():
                     print "testing:",os.path.basename(test),"input:",stdin[:10].encode("hex"),pname
                     tmp_fname = os.path.join(td,pname)
                     save_patch(tmp_fname,patch)
@@ -79,7 +79,13 @@ def test_cfe_trials():
                     nose.tools.assert_true(os.path.getsize(tmp_fname) > 1000)
 
                     p = subprocess.Popen([qemu_location, tmp_fname], stdin=pipe, stdout=pipe, stderr=pipe)
-                    res = p.communicate(stdin)
+                    # very very partial support to network rules
+                    # TODO if we add other "interesting rules", handle them here
+                    if "bitflip" in nrule:
+                        final_stdin = ''.join([chr((ord(c)^0xff) & 0xff) for c in stdin])
+                    else:
+                        final_stdin = stdin
+                    res = p.communicate(final_stdin)
                     real = (res[0],p.returncode)
                     # there may be special cases in which the behavior changes
                     # because the patch prevent exploitation
