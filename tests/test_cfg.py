@@ -364,7 +364,7 @@ def test_fullcfg_properties():
                                 if (binary,int(jo.addr)) not in legittimate_jumpouts]
                         if len(unexpected_jumpout)>0:
                             print "unexpected jumpouts in",binary,map(lambda x:hex(x[1]),unexpected_jumpout)
-                        #nose.tools.assert_equal(len(unexpected_jumpout),0)
+                        nose.tools.assert_equal(len(unexpected_jumpout),0)
 
         # check that every node only belongs to a single function
         for k,v in nodes_dict.iteritems():
