@@ -52,7 +52,7 @@ def test_cfe_trials():
 
     tfolder = os.path.join(bin_location, "cfe_original")
     tests = utils.find_files(tfolder,"*",only_exec=True)
-    inputs = ["","\x00"*10000,"A"*10000]
+    inputs = ["","A","\x00"*10000,"A"*10000]
 
     bins = ["CROMU_00070","KPRCA_00016_1","KPRCA_00056","NRFIN_00073","CROMU_00071"]
     titerator = [t for t in tests if any([b in t for b in bins])]

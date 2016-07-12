@@ -21,6 +21,24 @@ class Bitflip(object):
     def get_bitflip_code(self):
         code = '''
             ; given the prereceive patch esi points to the num of received bytes
+            ; int 3
+            mov  edx, DWORD [esi]
+            test edx, edx
+            je _bitflip_end
+            ; ecx = buf, edx = len
+            _bitflip_not_loop:
+                not BYTE [ecx]
+                inc ecx
+                dec edx
+                jne _bitflip_not_loop
+            _bitflip_end:
+        '''
+        # TODO this is not optimized code, the sse code seems to fail in some cases
+        # and it does not seem to be that faster
+        # maybe the problem is that I corrupt xmm registers (test failing is test_patch_master NRFIN_00073)
+        # for reference, this is the sse code:
+        '''
+            ; given the prereceive patch esi points to the num of received bytes
             mov   edx, DWORD [esi]
             ; ecx = buf, edx = len
             test   edx,edx
