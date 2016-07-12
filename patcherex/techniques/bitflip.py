@@ -35,6 +35,18 @@ class Bitflip(object):
 
 
         # free registers esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
+        # ebx: fd, ecx: buf, edx: count, esi: rx_byte
+        code = '''
+            test ebx, ebx ; test if ebx is 0 (stdin)
+            je _enter_bitflip
+            cmp ebx, 1
+            jne _exit_bitflip
+
+            _enter_bitflip
+
+
+            _exit_bitflip:
+        '''
 
         patches.extend(self.compute_patches(victim_addr))
 
