@@ -317,13 +317,15 @@ if __name__ == "__main__":
         res = pm.run(return_dict = True)
         with open(sys.argv[2]) as fp:
             original_content = fp.read()
-        res["original"] = original_content
+        res["original"] = (original_content, '')
         for k,(v,rule) in res.iteritems():
             output_fname = out+"_"+k
             fp = open(output_fname,"wb")
             fp.write(v)
             fp.close()
             os.chmod(output_fname, 0755)
+            with open(output_fname+'.rules','wb') as rf:
+                rf.write(rule)
 
     elif sys.argv[1] == "single":
         cdll['libc.so.6'].prctl(1,9)
