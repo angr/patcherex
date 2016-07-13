@@ -18,7 +18,8 @@ class Bitflip(object):
         self.patcher = backend
 
 
-    def get_bitflip_code(self):
+    @staticmethod
+    def get_bitflip_code():
         code = '''
             ; given the prereceive patch esi points to the num of received bytes
             ; int 3
@@ -74,8 +75,8 @@ class Bitflip(object):
         '''
         return code
 
-
-    def get_presyscall_patch(self,syscall_addr):
+    @staticmethod
+    def get_presyscall_patch(syscall_addr):
         code = '''
             ; if esi was NULL it will be restored to NULL by the syscall wrapper
             test esi, esi
@@ -104,7 +105,7 @@ class Bitflip(object):
         victim_addr = int(last_block.addr)
         syscall_addr = victim_addr - 2
 
-        patches.extend(self.get_presyscall_patch(syscall_addr))
+        patches.extend(Bitflip.get_presyscall_patch(syscall_addr))
         # free registers esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
         # ebx: fd, ecx: buf, edx: count, esi: rx_byte
         code = '''
@@ -120,7 +121,7 @@ class Bitflip(object):
             %s
 
             _exit_bitflip:
-        ''' % (self.get_bitflip_code())
+        ''' % (Bitflip.get_bitflip_code())
 
         patches.append(InsertCodePatch(victim_addr,code,"postreceive_bitflip_patch",priority=300))
 

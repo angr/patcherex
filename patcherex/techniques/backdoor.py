@@ -7,16 +7,17 @@ import patcherex.cfg_utils as cfg_utils
 import capstone
 import logging
 from patcherex.patches import *
+from patcherex.techniques.bitflip import Bitflip
 
 l = logging.getLogger("patcherex.techniques.Backdoor")
 
 
 class Backdoor(object):
 
-    def __init__(self,binary_fname,backend):
+    def __init__(self,binary_fname,backend,enable_bitflip=False):
         self.binary_fname = binary_fname
         self.patcher = backend
-        self.nslot = 16
+        self.enable_bitflip = enable_bitflip
 
     def get_c_patch(self):
         code = '''
@@ -144,19 +145,47 @@ int ROTATE_LEFT(const int value, int shift) {
         '''
         patches.append(AddCodePatch(code,name="receive_16"))
 
-        code = '''
-            ; fast path: this code is added to every receive
-            cmp BYTE [{backdoor_receive_len}], 4
-            jae _exit_backdoor
+        if not self.enable_bitflip:
+            code_header = '''
+                test eax, eax ; receive succeded
+                jne _exit_backdoor
 
-            ; this code is executed at most 4 times unless receive failed
-            ; esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
-            test eax, eax ; test if receive succeeded
-            jne _exit_backdoor
-            test ebx, ebx ; test if ebx is 0 (stdin)
-            je _enter_backddor
-            cmp ebx, 1
-            jne _exit_backdoor
+                ; fast path: this code is added to every receive
+                cmp BYTE [{backdoor_receive_len}], 4
+                jae _exit_backdoor
+
+                ; this code is executed at most 4 times unless receive failed
+                ; esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
+                test eax, eax ; test if receive succeeded
+                jne _exit_backdoor
+                test ebx, ebx ; test if ebx is 0 (stdin)
+                je _enter_backddor
+                cmp ebx, 1
+                jne _exit_backdoor
+            '''
+        else:
+
+            code_header = '''
+                test eax, eax ; receive succeded
+                jne _exit_backdoor
+
+                ; this code is executed at most 4 times unless receive failed
+                ; esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
+                test eax, eax ; test if receive succeeded
+                jne _exit_backdoor
+                test ebx, ebx ; test if ebx is 0 (stdin)
+                je _enter_backddor
+                cmp ebx, 1
+                jne _exit_backdoor
+
+                ; fast path: this code is added to every receive
+                cmp BYTE [{backdoor_receive_len}], 4
+                jae _exit_backdoor
+
+                %s
+            ''' % (Bitflip.get_bitflip_code)
+
+        code = code_header + '''
 
             _enter_backddor:
             ; we do not check rx_bytes: the assumption is that the network will never split the 4 bytes we send 
@@ -328,5 +357,7 @@ int ROTATE_LEFT(const int value, int shift) {
         last_block = [b for b in receive_wrapper.blocks if b.addr != receive_wrapper.addr][0]
         victim_addr = int(last_block.addr)
         patches.extend(self.compute_patches(victim_addr))
+        if self.enable_bitflip:
+            patches.extend(Bitflip.get_presyscall_patch(victim_addr-2))
 
         return patches

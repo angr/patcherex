@@ -153,12 +153,11 @@ class PatchMaster():
         patches3 = cp.get_patches()
         cp = Adversarial(self.infile,backend)
         patches4 = cp.get_patches()
-        cp = Backdoor(self.infile,backend)
+        cp = Bitflip(self.infile,backend)
         patches5 = cp.get_patches()
 
         backend.apply_patches(patches1+patches2+patches3+patches4+patches5)
         return (backend.get_final_content(),"")
-        # TODO put the bitflip rule also here, handle the conflict with the backdoor
 
     def generate_heavy_binary(self):
         nr = NetworkRules()
@@ -171,17 +170,13 @@ class PatchMaster():
         patches3 = cp.get_patches()
         cp = Adversarial(self.infile,backend)
         patches4 = cp.get_patches()
-        #cp = Backdoor(self.infile,backend)
-        #patches5 = cp.get_patches()
-        cp = Bitflip(self.infile,backend)
+        cp = Backdoor(self.infile,backend,enable_bitflip=True)
         patches5 = cp.get_patches()
         cp = StackRetEncryption(self.infile,backend)
         patches6 = cp.get_patches()
 
         backend.apply_patches(patches1+patches2+patches3+patches4+patches5+patches6)
         return (backend.get_final_content(),nr.get_bitflip_rule())
-        # TODO reinsert the backdoor and do not make it conflict with the bitflip
-
 
     def run(self,return_dict = False):
         #TODO this should implement all the high level logic of patching

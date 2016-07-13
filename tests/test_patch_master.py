@@ -27,7 +27,7 @@ def test_run():
     nose.tools.assert_equal(len(patches) == pm.ngenerated_patches, True)
 
     nose.tools.assert_equal(len(patches)>1, True)
-    #nose.tools.assert_equal(no_duplicate(patches), True)
+    nose.tools.assert_equal(no_duplicate(patches), True)
 
     with patcherex.utils.tempdir() as td:
         for i,(p,nrule) in enumerate(patches):

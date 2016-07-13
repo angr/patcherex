@@ -245,6 +245,7 @@ def test_stackretencryption():
     filepath2 = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
     filepath3 = os.path.join(bin_location, "cgc_samples_multiflags/CROMU_00008/original/CROMU_00008")
     filepath4 = os.path.join(bin_location, "cgc_samples_multiflags/KPRCA_00026/original/KPRCA_00026")
+    filepath5 = os.path.join(bin_location, "cgc_samples_multiflags/KPRCA_00025/original/KPRCA_00025")
     pipe = subprocess.PIPE
 
     p = subprocess.Popen([qemu_location, filepath1], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -262,6 +263,7 @@ def test_stackretencryption():
         'ln, username or un, birthdate or bd, operators ==, !=, >, <, AND and OR):\nSyntax error\n> Command' \
         ' not found.\n> '
     input4 = "1\n2\n3\n4\n5\n6\n"*10
+    input5 = "a"*10+"\n"*10
     p = subprocess.Popen([qemu_location, filepath1], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(exploiting_input)
     print res, p.returncode
@@ -270,6 +272,7 @@ def test_stackretencryption():
 
     expected2 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
+        seed = str(random.randint(1,1000000000))
         original_file = os.path.join(td, "original")
         shutil.copy(filepath2,original_file)
         os.chmod(original_file,777)
@@ -281,7 +284,6 @@ def test_stackretencryption():
         backend.apply_patches(patches)
         backend.save(tmp_file)
 
-        seed = str(random.randint(0,1000000000))
         p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
@@ -340,6 +342,26 @@ def test_stackretencryption():
         print expected
         print patched
         nose.tools.assert_equal(expected, patched)
+
+        ''' # TODO for now this is broken
+        # function pointer blacklist
+        tmp_file = os.path.join(td, "patched5")
+        backend = DetourBackend(filepath5,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        cp = StackRetEncryption(filepath5, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        backend.save("/tmp/aaa")
+        p = subprocess.Popen([qemu_location, "-seed", seed, filepath5], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(input5)
+        expected = (res[0],p.returncode)
+        p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(input5)
+        patched = (res[0],p.returncode)
+        print expected
+        print patched
+        nose.tools.assert_equal(expected, patched)
+        '''
 
 
 @add_fallback_strategy
@@ -761,94 +783,95 @@ def test_backdoor():
         # deal with endianness craziness
         return "".join(map(chr,[l[3],l[2],l[1],l[0],0,0,0,l[4]]))
 
-    from patcherex.techniques.backdoor import Backdoor
-    filepath = os.path.join(bin_location, "cfe_original/CADET_00003/CADET_00003")
-    real_backdoor_enter = "3367b180".decode('hex')
-    fake_backdoor_enter = "3367b181".decode('hex')
-    logging.getLogger('povsim').setLevel("DEBUG")
-    custom_bins = [os.path.join(bin_location,os.path.join("tests/i386/patchrex","backdoorme"+str(i))) \
-            for i in xrange(1,9+1)]
-    bins = [filepath] + custom_bins
+    for bitflip in [False,True]:
+        from patcherex.techniques.backdoor import Backdoor
+        filepath = os.path.join(bin_location, "cfe_original/CADET_00003/CADET_00003")
+        real_backdoor_enter = "3367b180".decode('hex')
+        fake_backdoor_enter = "3367b181".decode('hex')
+        logging.getLogger('povsim').setLevel("DEBUG")
+        custom_bins = [os.path.join(bin_location,os.path.join("tests/i386/patchrex","backdoorme"+str(i))) \
+                for i in xrange(1,9+1)]
+        bins = [filepath] + custom_bins
 
-    with patcherex.utils.tempdir() as td:
-        tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-        cp = Backdoor(filepath, backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        backend.save(tmp_file)
-        #backend.save("../../vm/shared/patched")
-
-        # test with short and long strings is we destroid original functionality
-        # last test is supposed to fail
-        tests = ["A","A"*10,real_backdoor_enter[:3],real_backdoor_enter[:3]+"A"*10,
-                "\n"*10,real_backdoor_enter[:3]+"A"*10,real_backdoor_enter+"\n"*10]
-        for index,tinput in enumerate(tests):
-            res = Runner(filepath,tinput,record_stdout=True)
-            original_behavior = res.stdout, res.returncode
-            res = Runner(tmp_file,tinput,record_stdout=True)
-            patched_behavior = res.stdout, res.returncode
-            if index != len(tests)-1:
-                nose.tools.assert_equal(original_behavior,patched_behavior)
-            else:
-                nose.tools.assert_true(original_behavior != patched_behavior)
-
-        # test some hardcoded values for the real backdoor
-        tests = [   (0x12345678,0x99abcdef,1,[0x00,0xd0,0xb0,0xfd,0xdd]),
-                    (0x00000000,0x00000000,2,[0x00,0x88,0x36,0xc1,0x23]),
-                    (0xffffffff,0xffffffff,4,[0x01,0x7a,0x09,0x53,0xa8]),
-                    (0xffffffff,0xffffffff,4,[0x00,0x7a,0x09,0x53,0xa8])]
-        # the last test should fail
-        for index, (ebx, eip, seed, solution) in enumerate(tests):
-            tinput = real_backdoor_enter+solution_to_str(solution)
-            tinput += struct.pack("<I",ebx)
-            tinput += struct.pack("<I",eip)
-            # fp = open("../../vm/shared/tinput","wb")
-            # fp.write(tinput)
-            # fp.close()
-            res = Runner(tmp_file,tinput,record_stdout=True,seed=seed)
-            if index != len(tests)-1:
-                nose.tools.assert_equal(res.reg_vals['eip'],eip)
-                nose.tools.assert_equal(res.reg_vals['ebx'],ebx)
-            else:
-                # no crash, the backdoor failed
-                nose.tools.assert_equal(res.reg_vals,None)
-
-        # test the fake backdoor
-        ebx_vals = set()
-        eip_vals = set()
-        ntests = 3
-        # apparently seed 0 and 1 generate the same randomness
-        for index in xrange(1,1+ntests):
-            tinput = fake_backdoor_enter + "a"*16
-            # fp = open("../../vm/shared/tinput","wb")
-            # fp.write(tinput)
-            # fp.close()
-            res = Runner(tmp_file,tinput,record_stdout=True,seed=index)
-            eip_vals.add(res.reg_vals['eip'])
-            ebx_vals.add(res.reg_vals['ebx'])
-        # check that ebx and eip are actually randomixzed by the fake backdoor
-        nose.tools.assert_equal(len(eip_vals),ntests)
-        nose.tools.assert_equal(len(ebx_vals),ntests)
-
-        for index,tbin in enumerate(bins):
+        with patcherex.utils.tempdir() as td:
             tmp_file = os.path.join(td, "patched")
-            backend = DetourBackend(tbin,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-            cp = Backdoor(tbin, backend)
+            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            cp = Backdoor(filepath, backend, bitflip=bitflip)
             patches = cp.get_patches()
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            # backend.save("../../vm/shared/patched")
-            pov_tester = CGCPovSimulator()
-            backdoor_pov_location = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov")
-            res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_file)
-            if index < len(bins)-2:
-                if not res:
-                    print "failed on:", os.path.basename(tbin)
-                nose.tools.assert_true(res)
-            else:
-                # the last two are supposed to fail
-                nose.tools.assert_equal(res,False)
+            #backend.save("../../vm/shared/patched")
+
+            # test with short and long strings is we destroid original functionality
+            # last test is supposed to fail
+            tests = ["A","A"*10,real_backdoor_enter[:3],real_backdoor_enter[:3]+"A"*10,
+                    "\n"*10,real_backdoor_enter[:3]+"A"*10,real_backdoor_enter+"\n"*10]
+            for index,tinput in enumerate(tests):
+                res = Runner(filepath,tinput,record_stdout=True)
+                original_behavior = res.stdout, res.returncode
+                res = Runner(tmp_file,tinput,record_stdout=True)
+                patched_behavior = res.stdout, res.returncode
+                if index != len(tests)-1:
+                    nose.tools.assert_equal(original_behavior,patched_behavior)
+                else:
+                    nose.tools.assert_true(original_behavior != patched_behavior)
+
+            # test some hardcoded values for the real backdoor
+            tests = [   (0x12345678,0x99abcdef,1,[0x00,0xd0,0xb0,0xfd,0xdd]),
+                        (0x00000000,0x00000000,2,[0x00,0x88,0x36,0xc1,0x23]),
+                        (0xffffffff,0xffffffff,4,[0x01,0x7a,0x09,0x53,0xa8]),
+                        (0xffffffff,0xffffffff,4,[0x00,0x7a,0x09,0x53,0xa8])]
+            # the last test should fail
+            for index, (ebx, eip, seed, solution) in enumerate(tests):
+                tinput = real_backdoor_enter+solution_to_str(solution)
+                tinput += struct.pack("<I",ebx)
+                tinput += struct.pack("<I",eip)
+                # fp = open("../../vm/shared/tinput","wb")
+                # fp.write(tinput)
+                # fp.close()
+                res = Runner(tmp_file,tinput,record_stdout=True,seed=seed)
+                if index != len(tests)-1:
+                    nose.tools.assert_equal(res.reg_vals['eip'],eip)
+                    nose.tools.assert_equal(res.reg_vals['ebx'],ebx)
+                else:
+                    # no crash, the backdoor failed
+                    nose.tools.assert_equal(res.reg_vals,None)
+
+            # test the fake backdoor
+            ebx_vals = set()
+            eip_vals = set()
+            ntests = 3
+            # apparently seed 0 and 1 generate the same randomness
+            for index in xrange(1,1+ntests):
+                tinput = fake_backdoor_enter + "a"*16
+                # fp = open("../../vm/shared/tinput","wb")
+                # fp.write(tinput)
+                # fp.close()
+                res = Runner(tmp_file,tinput,record_stdout=True,seed=index)
+                eip_vals.add(res.reg_vals['eip'])
+                ebx_vals.add(res.reg_vals['ebx'])
+            # check that ebx and eip are actually randomixzed by the fake backdoor
+            nose.tools.assert_equal(len(eip_vals),ntests)
+            nose.tools.assert_equal(len(ebx_vals),ntests)
+
+            for index,tbin in enumerate(bins):
+                tmp_file = os.path.join(td, "patched")
+                backend = DetourBackend(tbin,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+                cp = Backdoor(tbin, backend,bitflip=bitflip)
+                patches = cp.get_patches()
+                backend.apply_patches(patches)
+                backend.save(tmp_file)
+                # backend.save("../../vm/shared/patched")
+                pov_tester = CGCPovSimulator()
+                backdoor_pov_location = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov")
+                res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_file)
+                if index < len(bins)-2:
+                    if not res:
+                        print "failed on:", os.path.basename(tbin)
+                    nose.tools.assert_true(res)
+                else:
+                    # the last two are supposed to fail
+                    nose.tools.assert_equal(res,False)
 
 
 @add_fallback_strategy
@@ -880,13 +903,12 @@ def test_bitflip():
 
             for tlen in slens:
                 ostr = ''.join(random.choice(all_chars) for _ in range(tlen))
-                fstr = ''.join([chr((ord(c)^0xff) & 0xff) for c in ostr])
 
                 p = subprocess.Popen([qemu_location, test], stdin=pipe, stdout=pipe, stderr=pipe)
                 res = p.communicate(ostr)
                 expected = (res[0],p.returncode)
-                p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-                res = p.communicate(fstr)
+                p = subprocess.Popen([qemu_location, "-bitflip", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+                res = p.communicate(ostr)
                 patched = (res[0],p.returncode)
                 print test, tlen
                 nose.tools.assert_equal(expected,patched)
