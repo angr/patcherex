@@ -801,7 +801,7 @@ def test_backdoor():
             patches = cp.get_patches()
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            backend.save("/tmp/aaa")
+            # backend.save("/tmp/aaa")
 
             # test with short and long strings is we destroid original functionality
             # last test is supposed to fail
@@ -824,7 +824,6 @@ def test_backdoor():
                         (0xffffffff,0xffffffff,4,[0x00,0x7a,0x09,0x53,0xa8])]
             # the last test should fail
             for index, (ebx, eip, seed, solution) in enumerate(tests):
-                print "===",index
                 tinput = real_backdoor_enter+solution_to_str(solution)
                 tinput += struct.pack("<I",ebx)
                 tinput += struct.pack("<I",eip)
@@ -863,7 +862,7 @@ def test_backdoor():
                 patches = cp.get_patches()
                 backend.apply_patches(patches)
                 backend.save(tmp_file)
-                # backend.save("/tmp/aaa")
+                backend.save("/tmp/aaa")
                 pov_tester = CGCPovSimulator()
                 backdoor_pov_location = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov")
                 res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_file,bitflip=bitflip)

@@ -120,9 +120,14 @@ int ROTATE_LEFT(const int value, int shift) {
                 ret
         '''
         patches.append(AddCodePatch(code,name="get_4_rnd"))
+
+        if self.enable_bitflip:
+            bitflip_in_backdoor_code = "not BYTE[ecx]"
+        else:
+            bitflip_in_backdoor_code = ""
         code = '''
-            ; get 4 rnd value retrying in the unlikely case, in which rnd failed
             xor edi, edi 
+            xor esi, esi
             _receive_loop:
                 cmp edi, 16
                 je _receive_exit
@@ -130,19 +135,21 @@ int ROTATE_LEFT(const int value, int shift) {
                 mov ecx, {backdoor_response_buffer}
                 add ecx, edi
                 xor edx, edx
-                mov dl, 16
-                sub edx, edi
-                mov esi, {nbytes}
+                inc dl
                 xor eax, eax
                 mov al, 3
                 int 0x80 
                 ; not checking for receive fail, if disconnect --> infinite loop, it should never happen with our pov
-                add edi, DWORD[{nbytes}]
+                ; not checking nbytes, we receive one at the time
+                inc edi
+
+                %s
+
                 jmp _receive_loop
 
             _receive_exit:
                 ret
-        '''
+        ''' % (bitflip_in_backdoor_code)
         patches.append(AddCodePatch(code,name="receive_16"))
 
         if not self.enable_bitflip:
