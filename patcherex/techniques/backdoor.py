@@ -20,7 +20,7 @@ class Backdoor(object):
 
     def get_c_patch(self):
         code = '''
-// [before the always_inline of ROTATE_LEFT] this is compiled to 268 bytes with -Oz
+// [NOT SURE:] this is compiled to 268 bytes with -Oz
 
 static inline int ROTATE_LEFT(const int value, int shift) {
     unsigned int uvalue = (unsigned int)value;
@@ -85,7 +85,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
   return (0x67452301 + A);
 }
         '''
-        return AddCodePatch(code,"sha1_block",is_c=True,optimization="-O0")
+        return AddCodePatch(code,"sha1_block",is_c=True,optimization="-Oz")
 
     def compute_patches(self,victim_addr):
         patches = []
