@@ -47,7 +47,7 @@ class PatchMaster():
     def __init__(self,infile):
         self.infile = infile
         # to ease autotesting:
-        self.ngenerated_patches = 3
+        self.ngenerated_patches = 4
 
     def generate_shadow_stack_binary(self):
         backend = DetourBackend(self.infile)
@@ -129,6 +129,15 @@ class PatchMaster():
 
     ##################
 
+    def generate_bitflip_binary(self):
+        nr = NetworkRules()
+        backend = DetourBackend(self.infile)
+        cp = Bitflip(self.infile,backend)
+        patches1 = cp.get_patches()
+
+        backend.apply_patches(patches1)
+        return (backend.get_final_content(),nr.get_bitflip_rule())
+
     def generate_light_binary(self):
         nr = NetworkRules()
         backend = DetourBackend(self.infile)
@@ -153,7 +162,7 @@ class PatchMaster():
         patches3 = cp.get_patches()
         cp = Adversarial(self.infile,backend)
         patches4 = cp.get_patches()
-        cp = Bitflip(self.infile,backend)
+        cp = Backdoor(self.infile,backend)
         patches5 = cp.get_patches()
 
         backend.apply_patches(patches1+patches2+patches3+patches4+patches5)
@@ -179,8 +188,18 @@ class PatchMaster():
         return (backend.get_final_content(),nr.get_bitflip_rule())
 
     def run(self,return_dict = False):
-        #TODO this should implement all the high level logic of patching
         to_be_submitted = {}
+
+        l.info("creating bitflip_binary...")
+        binary = None
+        try:
+            binary, nrule = self.generate_bitflip_binary()
+        except Exception as e:
+            print "ERROR","during generation of bitflip_binary"
+            traceback.print_exc()
+        if binary != None:
+            to_be_submitted["bitflip"] = (binary, nrule)
+        l.info("bitflip_binary created")
 
         l.info("creating light_binary...")
         binary = None
