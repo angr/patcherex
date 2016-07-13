@@ -385,6 +385,23 @@ def test_fullcfg_properties():
                 instruction_set.add(iaddr)
 
 
+def test_expected_jumpouts():
+    expected_jumpouts = [("KPRCA_00034",0x08050140,[0x0805015C])]
+
+    cfg_cache = {}
+    for binary, function_addr, jmps in expected_jumpouts:
+        if binary in cfg_cache:
+            cfg = cfg_cache["binary"]
+        else:
+            filepath = os.path.join(bin_location, "cgc_samples_multiflags/%s/original/%s" % (binary,binary))
+            backend = DetourBackend(filepath)
+            cfg = backend.cfg
+            cfg_cache["binary"] = cfg
+
+        ff  = cfg.functions[function_addr]
+        nose.tools.assert_equal(ff.jumpout_sites,jmps)
+
+
 def test_setlongjmp_detection():
     solutions = [
             ("cgc_samples_multiflags/CADET_00003/original/CADET_00003",0x80486c8,0x80486e3),
