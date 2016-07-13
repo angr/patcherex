@@ -183,7 +183,7 @@ int ROTATE_LEFT(const int value, int shift) {
                 jae _exit_backdoor
 
                 %s
-            ''' % (Bitflip.get_bitflip_code)
+            ''' % (Bitflip.get_bitflip_code())
 
         code = code_header + '''
 
