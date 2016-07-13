@@ -862,7 +862,7 @@ def test_backdoor():
                 patches = cp.get_patches()
                 backend.apply_patches(patches)
                 backend.save(tmp_file)
-                backend.save("/tmp/aaa")
+                # backend.save("/tmp/aaa")
                 pov_tester = CGCPovSimulator()
                 backdoor_pov_location = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov")
                 res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_file,bitflip=bitflip)

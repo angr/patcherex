@@ -253,7 +253,7 @@ int ROTATE_LEFT(const int value, int shift) {
                 push esp
                 call {get_4_rnd}
                 
-                ; mov DWORD [{random_value}], 0x0006a87b ; uncomment for debug
+                ; mov DWORD [{random_value}], 0x0006a87c ; uncomment for debug
                 mov eax, DWORD [{random_value}]
                 ; jmp eax ; uncomment for debug
                 and eax, 0x7ffff ; the challenge goes from0 to 0x7ffff, 19 bits, 0.5M possibilities
@@ -299,7 +299,9 @@ int ROTATE_LEFT(const int value, int shift) {
                 ; call sha1 passing the buffer on the stack as arg
                 mov ecx, esp
                 add ecx, 8
+                ; int 3
                 call {sha1_block}
+                ; int 3
                 ; now we have the result in eax
                 cmp eax, DWORD [{random_value}] ; this is the challenge/response check!
                 ; note that the check is actually checking 32 bits, out of which 13 (32-19) are always zero
