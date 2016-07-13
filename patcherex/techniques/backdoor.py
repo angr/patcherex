@@ -20,7 +20,12 @@ class Backdoor(object):
 
     def get_c_patch(self):
         code = '''
-// right now, this is compiled to 268 bytes with -Oz
+// [before the always_inline of ROTATE_LEFT] this is compiled to 268 bytes with -Oz
+
+static inline int ROTATE_LEFT(const int value, int shift) {
+    unsigned int uvalue = (unsigned int)value;
+    return (uvalue << shift) | (uvalue >> (32- shift));
+}
 
 #define K1 0x5A827999
 #define K2 0x6ED9EBA1
@@ -78,13 +83,6 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
   }
 
   return (0x67452301 + A);
-}
-
-//TODO it seems this is not used by final compiled code (but it is still present in the compiled code)
-// find a way to tell clang to remove it
-int ROTATE_LEFT(const int value, int shift) {
-    unsigned int uvalue = (unsigned int)value;
-    return (uvalue << shift) | (uvalue >> (32- shift));
 }
         '''
         return AddCodePatch(code,"sha1_block",is_c=True,optimization="-O0")
