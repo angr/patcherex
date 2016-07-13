@@ -784,6 +784,7 @@ def test_backdoor():
         return "".join(map(chr,[l[3],l[2],l[1],l[0],0,0,0,l[4]]))
 
     for bitflip in [False,True]:
+        print "======== Bitflip:", bitflip
         from patcherex.techniques.backdoor import Backdoor
         filepath = os.path.join(bin_location, "cfe_original/CADET_00003/CADET_00003")
         real_backdoor_enter = "3367b180".decode('hex')
@@ -796,11 +797,11 @@ def test_backdoor():
         with patcherex.utils.tempdir() as td:
             tmp_file = os.path.join(td, "patched")
             backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-            cp = Backdoor(filepath, backend, bitflip=bitflip)
+            cp = Backdoor(filepath, backend, enable_bitflip=bitflip)
             patches = cp.get_patches()
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            #backend.save("../../vm/shared/patched")
+            backend.save("/tmp/aaa")
 
             # test with short and long strings is we destroid original functionality
             # last test is supposed to fail
@@ -809,7 +810,7 @@ def test_backdoor():
             for index,tinput in enumerate(tests):
                 res = Runner(filepath,tinput,record_stdout=True)
                 original_behavior = res.stdout, res.returncode
-                res = Runner(tmp_file,tinput,record_stdout=True)
+                res = Runner(tmp_file,tinput,record_stdout=True,bitflip=bitflip)
                 patched_behavior = res.stdout, res.returncode
                 if index != len(tests)-1:
                     nose.tools.assert_equal(original_behavior,patched_behavior)
@@ -823,13 +824,14 @@ def test_backdoor():
                         (0xffffffff,0xffffffff,4,[0x00,0x7a,0x09,0x53,0xa8])]
             # the last test should fail
             for index, (ebx, eip, seed, solution) in enumerate(tests):
+                print "===",index
                 tinput = real_backdoor_enter+solution_to_str(solution)
                 tinput += struct.pack("<I",ebx)
                 tinput += struct.pack("<I",eip)
                 # fp = open("../../vm/shared/tinput","wb")
                 # fp.write(tinput)
                 # fp.close()
-                res = Runner(tmp_file,tinput,record_stdout=True,seed=seed)
+                res = Runner(tmp_file,tinput,record_stdout=True,seed=seed,bitflip=bitflip)
                 if index != len(tests)-1:
                     nose.tools.assert_equal(res.reg_vals['eip'],eip)
                     nose.tools.assert_equal(res.reg_vals['ebx'],ebx)
@@ -847,7 +849,7 @@ def test_backdoor():
                 # fp = open("../../vm/shared/tinput","wb")
                 # fp.write(tinput)
                 # fp.close()
-                res = Runner(tmp_file,tinput,record_stdout=True,seed=index)
+                res = Runner(tmp_file,tinput,record_stdout=True,seed=index,bitflip=bitflip)
                 eip_vals.add(res.reg_vals['eip'])
                 ebx_vals.add(res.reg_vals['ebx'])
             # check that ebx and eip are actually randomixzed by the fake backdoor
@@ -857,14 +859,14 @@ def test_backdoor():
             for index,tbin in enumerate(bins):
                 tmp_file = os.path.join(td, "patched")
                 backend = DetourBackend(tbin,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-                cp = Backdoor(tbin, backend,bitflip=bitflip)
+                cp = Backdoor(tbin, backend,enable_bitflip=bitflip)
                 patches = cp.get_patches()
                 backend.apply_patches(patches)
                 backend.save(tmp_file)
-                # backend.save("../../vm/shared/patched")
+                # backend.save("/tmp/aaa")
                 pov_tester = CGCPovSimulator()
                 backdoor_pov_location = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov")
-                res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_file)
+                res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_file,bitflip=bitflip)
                 if index < len(bins)-2:
                     if not res:
                         print "failed on:", os.path.basename(tbin)
@@ -879,6 +881,7 @@ def test_bitflip():
     all_chars = [chr(c) for c in xrange(256)]
     pipe = subprocess.PIPE
     from patcherex.techniques.bitflip import Bitflip
+    from patcherex.techniques.backdoor import Backdoor
     tests = []
     tests.append(os.path.join(bin_location, "tests/i386/patchrex/CADET_00003_fixed"))
     tests.append(os.path.join(bin_location, "tests/i386/patchrex/echo1"))
@@ -890,6 +893,7 @@ def test_bitflip():
         slens.append(int(i))
         if int(i) > 0x100000:
             break
+
 
     with patcherex.utils.tempdir() as td:
         for test in tests:
@@ -903,7 +907,26 @@ def test_bitflip():
 
             for tlen in slens:
                 ostr = ''.join(random.choice(all_chars) for _ in range(tlen))
+                p = subprocess.Popen([qemu_location, test], stdin=pipe, stdout=pipe, stderr=pipe)
+                res = p.communicate(ostr)
+                expected = (res[0],p.returncode)
+                p = subprocess.Popen([qemu_location, "-bitflip", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+                res = p.communicate(ostr)
+                patched = (res[0],p.returncode)
+                print test, tlen
+                nose.tools.assert_equal(expected,patched)
 
+        for test in tests:
+            tmp_file = os.path.join(td, "patched")
+            backend = DetourBackend(test,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            cp = Backdoor(test, backend, enable_bitflip=True)
+            patches = cp.get_patches()
+            backend.apply_patches(patches)
+            backend.save(tmp_file)
+            # backend.save("/tmp/aaa")
+
+            for tlen in slens:
+                ostr = ''.join(random.choice(all_chars) for _ in range(tlen))
                 p = subprocess.Popen([qemu_location, test], stdin=pipe, stdout=pipe, stderr=pipe)
                 res = p.communicate(ostr)
                 expected = (res[0],p.returncode)

@@ -36,3 +36,5 @@ rm $OUT/backdoorme7; $SCRIPT backdoorme7.c -Ofast -o $OUT/backdoorme7
 rm $OUT/backdoorme8; $SCRIPT backdoorme8.c -Ofast -o $OUT/backdoorme8
 rm $OUT/backdoorme9; $SCRIPT backdoorme9.c -Ofast -o $OUT/backdoorme9
 
+rm $OUT/echo1; $SCRIPT echo1.c -o $OUT/echo1
+rm $OUT/echo2; $SCRIPT echo2.c -o $OUT/echo2
