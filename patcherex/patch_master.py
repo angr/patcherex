@@ -358,9 +358,14 @@ if __name__ == "__main__":
         res = m()
         # handle generate_ methods returning also a network rule
         if len(res) == 2:
-            res = res[0]
+            if not any([output_fname.endswith("_"+str(i)) for i in xrange(2,10)]):
+                fp = open(os.path.join(os.path.dirname(output_fname),"ids.rules"),"wb")
+                fp.write(res[1])
+                fp.close()
+            patched_bin_content = res[0]
+
         fp = open(output_fname,"wb")
-        fp.write(res)
+        fp.write(patched_bin_content)
         fp.close()
         os.chmod(output_fname, 0755)
         print "="*50,"process ended at",str(datetime.datetime.now())
