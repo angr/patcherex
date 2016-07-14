@@ -764,7 +764,7 @@ def test_adversarial():
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        # backend.save("/tmp/aaa")
+        backend.save("/tmp/aaa")
 
         original_p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
         original_res = original_p.communicate(tinput)

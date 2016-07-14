@@ -304,6 +304,9 @@ class Adversarial(object):
         ; int 3
 
         ; 9) QEMU floating point bug
+        mov ebp, esp
+        ; align the stack otherwise fp instruction may fail
+        ; warning: qemu does not segfault if the stack is not aligned
         and esp, 0xfffffff0
         xor eax, eax
         inc eax
@@ -312,8 +315,8 @@ class Adversarial(object):
         push eax
         db 0xdb, 0x2c, 0x24; fld TBYTE PTR [esp]
         fsqrt
-        add esp, 12
         finit
+        mov esp, ebp
 
         ; 10) detect pin
         ; int 3
