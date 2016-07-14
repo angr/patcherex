@@ -118,7 +118,8 @@ class Adversarial(object):
         ;  - confuse dynamic detection of type2
         ; int transmit(int fd, const void *buf, size_t count, size_t *tx_bytes) [2]
         mov ecx,  0x4347c000
-        mov edx, 0x10000
+        xor edx, edx
+        mov dl, 4
         mov esi, {tmp1}
         xor eax, eax
         mov al, 0x2
@@ -300,7 +301,30 @@ class Adversarial(object):
             add ebx, 4
             test ecx, ecx
             jne _clean_loop
-        ;int 3
+        ; int 3
+
+        ; 9) QEMU floating point bug
+        and esp, 0xfffffff0
+        xor eax, eax
+        inc eax
+        push eax
+        push eax
+        push eax
+        db 0xdb, 0x2c, 0x24; fld TBYTE PTR [esp]
+        fsqrt
+        add esp, 12
+        finit
+
+        ; 10) detect pin
+        ; int 3
+        xor eax, eax
+        mov al,7 ;random
+        xor ebx,ebx
+        xor ecx,ecx
+        mov edx, 0x00010000 ; it should be never be allocate, but pin thinks it is
+        int 0x80
+        test eax,eax
+        je {evil_fail_ptr}
 
         ; WARNING!!!
         ; if you change this code you should also change this instruction: mov ecx, 0x3c
