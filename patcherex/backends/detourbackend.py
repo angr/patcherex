@@ -339,12 +339,12 @@ class DetourBackend(Backend):
         self.segments = segments
         return segments
 
-    def set_added_segment_headers(self):
+    def set_added_segment_headers(self, nsegments):
         assert self.ncontent[0x34:0x34+len(self.patched_tag)] == self.patched_tag
         if self.data_fallback:
             l.debug("added_data_file_start: %#x", self.added_data_file_start)
         added_segments = 0
-        original_nsegments = len(self.modded_segments)
+        original_nsegments = nsegments
 
         # if the size of a segment is zero, the kernel does not allocate any memory
         # so, we don't care about empty segments
@@ -674,12 +674,10 @@ class DetourBackend(Backend):
                 l.info("Added patch: " + str(segment_patch))
             else:
                 segments = self.modded_segments
-                print map(hex,segments[2])
 
             for patch in [p for p in patches if isinstance(p,AddSegmentHeaderPatch)]:
-                # add on top since the last rw segment is handled specially by the backend
+                # add after the first
                 segments = [segments[0]] + [patch.new_segment] + segments[1:]
-                import IPython; IPython.embed()
 
             if not self.data_fallback:
                 last_segment = segments[-1]
@@ -688,7 +686,7 @@ class DetourBackend(Backend):
                        p_filesz, p_memsz + self.added_rwdata_len + self.added_rwinitdata_len, p_flags, p_align
                 segments[-1] = last_segment
             self.setup_headers(segments)
-            self.set_added_segment_headers()
+            self.set_added_segment_headers(len(segments))
             l.debug("final symbol table: "+ repr([(k,hex(v)) for k,v in self.name_map.iteritems()]))
         else:
             l.info("no patches, the binary will not be touched")

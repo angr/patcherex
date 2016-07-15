@@ -13,13 +13,15 @@ class NxStack(object):
         self.patcher = backend
 
     def get_patches(self):
+        # TODO nx stack should be only used if static analysis tells us that no code is executed on the stack
+        # see issue: https://git.seclab.cs.ucsb.edu/cgc/patcherex/issues/14
         patches = []
-        nxsegment_after_stack =(0x1, 0x0, 0xbaaab000, 0xbaaab000, 0x0, 0x0, 0x6, 0x1000)
+        nxsegment_after_stack =(0x1, 0x0, 0xbaaab000, 0xbaaab000, 0x0, 0x1000, 0x6, 0x1000)
         patches.append(AddSegmentHeaderPatch(nxsegment_after_stack, name="nxstack_segment_header"))
         added_code = '''
-            int 3
+            ; int 3
             ; this can be placed before or after the stack shift
-            sub esp, 0x1000
+            add esp, 0x1000
             ; restore flags, assume eax=0 since we are after restore
             push 0x202
             popf
