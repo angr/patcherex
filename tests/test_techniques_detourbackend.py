@@ -50,9 +50,26 @@ def add_fallback_strategy(f):
         global_data_fallback = None
         global_try_pdf_removal = True
         f()
-        #global_data_fallback = True
-        #global_try_pdf_removal = True
-        #f()
+        global_data_fallback = None
+        global_try_pdf_removal = False
+        f()
+        global_data_fallback = True
+        global_try_pdf_removal = False
+        f()
+    return wrapper
+
+
+def add_full_fallback_strategy(f):
+    @wraps(f)
+    def wrapper():
+        global global_data_fallback
+        global global_try_pdf_removal
+        global_data_fallback = None
+        global_try_pdf_removal = True
+        f()
+        global_data_fallback = True
+        global_try_pdf_removal = True
+        f()
         global_data_fallback = None
         global_try_pdf_removal = False
         f()
@@ -733,7 +750,7 @@ def test_shiftstack():
             patches = cp.get_patches()
             backend.apply_patches(patches+[InsertCodePatch(0x804db6b,"jmp 0x11223344")])
             backend.save(tmp_file)
-            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(0,1000000000))
+            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
             oesp = original_reg_value['esp']
             nesp = res.reg_vals['esp']
             random_stack_pos.add(nesp)
@@ -747,6 +764,103 @@ def test_shiftstack():
             nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
         print map(hex,random_stack_pos)
         nose.tools.assert_true(len(random_stack_pos)>=2)
+
+
+@add_full_fallback_strategy # this changes the headers, let't test it in all 4 cases
+def test_nxstack():
+    logging.getLogger("patcherex.techniques.NxStack").setLevel("DEBUG")
+    from patcherex.techniques.nxstack import NxStack
+    from patcherex.techniques.shiftstack import ShiftStack
+    filepath = os.path.join(bin_location, "cfe_original/CROMU_00044/CROMU_00044")
+    tinput = "login\n"*50+"2\n"*50
+    res = Runner(filepath,tinput,record_stdout=True)
+    original_output = res.stdout
+
+    with_stack_randomization = [False,True]
+    for stack_randomization in with_stack_randomization:
+        with patcherex.utils.tempdir() as td:
+            tmp_file = os.path.join(td, "patched")
+
+            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            cp = NxStack(filepath, backend)
+            patches = cp.get_patches()
+            if stack_randomization:
+                cp =  ShiftStack(filepath, backend)
+                patches += cp.get_patches()
+            backend.apply_patches(patches)
+            backend.save(tmp_file)
+            # backend.save("/tmp/aaa")
+            # test that behaves like the original
+            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+            nose.tools.assert_equal(original_output, res.stdout)
+
+            # check if the stack is where we expect
+            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            cp = NxStack(filepath, backend)
+            patches = cp.get_patches()
+            if stack_randomization:
+                cp =  ShiftStack(filepath, backend)
+                patches += cp.get_patches()
+            backend.apply_patches(patches+[InsertCodePatch(0x804db6b,"jmp 0x11223344")])
+            backend.save(tmp_file)
+            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+            nesp = res.reg_vals['esp']
+            nose.tools.assert_true(0xbaaab000 < nesp < 0xbaaac000)
+
+            # check if the stack is really not executable
+            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            cp = NxStack(filepath, backend)
+            patches = cp.get_patches()
+            if stack_randomization:
+                cp =  ShiftStack(filepath, backend)
+                patches += cp.get_patches()
+            code = '''
+                mov eax, 0x11223344
+                push 0xabb0c031
+                jmp esp
+            '''
+            backend.apply_patches(patches+[InsertCodePatch(0x804db6b,code)])
+            backend.save(tmp_file)
+            # backend.save("/tmp/aaa")
+            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+            nose.tools.assert_true(0xbaaab000 < res.reg_vals['eip'] < 0xbaaac000)
+            nose.tools.assert_true(res.reg_vals['esp']!=0x000000ab)
+
+            # check if the stack is executable one page before
+            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            cp = NxStack(filepath, backend)
+            patches = cp.get_patches()
+            if stack_randomization:
+                cp =  ShiftStack(filepath, backend)
+                patches += cp.get_patches()
+            code = '''
+                sub esp, 0x1000
+                mov eax, 0x11223344
+                push 0xabb0c031
+                jmp esp
+            '''
+            backend.apply_patches(patches+[InsertCodePatch(0x804db6b,code)])
+            backend.save(tmp_file)
+            # backend.save("/tmp/aaa")
+            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+            nose.tools.assert_equal(res.reg_vals['eax'],0x000000ab)
+
+            # check read write on stack to the expanded one and autogrow
+            # test that behaves like the original even after all these pushes
+            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            cp = NxStack(filepath, backend)
+            patches = cp.get_patches()
+            if stack_randomization:
+                cp =  ShiftStack(filepath, backend)
+                patches += cp.get_patches()
+            npushpop = 0x200000 + 1 # 8MB + 4: we do not overflow since we added one page
+            code = "push edx\n" * npushpop + "pop edx\n" * npushpop
+            patches += [InsertCodePatch(0x804db6b,code)]
+            backend.apply_patches(patches)
+            backend.save(tmp_file)
+            # backend.save("/tmp/aaa")
+            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+            nose.tools.assert_equal(original_output, res.stdout)
 
 
 @add_fallback_strategy
