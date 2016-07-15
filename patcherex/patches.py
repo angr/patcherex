@@ -101,4 +101,12 @@ class SegmentHeaderPatch(Patch):
     def __str__(self):
         return "SegmentHeaderPatch [%s] (%d)" % (self.name,len(self.segment_headers))
 
+class AddSegmentHeaderPatch(Patch):
+    def __init__(self, segment_header, name=None):
+        super(AddSegmentHeaderPatch, self).__init__(name)
+        self.segment_header = segment_header
+
+    def __str__(self):
+        return "AddSegmentHeaderPatch [%s] (%s)" % (self.name,map(hex,self.segment_header))
+
 

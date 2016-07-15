@@ -290,7 +290,8 @@ class DetourBackend(Backend):
         # change pointer to program headers to point at the end of the elf
         self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<I", len(self.ncontent)), 0x1C)
 
-        # copying original program headers in the new place (at the  end of the file)
+        # copying original program headers (potentially modified by patches and/or pdf removal) 
+        # in the new place (at the  end of the file)
         for segment in segments:
             self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *segment))
         self.original_header_end = len(self.ncontent)
@@ -301,6 +302,7 @@ class DetourBackend(Backend):
 
         # adding space for the additional headers
         # I add two of them, no matter what, if the data one will be used only in case of the fallback solution
+        # Additionally added program headers have been already copied by the for loop above
         self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size, "\x00")
 
     def dump_segments(self, tprint=False):

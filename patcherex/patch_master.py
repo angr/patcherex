@@ -379,6 +379,8 @@ if __name__ == "__main__":
                 fp.write(res[1])
                 fp.close()
             patched_bin_content = res[0]
+        else:
+            patched_bin_content = res
 
         fp = open(output_fname,"wb")
         fp.write(patched_bin_content)
