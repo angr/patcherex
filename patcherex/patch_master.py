@@ -28,6 +28,7 @@ from patcherex.techniques.stackretencryption import StackRetEncryption
 from patcherex.techniques.indirectcfi import IndirectCFI
 from patcherex.techniques.transmitprotection import TransmitProtection
 from patcherex.techniques.shiftstack import ShiftStack
+from patcherex.techniques.nxstack import NxStack
 from patcherex.techniques.adversarial import Adversarial
 from patcherex.techniques.backdoor import Backdoor
 from patcherex.techniques.bitflip import Bitflip
@@ -164,8 +165,10 @@ class PatchMaster():
         patches4 = cp.get_patches()
         cp = Backdoor(self.infile,backend)
         patches5 = cp.get_patches()
+        cp = NxStack(self.infile,backend)
+        patches6 = cp.get_patches()
 
-        backend.apply_patches(patches1+patches2+patches3+patches4+patches5)
+        backend.apply_patches(patches1+patches2+patches3+patches4+patches5+patches6)
         return (backend.get_final_content(),"")
 
     def generate_heavy_binary(self):
@@ -181,10 +184,12 @@ class PatchMaster():
         patches4 = cp.get_patches()
         cp = Backdoor(self.infile,backend,enable_bitflip=True)
         patches5 = cp.get_patches()
-        cp = StackRetEncryption(self.infile,backend)
+        cp = NxStack(self.infile,backend)
         patches6 = cp.get_patches()
+        cp = StackRetEncryption(self.infile,backend)
+        patches7 = cp.get_patches()
 
-        backend.apply_patches(patches1+patches2+patches3+patches4+patches5+patches6)
+        backend.apply_patches(patches1+patches2+patches3+patches4+patches5+patches6+patches7)
         return (backend.get_final_content(),nr.get_bitflip_rule())
 
     def run(self,return_dict = False):
@@ -325,6 +330,7 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("INFO")
         logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("INFO")
         logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
+        logging.getLogger("patcherex.techniques.NxStack").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.Backdoor").setLevel("DEBUG")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
@@ -362,6 +368,7 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
+        logging.getLogger("patcherex.techniques.NxStack").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.Backdoor").setLevel("DEBUG")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
