@@ -733,7 +733,7 @@ def test_shiftstack():
             patches = cp.get_patches()
             backend.apply_patches(patches+[InsertCodePatch(0x804db6b,"jmp 0x11223344")])
             backend.save(tmp_file)
-            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(0,1000000000))
+            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
             oesp = original_reg_value['esp']
             nesp = res.reg_vals['esp']
             random_stack_pos.add(nesp)
@@ -747,6 +747,29 @@ def test_shiftstack():
             nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
         print map(hex,random_stack_pos)
         nose.tools.assert_true(len(random_stack_pos)>=2)
+
+
+@add_fallback_strategy
+def test_nxstack():
+    logging.getLogger("patcherex.techniques.NxStack").setLevel("DEBUG")
+    from patcherex.techniques.nxstack import NxStack
+    filepath = os.path.join(bin_location, "cfe_original/CROMU_00044/CROMU_00044")
+    tinput = "login\n"*50+"2\n"*50
+    res = Runner(filepath,tinput,record_stdout=True)
+    original_output = res.stdout
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        cp = NxStack(filepath, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        backend.save("/tmp/aaa")
+
+        res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+        nose.tools.assert_equal(original_output, res.stdout)
+
 
 
 @add_fallback_strategy

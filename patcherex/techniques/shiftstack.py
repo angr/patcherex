@@ -30,7 +30,13 @@ class ShiftStack(object):
             and DWORD [ebx], %d
         ''' % (self.min_value_pow, ((1 << self.max_value_pow) -1))  
         patches.append(AddEntryPointPatch(added_code, name="rnd_shiftstack_setup"))
-        added_code = "sub esp, DWORD [{rnd_shiftstack}]"
+        added_code = '''
+            sub esp, DWORD [{rnd_shiftstack}]
+            ; restore flags, assume eax=0 since we are after restore
+            push 0x202
+            popf
+            mov DWORD [esp-4], eax
+        '''
         patches.append(AddEntryPointPatch(added_code, name="rnd_shiftstack_do", after_restore=True))
 
         return patches
