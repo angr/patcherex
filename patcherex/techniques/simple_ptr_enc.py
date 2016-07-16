@@ -42,10 +42,19 @@ class DerefInstruction(object):
         self.ins_size = None
         self.action = action
         self.addr_regs = addr_regs
-        self.addr_regs_used = None
+        self.addr_reg_overwritten = None
+        self.skip = False
+        self.decryption_addrs = None
+        self.encryption_addrs = None
 
     def __repr__(self):
         return "<Deref %#08x %s@%s>" % (self.ins_addr, self.action, self.addr_regs)
+
+    @property
+    def should_reencrypt(self):
+        if self.encryption_addrs is None:
+            return True
+        return len(self.encryption_addrs) > 0
 
 
 class RefInstruction(object):
@@ -96,6 +105,8 @@ class BlockTraverser(object):
 
         # begin traversal!
         self._analyze()
+
+        self._post_analysis()
 
     def _is_addr_valid(self, addr):
         if self._addr_belongs_to_section(addr) is not None:
@@ -209,6 +220,9 @@ class BlockTraverser(object):
     def _filter_instrs(self):
         raise NotImplementedError()
 
+    def _post_analysis(self):
+        raise NotImplementedError()
+
     def _analyze(self):
 
         for function in self.cfg.functions.values():  # type: angr.knowledge.Function
@@ -261,10 +275,12 @@ class BlockTraverser(object):
 
     def _handle_statement_Put(self, stmt):
         # loading data into a register
-        if self.last_instr is not None and self.last_instr.addr_regs_used is None and \
-                        len(self.last_instr.addr_regs) == 1 and \
-                        stmt.offset in self.last_instr.addr_regs:
-            self.last_instr.addr_regs_used = False
+        if self.last_instr is not None and self.last_instr.addr_reg_overwritten is None and \
+                self.last_instr.ins_addr == self.ins_addr and \
+                len(self.last_instr.addr_regs) == 1 and \
+                stmt.offset in self.last_instr.addr_regs:
+            # the address register is overwritten in the same instruction
+            self.last_instr.addr_reg_overwritten = True
 
         data = self._handle_expression(stmt.data)
         if data is not None:
@@ -344,6 +360,10 @@ class MemoryRefCollector(BlockTraverser):
         self.instrs = [i for i in self.instrs if i.addr_reg not in (self.ip_offset, self.sp_offset, self.bp_offset)
                        and i.addr_reg < 40  # this is x86 only - 40 is cc_op
                        ]
+
+    def _post_analysis(self):
+        # do nothing
+        pass
 
     def _handle_statement_Put(self, stmt):
         data = self._handle_expression(stmt.data)
@@ -704,7 +724,9 @@ class MemDerefDepGraph(object):
 
 
 class MemoryDerefCollector(BlockTraverser):
-    def __init__(self, cfg):
+    def __init__(self, cfg, optimize=False):
+        self._optimize = optimize
+
         super(MemoryDerefCollector, self).__init__(cfg)
 
     def _filter_instrs(self):
@@ -715,6 +737,75 @@ class MemoryDerefCollector(BlockTraverser):
                 continue
             instrs.append(i)
         self.instrs = instrs
+
+    def _post_analysis(self):
+        # mark all instructions whose addr_regs are not used at all afterwards
+
+        if not self._optimize:
+            return
+
+        for function in self.cfg.functions.values():
+            dug = DefUseGraph(self.cfg.project, function)
+            dependence_graph = dug.graph
+
+            # create a mapping from instruction addresses to dependence nodes
+            insn_addr_to_nodes = defaultdict(list)
+
+            for n in dependence_graph.nodes_iter():
+                insn_addr_to_nodes[n.location.ins_addr].append(n)
+
+            function_insn_addrs = set()
+            for b in function.blocks:
+                function_insn_addrs |= set(b.instruction_addrs)
+
+            all_covered_insns = set()
+
+            for insn in iter(ins for ins in self.instrs if ins.ins_addr in function_insn_addrs):  # type: DerefInstruction
+
+                if insn.ins_addr in all_covered_insns:
+                    insn.skip = True
+                    continue
+
+                if insn.ins_addr in insn_addr_to_nodes:
+
+                    all_nodes = insn_addr_to_nodes[insn.ins_addr]
+                    # find source nodes for the source register - it might be a little tricky
+                    # e.g. for instruction mov eax, dword ptr [ecx+12], we find the data node of ecx
+                    addr_regs = insn.addr_regs
+                    dests = [ ]
+                    sources = set()
+                    for n in all_nodes:
+                        if not isinstance(n.variable, SimConstantVariable):
+                            dests.append(n)
+
+                    # dests hold all consumers
+
+                    dep_graph = MemDerefDepGraph(function, dests, addr_regs[0], dependence_graph)
+
+                    decryption_addrs = dep_graph.decryption_addrs
+                    encryption_addrs = dep_graph.encryption_addrs
+                    consumers = dep_graph.consumers
+
+                    covered_insn_addrs = set(i.location.ins_addr for i in consumers)
+
+                    if insn.ins_addr in covered_insn_addrs:
+                        covered_insn_addrs.remove(insn.ins_addr)
+
+                    insn.encryption_addrs = encryption_addrs
+                    if not encryption_addrs:
+                        l.debug("%s is not used later. Don't re-encrypt it.", insn)
+
+                    # note: those patches should be applied *before* the instruction
+                    insn.decryption_addrs = decryption_addrs
+
+                    if covered_insn_addrs:
+                        # all future instructions are covered as well
+                        all_covered_insns |= covered_insn_addrs
+                        l.debug("%s covers %d other instructions", insn, len(covered_insn_addrs))
+
+    #
+    # statement/expression handlers
+    #
 
     def _handle_statement_Store(self, stmt):
         # writing some stuff into memory
@@ -748,9 +839,9 @@ class MemoryDerefCollector(BlockTraverser):
         if expr.offset == self.ip_offset and expr.offset in self.regs:
             return self.regs[expr.offset]
         else:
-            if self.last_instr is not None and self.last_instr.addr_regs_used is None and \
-                            expr.offset in self.last_instr.addr_regs:
-                self.last_instr.addr_regs_used = True
+            #if self.last_instr is not None and self.last_instr.reg_used_later is None and \
+            #                expr.offset in self.last_instr.addr_regs:
+            #    self.last_instr.reg_used_later = True
 
             return MiniAST('reg', [expr.offset])
 
@@ -771,17 +862,45 @@ class MemoryDerefCollector(BlockTraverser):
             return MiniAST('const', [value])
 
 
+class DefUseGraph(object):
+    def __init__(self, project, function):
+        self.project = project
+        self.function = function
+        self.ddg = None
+
+        self._analyze()
+
+    def _analyze(self):
+
+        # Generate a CFG of the current function with the base graph
+        cfg = self.project.analyses.CFGAccurate(
+            kb=KnowledgeBase(self.project, self.project.loader.main_bin),
+            starts=(self.function.addr,),
+            keep_state=True,
+            base_graph=self.function.graph,
+            iropt_level=0,
+        )
+
+        self.ddg = self.project.analyses.DDG(cfg)
+
+    @property
+    def graph(self):
+        return self.ddg.simplified_data_graph
+
+
 class SimplePointerEncryption(Technique):
-    def __init__(self, filename, backend):
+    def __init__(self, filename, backend, optimize=False):
         """
         Constructor.
 
         :param str filename: File name of the binary to protect.
         :param Backend backend: The patcher backend.
+        :param bool optimize: Is optimization enabled or not.
         """
 
         super(SimplePointerEncryption, self).__init__(filename, backend)
 
+        self._optimize = optimize
         self._patches = self._generate_patches()
 
     def _generate_patches(self, debug=True):
@@ -912,6 +1031,9 @@ class SimplePointerEncryption(Technique):
 
         for deref in mem_deref_instrs:  # type: DerefInstruction
 
+            if deref.skip:
+                continue
+
             # FIXME: if there are more than one registers, what sort of problems will we have?
             src_reg_offset = next(r for r in deref.addr_regs if r not in (arch.sp_offset, arch.bp_offset))
             src_reg = arch.register_names[src_reg_offset]
@@ -920,15 +1042,23 @@ class SimplePointerEncryption(Technique):
             asm_code = """
             sub {src_reg}, dword ptr [_POINTER_KEY]
             """.format(src_reg=src_reg)
-            patch = InsertCodePatch(deref.ins_addr, asm_code)
 
-            patches.append(patch)
+            if deref.decryption_addrs is None:
+                patch_addrs = [ deref.ins_addr ]
+            else:
+                patch_addrs = deref.decryption_addrs
+
+            for patch_addr in patch_addrs:
+                patch = InsertCodePatch(patch_addr, asm_code)
+                patches.append(patch)
+                mem_deref_decryption_patch_count += 1
 
             # we do not apply the re-encryption patch if the source register is reused immediately
             # for example: movsx eax, byte ptr [eax]
             # apparently we don't decrypt eax since it's already overwritten
 
-            if deref.action in ('load', 'store', 'to-sp') and deref.addr_regs_used is not False:
+            if deref.action in ('load', 'store', 'to-sp') and not deref.addr_reg_overwritten and deref.should_reencrypt:
+
                 # re-encryption patch
                 asm_code = """
                 pushfd
@@ -936,8 +1066,20 @@ class SimplePointerEncryption(Technique):
                 popfd
                 """.format(src_reg=src_reg)
 
-                patch = InsertCodePatch(deref.ins_addr + deref.ins_size, asm_code)
-                patches.append(patch)
+                #if deref.reg_used_later is None:
+                #    # decrypt immediately after using it
+                #    decryption_addr = deref.ins_addr + deref.ins_size
+                #else:
+                #    decryption_addr = deref.latest_decryption_addr
+                if deref.encryption_addrs is None:
+                    patch_addrs = [ deref.ins_addr + deref.ins_size ]
+                else:
+                    patch_addrs = deref.encryption_addrs
+                for encryption_addr in patch_addrs:
+                    patch = InsertCodePatch(encryption_addr, asm_code)
+                    patches.append(patch)
+
+                    mem_deref_encryption_patch_count += 1
 
         # for syscalls, make sure all pointers are decrypted before calling
         syscalls = {
@@ -1029,7 +1171,7 @@ class SimplePointerEncryption(Technique):
         :rtype: list
         """
 
-        collector = MemoryDerefCollector(cfg)
+        collector = MemoryDerefCollector(cfg, optimize=self._optimize)
 
         return collector.instrs
 
