@@ -32,7 +32,7 @@ from patcherex.techniques.nxstack import NxStack
 from patcherex.techniques.adversarial import Adversarial
 from patcherex.techniques.backdoor import Backdoor
 from patcherex.techniques.bitflip import Bitflip
-from patcherex.techniques.fidget import Fidget
+from patcherex.techniques.fidgetpatches import Fidget
 
 from patcherex import utils
 from patcherex.backends.detourbackend import DetourBackend
@@ -396,6 +396,7 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.Backdoor").setLevel("DEBUG")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
+        logging.getLogger("fidget").setLevel("INFO")
 
         input_fname = sys.argv[2]
         technique = sys.argv[3]

@@ -6,16 +6,16 @@ class Fidget(object):
         self.binary_fname = binary_fname
         self.backend = backend
         if mode == 'normal':
-            technique = fidget.techniques.FidgetDefaultTechnique()
+            technique = fidget.FidgetDefaultTechnique()
         elif mode == 'safe':
-            technique = fidget.techniques.FidgetDefaultTechnique(safe=True)
+            technique = fidget.FidgetDefaultTechnique(safe=True)
         elif mode == 'huge':
-            technique = fidget.techniques.FidgetDefaultTechnique(largemode=True)
+            technique = fidget.FidgetDefaultTechnique(largemode=True)
         elif mode == 'hugesafe':
-            technique = fidget.techniques.FidgetDefaultTechnique(safe=True, largemode=True)
+            technique = fidget.FidgetDefaultTechnique(safe=True, largemode=True)
 
         self.fidgetress = fidget.Fidget(binary_fname)
-        self.fidgetress.patch_stack(stack={'technique': technique})
+        self.fidgetress.patch_stack(technique)
 
     def get_patches(self):
         return [RawFilePatch(offset, data) for offset, data in self.fidgetress.dump_patches()]
