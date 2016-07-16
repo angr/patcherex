@@ -2,8 +2,13 @@
 import string
 import random
 import logging
+from collections import defaultdict
+
+import networkx
 
 import pyvex
+from simuvex import SimConstantVariable, SimRegisterVariable, SimMemoryVariable
+from angr import KnowledgeBase
 from ..backends import ReassemblerBackend
 
 from ..technique import Technique
@@ -376,6 +381,327 @@ class MemoryRefCollector(BlockTraverser):
             return MiniAST('const', [value])
         else:
             return None
+
+
+class BaseNode(object):
+    def __init__(self, ins_addr, end_addr, status=None):
+        self.ins_addr = ins_addr
+        self.end_addr = end_addr
+        self.status = status
+
+
+class MergePoint(BaseNode):
+    def __init__(self, ins_addr, ins_size):
+        super(MergePoint, self).__init__(ins_addr, ins_addr + ins_size, status=None)
+
+    def __eq__(self, other):
+        return isinstance(other, MergePoint) and other.ins_addr == self.ins_addr
+
+    def __hash__(self):
+        return hash(('MergePoint', self.ins_addr))
+
+    def __repr__(self):
+        return "<MergePoint @ %#x>" % (self.ins_addr)
+
+
+class Source(BaseNode):
+    def __init__(self, node, ins_size):
+        super(Source, self).__init__(node.location.ins_addr, node.location.ins_addr + ins_size, status='encrypted')
+        self.node = node
+
+    def __repr__(self):
+        s = "<Source @ %#x, %s>" % (self.ins_addr, self.status)
+        return s
+
+
+class Sink(BaseNode):
+    def __init__(self, node, ins_size):
+        super(Sink, self).__init__(node.location.ins_addr, node.location.ins_addr + ins_size, status='encrypted')
+        self.node = node
+
+    def __repr__(self):
+        s = "<Sink @ %#x, %s>" % (self.ins_addr, self.status)
+        return s
+
+
+class Consumer(BaseNode):
+    def __init__(self, node, ins_size):
+        super(Consumer, self).__init__(node.location.ins_addr, node.location.ins_addr + ins_size, status='decrypted')
+        self.node = node
+
+    def __repr__(self):
+        s = "<Consumer @ %#x, %s>" % (self.ins_addr, self.status)
+        return s
+
+class Transformer(BaseNode):
+    def __init__(self, node, ins_size):
+        super(Transformer, self).__init__(node.location.ins_addr, node.location.ins_addr + ins_size, status=None)
+        self.node = node
+
+    def __repr__(self):
+        s = "<Transformer @ %#x, %s>" % (self.ins_addr, self.status)
+        return s
+
+class Cluster(BaseNode):
+    def __init__(self, ins_addr, end_addr, nodes, status):
+        super(Cluster, self).__init__(ins_addr, end_addr, status=status)
+        self.nodes = nodes
+
+    def __repr__(self):
+        s = "<Cluster @ %#x, %s>" % (self.ins_addr, self.status)
+        return s
+
+
+class MemDerefDepGraph(object):
+    """
+    Represents a dependence graph between some registers holding encrypted/decrypted pointers.
+
+    We define the pointer source, pointer consumer, and the pointer sink as follows:
+    - A pointer source is the instruction that loads a pointer to a register from memory or an immediate
+    - A pointer consumer is the instruction that dereferences the pointer
+    - A pointer sink is the instruction that writes the pointer to another register, or writes the pointer into memory
+      (to a stack variable or a heap variable)
+    - A pointer transformer is the instruction that increments/decrements the pointer register, and its output is later
+      used by a pointer consumer or a pointer sink. It does not matter what sort of operation is performed, since our
+      encryption is homomorphic. The pointer at a transformer can be either encrypted or decrypted.
+
+    A pointer is guaranteed to be encrypted coming out of the source. The encrypted pointer must be decrypted before
+    reaching the pointer consumer, and re-encrypted before it reaches the pointer sink. Apparently the easiest
+    solution is to decrypt the pointer right before the consumer, and re-encrypt the pointer immediately after the
+    consumer. However, such a solution is suboptimal in many cases, most notably, a) when the pointer sink is empty,
+    b) when there are more than one pointer consumers, and c) when there are more than one pointer sources.
+
+    We layout all pointer sources, pointer consumers, and pointer sinks on a control flow graph. Optimal locations
+    to decrypt and re-encrypt (only if a re-encryption is needed) a pointer is between pointer consumers and pointer
+    sinks.
+    """
+
+    def __init__(self, function, consumers, ptr_reg, dep_graph):
+        """
+        Constructor.
+
+        :param Function function: The function that the consumer locates.
+        :param list consumers: All pointer consumers.
+        :param int ptr_reg: Offset of the register that holds a pointer at the pointer consuming location.
+        :param networkx.DiGraph dep_graph: Data dependence graph.
+        """
+        self._function = function
+        self._consumers = consumers  # this is the initial set of consumers. we might expand this set since more
+                                     # consumers that are using the same ptr_reg can be found during the optimization
+                                     # procedure
+        self._ptr_reg = ptr_reg
+        self._dep_graph = dep_graph
+
+        self._sources = None
+        self._sinks = None
+        self._transformers = None
+
+        # find all sources, sinks, and transformers
+        g = self._find_all()
+        dec, enc = self._make_decision(g)
+
+        self.decryption_addrs = dec
+        self.encryption_addrs = enc
+
+    @property
+    def consumers(self):
+        return self._consumers
+
+    def _find_all(self):
+        """
+        Based on the consumer register, find all sources, sinks, and transformers in the data dependence graph, and
+        then layout them on the function transition graph.
+
+        :return: A transition graph of pointer sources, sinks, consumers, and transformers, where edges represent the
+                control flow between those nodes.
+        :rtype: networkx.DiGraph
+        """
+
+        sources = set()
+
+        # find all sources, with transformers included
+        for d in self._consumers:
+            sources_ = self._dep_graph.predecessors(d)
+            for s in sources_:
+                if isinstance(s.variable, SimRegisterVariable) and s.variable.reg == self._ptr_reg:
+                    sources.add(s)
+
+        transformers = set()
+        # some of them are transformers
+        # TODO: figure out transformer nodes that involve more than one register
+        for s in sources:
+            # if a register depends on itself, and writes to the very same register, then it's a transformer
+            # e.g. inc esi  (esi depends on esi)
+            #      add esi, eax  (esi depends on esi and eax, but it writes to itself anyways)
+            preds = self._dep_graph.predecessors(s)
+            if any([ isinstance(v.variable, SimRegisterVariable) and v.variable.reg == self._ptr_reg for v in preds ]):
+                transformers.add(s)
+                continue
+
+        if transformers:
+            sources = sources - transformers
+
+        # for each source and transformer, find all sinks and consumers
+        sinks = set()
+        consumers = set()
+        for s in sources | transformers:
+            out_edges = self._dep_graph.out_edges(s, data=True)
+            for _, suc, data in out_edges:
+                if 'type' in data:
+                    if data['type'] == 'mem_addr':
+                        # this is a pointer consumer
+                        consumers.add(suc)
+                        continue
+                    elif data['type'] == 'mem_data':
+                        # this is a pointer sink
+                        sinks.add(suc)
+                        continue
+                if isinstance(suc.variable, SimRegisterVariable):
+                    if suc.variable.reg < 40:  # FIXME: this is ugly
+                        if suc not in transformers:
+                            # it's written to a register. sink
+                            sinks.add(suc)
+                    continue
+                # unsupported. WTF...
+                import ipdb; ipdb.set_trace()
+
+        self._sources = sources
+        self._sinks = sinks
+        self._consumers = consumers
+        self._transformers = transformers
+
+        # convert them into dicts with instruction addresses as their keys, so we can layout them on a function
+        # transition graph
+        sources = dict((s.location.ins_addr, Source(s, self._function.instruction_size(s.location.ins_addr)))
+                       for s in sources)
+        sinks = dict((s.location.ins_addr, Sink(s, self._function.instruction_size(s.location.ins_addr)))
+                     for s in sinks)
+        consumers = dict((s.location.ins_addr, Consumer(s, self._function.instruction_size(s.location.ins_addr)))
+                         for s in consumers)
+        transformers = dict((s.location.ins_addr, Transformer(s, self._function.instruction_size(s.location.ins_addr)))
+                            for s in transformers)
+
+        g = self._function.subgraph(set(sources.keys() + sinks.keys() + consumers.keys() + transformers.keys()))
+
+        g_ = networkx.DiGraph()
+
+        for src, dst in g.edges_iter():
+            # TODO: create a single function that does the following crap
+            src_ = sources.get(src, None)
+            if src_ is None: src_ = sinks.get(src, None)
+            if src_ is None: src_ = consumers.get(src, None)
+            if src_ is None: src_ = transformers.get(src, None)
+            if src_ is None: src_ = MergePoint(src, self._function.instruction_size(src))
+
+            dst_ = sources.get(dst, None)
+            if dst_ is None: dst_ = sinks.get(dst, None)
+            if dst_ is None: dst_ = consumers.get(dst, None)
+            if dst_ is None: dst_ = transformers.get(dst, None)
+            if dst_ is None: dst_ = MergePoint(dst, self._function.instruction_size(src))
+
+            g_.add_edge(src_, dst_)
+
+        return g_
+
+    def _make_decision(self, graph):
+        """
+        Calculate the place of performing pointer encryption and decryption. Loop in data dependencies are considered.
+
+        An AnalysisFailureNotice exception is raised if for some reason we failed to confidently calculate the boundary,
+        in which case, the patcher is supposed to decrypt the defer instruction before address register is used, and
+        re-encrypt the address register immediately afterwards.
+
+        :param networkx.DiGraph graph: A control flow graph of all pointer sources, sinks, consumers, and transformers
+        :return: A 2-tuple like (list of decryption addresses, list of re-encryption addresses)
+        :rtype: tuple
+        """
+
+        while graph.number_of_edges():
+            nodes_merged = False
+            # merge all nodes that can be merged
+            for src, dst in graph.edges_iter():
+                if src.status == dst.status:
+                    cluster = Cluster(src.ins_addr, dst.end_addr, (src, dst), src.status)
+                    self._replace_nodes(graph, [ src, dst ], cluster)
+                    nodes_merged = True
+                    # we must restart immediately since we are working on an iterator...
+                    break
+
+            if nodes_merged:
+                continue
+
+            # nothing to be merged!
+            # find strongly-connected components and cluster them
+            # e.g.
+            #    encrypted
+            #       |
+            #    unknown <----
+            #       |        |
+            #    decrypted ---
+            #
+            # can be transformed to
+            #
+            #    encrypted
+            #       |
+            #    decrypted <--
+            #       |        |
+            #    decrypted ---
+
+            # calculate strongly connected components
+            for nodes in networkx.strongly_connected_components(graph):
+                all_status = set()
+                for n in nodes:
+                    all_status.add(n.status)
+
+                if len(all_status) <= 2:
+                    if None in all_status:
+                        all_status.remove(None)
+                    if not all_status:
+                        continue
+                    # mark all status to the same (encrypted/decrypted)
+                    status = [ v for v in all_status if v is not None ][0]
+                    for n in nodes:
+                        n.status = status
+
+            # phew, we finally reached here
+            # we cannot do node-merging anymore - time to make a decision!
+            break
+
+        # iterate all edges, and insert a 'decryption switch' on edge E--D, and insert a 'encryption switch' on edge
+        # D--E
+        decryption_locations = set()
+        encryption_locations = set()
+        for src, dst in graph.edges_iter():
+            if src.status == 'encrypted' and dst.status == 'decrypted':
+                decryption_locations.add(src.end_addr)
+            elif src.status == 'decrypted' and dst.status == 'encrypted':
+                encryption_locations.add(dst.ins_addr)
+
+        return list(decryption_locations), list(encryption_locations)
+
+    def _replace_nodes(self, graph, old_nodes, new_node):
+        """
+        Replace a bunch of existing nodes with a new one.
+
+        :param networkx.DiGraph graph: The graph instnace.
+        :param list old_nodes: A list of old nodes to be replaced.
+        :param object new_node: The new node.
+        :return: None
+        """
+
+        for n in old_nodes:
+            preds = graph.predecessors(n)
+            succs = graph.successors(n)
+
+            for p in preds:
+                if p not in old_nodes:
+                    graph.add_edge(p, new_node)
+            for s in succs:
+                if s not in old_nodes:
+                    graph.add_edge(new_node, s)
+
+        graph.remove_nodes_from(old_nodes)
+
 
 class MemoryDerefCollector(BlockTraverser):
     def __init__(self, cfg):
