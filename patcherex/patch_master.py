@@ -36,6 +36,7 @@ from patcherex.techniques.fidgetpatches import Fidget
 
 from patcherex import utils
 from patcherex.backends.detourbackend import DetourBackend
+from patcherex.backends.reassembler_backend import ReassemblerBackend
 from patcherex.patches import *
 from networkrules import NetworkRules
 
@@ -156,6 +157,25 @@ class PatchMaster():
     def generate_medium_binary(self):
         nr = NetworkRules()
         backend = DetourBackend(self.infile)
+        cp = IndirectCFI(self.infile,backend)
+        patches1 = cp.get_patches()
+        cp = TransmitProtection(self.infile,backend)
+        patches2 = cp.get_patches()
+        cp = ShiftStack(self.infile,backend)
+        patches3 = cp.get_patches()
+        cp = Adversarial(self.infile,backend)
+        patches4 = cp.get_patches()
+        cp = Backdoor(self.infile,backend)
+        patches5 = cp.get_patches()
+        cp = NxStack(self.infile,backend)
+        patches6 = cp.get_patches()
+
+        backend.apply_patches(patches1+patches2+patches3+patches4+patches5+patches6)
+        return (backend.get_final_content(),"")
+
+    def generate_mediumfish_binary(self):
+        nr = NetworkRules()
+        backend = ReassemblerBackend(self.infile)
         cp = IndirectCFI(self.infile,backend)
         patches1 = cp.get_patches()
         cp = TransmitProtection(self.infile,backend)
