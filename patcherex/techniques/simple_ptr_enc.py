@@ -384,7 +384,7 @@ class MemoryRefCollector(BlockTraverser):
 
         if data is not None and addr is not None:
             # check whether data is a memory reference or not
-            if data.op == 'const' and not self._has_regs(addr, (self.sp_offset, self.bp_offset)):
+            if data.op == 'const': # and not self._has_regs(addr, (self.sp_offset, self.bp_offset)):
                 self.last_instr = RefInstruction(self.ins_addr, None, data, store_addr=self._ast_to_indir_memrefs(addr))
                 self.instrs.append(self.last_instr)
 
