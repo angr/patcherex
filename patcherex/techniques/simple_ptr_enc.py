@@ -921,8 +921,8 @@ class SimplePointerEncryption(Technique):
         cfg.project.factory._lifter.clear_cache()
 
         pointers = self._constant_pointers(cfg)
-        mem_deref_instrs = self._memory_deref_instructions(cfg)
         mem_ref_instrs = self._memory_ref_instructions(cfg)
+        mem_deref_instrs = self._memory_deref_instructions(cfg)
 
         if debug:
             l.debug("dereferences")
