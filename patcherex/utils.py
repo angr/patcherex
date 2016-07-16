@@ -107,9 +107,9 @@ class ASMConverter(object):
             # m = re.match(r"")
 
             # base + displacement
-            m = re.match(r"\s*([^\s\+\-]+)\s*[\+\-]\s*([^\s\+\-]+)", mem_ptr)
+            m = re.match(r"\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)", mem_ptr)
             if m:
-                base, disp = m.group(1), m.group(2)
+                base, sign, disp = m.group(1), m.group(2), m.group(3)
 
                 base_reg = ASMConverter.reg_to_att(base)
                 if base_reg is None:
@@ -125,6 +125,9 @@ class ASMConverter(object):
 
                 if disp[0] == '{' and disp[-1] == '}':
                     disp = disp[1:-1]
+
+                if sign == '-':
+                    disp = '-' + disp
 
                 return "%s(%s)" % (disp, base_reg)
 
