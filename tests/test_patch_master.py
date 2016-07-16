@@ -25,6 +25,7 @@ os.environ["POSTGRES_DATABASE_PASSWORD"] = "dummy"
 from farnsworth.models.job import PatcherexJob
 PATCH_TYPES = [str(p) for p in PatcherexJob.PATCH_TYPES]
 print "PATCH_TYPES:", PATCH_TYPES
+PATCH_TYPES_WITH_RULES = ["heavy","bitflip"]
 
 
 def test_cfe_trials():
@@ -34,6 +35,7 @@ def test_cfe_trials():
         fp.close()
         os.chmod(fname, 0755)
 
+    nose.tools.assert_true(all([p in PATCH_TYPES for p in PATCH_TYPES_WITH_RULES]))
     tfolder = os.path.join(bin_location, "cfe_original")
     tests = utils.find_files(tfolder,"*",only_exec=True)
     inputs = ["","A","\n"*1000,"\x00"*1000,"A"*1000]
@@ -52,6 +54,13 @@ def test_cfe_trials():
                 generated_patches.add(patched_bin)
                 save_patch(tmp_fname,patched_bin)
                 # save_patch("/tmp/cfe1/"+os.path.basename(test)+"_"+patch_type,patched_bin)
+
+                nose.tools.assert_equal(type(patched_bin),str)
+                nose.tools.assert_equal(type(nrule),str)
+                if patch_type in PATCH_TYPES_WITH_RULES:
+                    nose.tools.assert_true(len(nrule)>0)
+                else:
+                    nose.tools.assert_true(len(nrule)==0)
 
                 for stdin in inputs:
                     # TODO: test properly multi-cb, right now they are tested as separate binaries
