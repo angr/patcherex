@@ -884,6 +884,7 @@ class SimplePointerEncryption(Technique):
                 data.section_name = ".data"
 
         # insert an encryption patch after each memory referencing instruction
+        mem_ref_patch_count = 0
 
         for ref in mem_ref_instrs:  # type: RefInstruction
 
@@ -901,12 +902,13 @@ class SimplePointerEncryption(Technique):
                 add {mem_dst}, esi
                 pop esi
                 """.format(mem_dst=mem_dst_operand)
-
             patch = InsertCodePatch(ref.ins_addr + ref.ins_size, asm_code)
-
             patches.append(patch)
+            mem_ref_patch_count += 1
 
         # insert an decryption patch *and a re-encryption patch* before each memory dereferencing instruction
+        mem_deref_decryption_patch_count = 0
+        mem_deref_encryption_patch_count = 0
 
         for deref in mem_deref_instrs:  # type: DerefInstruction
 
@@ -951,6 +953,12 @@ class SimplePointerEncryption(Technique):
                                                              argument_indices_out
                                                              )
             patches.extend(syscall_patches)
+
+        l.debug("Generated %d mem-ref patches, %d mem-deref decryption patches, and %d mem-deref encryption patches.", \
+                mem_ref_patch_count,
+                mem_deref_decryption_patch_count,
+                mem_deref_encryption_patch_count
+                )
 
         return patches
 
