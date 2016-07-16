@@ -10,6 +10,7 @@ from patcherex import utils
 from patcherex.patches import *
 
 from ..backend import Backend
+from .misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
@@ -565,7 +566,7 @@ class DetourBackend(Backend):
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
             # now compile for real
-            new_code = utils.compile_asm("pusha\n", self.get_current_code_position())
+            new_code = utils.compile_asm(ASM_ENTRY_POINT_PUSH_ENV, self.get_current_code_position())
             self.added_code += new_code
             self.ncontent = utils.str_overwrite(self.ncontent, new_code)
             for patch in between_restore_entrypoint_patches:
@@ -575,23 +576,7 @@ class DetourBackend(Backend):
                 l.info("Added patch: " + str(patch))
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code)
 
-            restore_code = '''
-            popa
-            ; clean the stack above, preserve registers accoring to the abi
-            ; we only clean the very bottom, if a patch touches more it has to clean by itself
-            ; we are after_restore: edx is 0 and we need to restore eax, I don't care about eflags
-            mov eax,  0xbaaaafa0
-            _clean_stack_loop:
-                mov [eax], edx
-                add eax, 4
-                cmp eax, 0xbaaab000
-            jne _clean_stack_loop
-            xor eax, eax
-            ; restore flags
-            push 0x202
-            popf
-            mov DWORD [esp-4], eax
-            '''
+            restore_code = ASM_ENTRY_POINT_RESTORE_ENV
             current_symbol_pos += len(utils.compile_asm_fake_symbol(restore_code, current_symbol_pos))
             for patch in after_restore_entrypoint_patches:
                 code_len = len(utils.compile_asm_fake_symbol(patch.asm_code, current_symbol_pos))

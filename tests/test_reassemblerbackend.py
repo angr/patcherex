@@ -7,7 +7,7 @@ import nose.tools
 
 from patcherex.backends import ReassemblerBackend
 from patcherex.patches import *
-from patcherex.techniques import ShadowStack, SimplePointerEncryption
+from patcherex.techniques import ShadowStack, SimplePointerEncryption, ShiftStack
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
 
@@ -165,6 +165,33 @@ def test_simple_pointer_encryption():
     for b in binaries:
         run_simple_pointer_encryption(b)
 
+def run_shiftstack(filename):
+    filepath = os.path.join(bin_location, filename)
+
+    p = ReassemblerBackend(filepath, debugging=True)
+
+    patch = ShiftStack(filepath, p)
+    patches = patch.get_patches()
+
+    p.apply_patches(patches)
+
+    r = p.save(os.path.join('/', 'tmp', os.path.basename(filename)))
+
+    if not r:
+        print "Compiler says:"
+        print p._compiler_stdout
+        print p._compiler_stderr
+
+    nose.tools.assert_true(r, 'CPUID patching with reassembler fails on binary %s' % filename)
+
+def test_shiftstack():
+    binaries = [
+        os.path.join('cgc_trials', 'CADET_00003'),
+    ]
+
+    for b in binaries:
+        run_shiftstack(b)
+
 #
 # Tracing
 #
@@ -183,6 +210,7 @@ if __name__ == "__main__":
 
     # trace()
     # manual_run_functionality_all(threads=8)
-    test_simple_pointer_encryption()
-    test_functionality()
-    test_shadowstack()
+    #test_simple_pointer_encryption()
+    #test_functionality()
+    #test_shadowstack()
+    test_shiftstack()

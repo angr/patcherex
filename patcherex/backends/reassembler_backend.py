@@ -9,6 +9,7 @@ from topsecret import Binary
 
 from ..patches import *
 from ..backend import Backend
+from .misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
 
 l = logging.getLogger('reassembler')
 
@@ -42,6 +43,10 @@ class ReassemblerBackend(Backend):
     #
 
     def apply_patches(self, patches):
+
+        entry_point_asm_before_restore = [ ]
+        entry_point_asm_after_restore = [ ]
+
         for p in patches:
             if isinstance(p, InsertCodePatch):
                 self._binary.insert_asm(p.addr, p.att_asm())
@@ -56,13 +61,26 @@ class ReassemblerBackend(Backend):
                 self._binary.append_data(p.name, None, p.len, readonly=False)
 
             elif isinstance(p, AddEntryPointPatch):
-                self._binary.insert_asm(self.project.entry, p.att_asm())
+                if p.after_restore:
+                    entry_point_asm_after_restore.append(p.att_asm())
+                else:
+                    entry_point_asm_before_restore.append(p.att_asm())
 
             elif isinstance(p, PointerArrayPatch):
                 self._binary.append_data(p.name, p.data, len(p.data), readonly=False, sort='pointer-array')
 
             else:
-                raise NotImplementedError()
+                raise NotImplementedError('ReassemblerBackend does not support patch %s. '
+                                          'Please bug Fish to implement it' % type(p)
+                                          )
+
+        if entry_point_asm_before_restore:
+            entry_point_asm_before_restore = [ ASMConverter.intel_to_att(ASM_ENTRY_POINT_PUSH_ENV) ] + \
+                                             entry_point_asm_before_restore + \
+                                             [ ASMConverter.intel_to_att(ASM_ENTRY_POINT_RESTORE_ENV) ]
+        entry_point_asm = entry_point_asm_before_restore + entry_point_asm_after_restore
+        if entry_point_asm:
+            self._binary.insert_asm(self.project.entry, "\n".join(entry_point_asm))
 
     def save(self, filename=None):
 
