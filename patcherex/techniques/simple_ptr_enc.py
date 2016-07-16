@@ -175,7 +175,21 @@ class BlockTraverser(object):
         """
 
         if len(ast.args) == 2:
-            import ipdb; ipdb.set_trace()
+            if ast.args[0].op == 'reg' and ast.args[1].op == 'const':
+                # reg +/- const
+                # the original instruction might be 'push <addr>' when the const is 4
+                reg_offset = ast.args[0].args[0]
+                reg_name = self.cfg.project.arch.register_names[reg_offset]
+                const = ast.args[1].args[0]
+                op = ast.op
+                return "dword ptr [{reg_name} {op} {delta}]".format(
+                    reg_name=reg_name,
+                    op=op,
+                    delta=const,
+                )
+
+            else:
+                import ipdb; ipdb.set_trace()
 
         elif len(ast.args) == 1:
             if ast.op == 'const':
