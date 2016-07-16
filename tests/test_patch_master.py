@@ -78,14 +78,13 @@ def test_cfe_trials():
                     # save_patch("/tmp/aaa",patch)
                     nose.tools.assert_true(os.path.getsize(tmp_fname) > 1000)
 
-                    p = subprocess.Popen([qemu_location, tmp_fname], stdin=pipe, stdout=pipe, stderr=pipe)
+                    argv = [qemu_location, tmp_fname]
+                    if "bitflip" in nrule:
+                        argv = [argv[0]]+["-bitflip"]+argv[1:]
+                    p = subprocess.Popen(argv, stdin=pipe, stdout=pipe, stderr=pipe)
                     # very very partial support to network rules
                     # TODO if we add other "interesting rules", handle them here
-                    if "bitflip" in nrule:
-                        final_stdin = ''.join([chr((ord(c)^0xff) & 0xff) for c in stdin])
-                    else:
-                        final_stdin = stdin
-                    res = p.communicate(final_stdin)
+                    res = p.communicate(stdin)
                     real = (res[0],p.returncode)
                     # there may be special cases in which the behavior changes
                     # because the patch prevent exploitation
