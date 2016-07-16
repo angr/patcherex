@@ -200,7 +200,12 @@ class ReassemblerBackend(Backend):
         fd, tmp_file_path = tempfile.mkstemp(prefix='reassembler_')
         os.close(fd)
 
-        self.save(tmp_file_path)
+        r = self.save(tmp_file_path)
+
+        if not r:
+            raise Exception('Reassembler fails. '
+                            'The compiler says: %s\n%s' % (self._compiler_stdout, self._compiler_stderr)
+                            )
 
         with open(tmp_file_path, "rb") as f:
             return f.read()
