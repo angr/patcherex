@@ -32,6 +32,7 @@ from patcherex.techniques.nxstack import NxStack
 from patcherex.techniques.adversarial import Adversarial
 from patcherex.techniques.backdoor import Backdoor
 from patcherex.techniques.bitflip import Bitflip
+from patcherex.techniques.fidget import Fidget
 
 from patcherex import utils
 from patcherex.backends.detourbackend import DetourBackend
@@ -44,7 +45,7 @@ l = logging.getLogger("patcherex.PatchMaster")
 class PatchMaster():
     # TODO cfg creation should be here somewhere, so that we can avoid recomputing it everytime
     # having a serious caching system would be even better
-    
+
     def __init__(self,infile):
         self.infile = infile
         # to ease autotesting:
@@ -192,6 +193,13 @@ class PatchMaster():
         backend.apply_patches(patches1+patches2+patches3+patches4+patches5+patches6+patches7)
         return (backend.get_final_content(),nr.get_bitflip_rule())
 
+    def generate_fidget_binary(self):
+        backend = DetourBackend(self.infile)
+        cp = Fidget(self.infile, backend, mode='safe')
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        return backend.get_final_content(),""
+
     def run(self,return_dict = False):
         to_be_submitted = {}
 
@@ -199,7 +207,7 @@ class PatchMaster():
         binary = None
         try:
             binary, nrule = self.generate_bitflip_binary()
-        except Exception as e:
+        except Exception:
             print "ERROR","during generation of bitflip_binary"
             traceback.print_exc()
         if binary != None:
@@ -210,7 +218,7 @@ class PatchMaster():
         binary = None
         try:
             binary, nrule = self.generate_light_binary()
-        except Exception as e:
+        except Exception:
             print "ERROR","during generation of light_binary"
             traceback.print_exc()
         if binary != None:
@@ -221,7 +229,7 @@ class PatchMaster():
         binary = None
         try:
             binary, nrule = self.generate_medium_binary()
-        except Exception as e:
+        except Exception:
             print "ERROR","during generation of medium_binary"
             traceback.print_exc()
         if binary != None:
@@ -232,12 +240,23 @@ class PatchMaster():
         binary = None
         try:
             binary, nrule = self.generate_heavy_binary()
-        except Exception as e:
+        except Exception:
             print "ERROR","during generation of heavy_binary"
             traceback.print_exc()
         if binary != None:
             to_be_submitted["heavy"] = (binary, nrule)
         l.info("heavy_binary created")
+
+        l.info("creating fidget_binary...")
+        binary = None
+        try:
+            binary, nrule = self.generate_fidget_binary()
+        except Exception:
+            print "ERROR","during generation of fidget_binary"
+            traceback.print_exc()
+        if binary != None:
+            to_be_submitted["fidget"] = (binary, nrule)
+        l.info("fidget_binary created")
 
         if return_dict:
             return to_be_submitted
