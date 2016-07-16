@@ -331,46 +331,8 @@ def test_is_floatingpoint_function():
     nose.tools.assert_true(last > real_end-0x20) #I allow some imprecision
 
 
-def make_initial_state(project, stack_length):
-    """
-    :return: an initial state with a symbolic stack and good options for rop
-    """
-    initial_state = project.factory.blank_state(
-        add_options={simuvex.o.AVOID_MULTIVALUED_READS, simuvex.o.AVOID_MULTIVALUED_WRITES,
-                     simuvex.o.NO_SYMBOLIC_JUMP_RESOLUTION, simuvex.o.CGC_NO_SYMBOLIC_RECEIVE_LENGTH,
-                     simuvex.o.NO_SYMBOLIC_SYSCALL_RESOLUTION, simuvex.o.TRACK_ACTION_HISTORY},
-        remove_options=simuvex.o.resilience_options | simuvex.o.simplification)
-    initial_state.options.discard(simuvex.o.CGC_ZERO_FILL_UNCONSTRAINED_MEMORY)
-    initial_state.options.update({simuvex.o.TRACK_REGISTER_ACTIONS, simuvex.o.TRACK_MEMORY_ACTIONS,
-                                  simuvex.o.TRACK_JMP_ACTIONS, simuvex.o.TRACK_CONSTRAINT_ACTIONS})
-    symbolic_stack = initial_state.se.BVS("symbolic_stack", project.arch.bits*stack_length)
-    initial_state.mem[initial_state.regs.sp:] = symbolic_stack
-    if initial_state.arch.bp_offset != initial_state.arch.sp_offset:
-        initial_state.regs.bp = initial_state.regs.sp + 20*initial_state.arch.bytes
-    initial_state.se._solver.timeout = 500  # only solve for half a second at most
-    return initial_state
-
-
-def make_symbolic_state(project, reg_list, stack_length=80):
-    """
-    converts an input state into a state with symbolic registers
-    :return: the symbolic state
-    """
-    input_state = make_initial_state(project, stack_length)
-    symbolic_state = input_state.copy()
-    # overwrite all registers
-    for reg in reg_list:
-        symbolic_state.registers.store(reg, symbolic_state.se.BVS("sreg_" + reg + "-", project.arch.bits))
-    # restore sp
-    symbolic_state.regs.sp = input_state.regs.sp
-    # restore bp
-    symbolic_state.regs.bp = input_state.regs.bp
-    return symbolic_state
-
-
-
 def test_fullcfg_properties():
-    binaries = ["CROMU_00012","KPRCA_00009","KPRCA_00025","NRFIN_00004","CROMU_00071",
+    binaries = ["KPRCA_00009","KPRCA_00025","NRFIN_00004","CROMU_00071",
             "CADET_00003","CROMU_00070","EAGLE_00005","KPRCA_00019"]
 
     # these are either "slides" into a call or jump to the beginning of a call
@@ -385,11 +347,6 @@ def test_fullcfg_properties():
         filepath = os.path.join(bin_location, "cgc_samples_multiflags/%s/original/%s" % (binary,binary))
         backend = DetourBackend(filepath)
         cfg = backend.cfg
-
-        import angr
-        project = cfg.project
-
-        import IPython; IPython.embed()
 
         nodes_dict = defaultdict(set)
         for k,ff in cfg.functions.iteritems():
