@@ -307,62 +307,12 @@ class StackRetEncryption(object):
                 return [], True
         return all_succ, False
 
-    def check_saved_esp_read(self,block):
-        state = 'find_ebp'
-        vex = block.vex
-        state = 'find_ebp'
-        for s in vex.statements:
-            if state == 'find_ebp':
-                if len(s.expressions)==1 and (s.tag=='Ist_Put' or s.tag=='IstStore') and\
-                        s.offset==vex.arch.registers['ebp'][0]:
-                    if hasattr(s.expressions[0],"tmp"):
-                        ebp_tmp = s.expressions[0].tmp
-                        state = 'deref_ebp'
-            elif state == 'deref_ebp':
-                if len(s.expressions)==2 and s.tag=='Ist_WrTmp':
-                    if hasattr(s.expressions[1],"tmp"):
-                        if s.expressions[1].tmp == ebp_tmp:
-                            deref_tmp = s.tmp
-                            state = 'deref_ebp2'
-            elif state == 'deref_ebp2':
-                if len(s.expressions)==3 and s.tag=='Ist_WrTmp' and 4 in [v.value for v in s.constants]:
-                    plus4_tmp = s.tmp
-                    state = 'deref_plus4'
-            elif state == 'deref_plus4':
-                if len(s.expressions)==2 and s.tag=='Ist_WrTmp':
-                    if hasattr(s.expressions[1],"tmp"):
-                        if s.expressions[1].tmp == plus4_tmp:
-                            deref_tmp2 = s.tmp
-                            state = 'found_access'
-            elif state == 'found_access':
-                print s, len(s.expressions), s.tag
-                if len(s.expressions)==2 and s.tag=='Ist_Store':
-                    # print s
-                    if hasattr(s.expressions[1],"tmp"):
-                        if s.expressions[1].tmp == deref_tmp2:
-                            state = "found"
-                            print s
-                            break
-                elif len(s.expressions)==1 and s.tag=='Ist_Put':
-                    #print s
-                    if hasattr(s.expressions[0],"tmp"):
-                        print s
-                        if s.expressions[0].tmp == deref_tmp2:
-                            state = 'found'
-                            print s
-                            break
-        if state == 'found':
-            l.warning("found saved reg access at %#x",block.addr)
-            l.warning("vex code: %s" % "\n".join(map(str,vex.statements)))
-
     def get_patches(self):
         common_patches = self.get_common_patches()
 
         cfg = self.patcher.cfg
         patches = []
         for k,ff in cfg.functions.iteritems():
-            for bb in ff.blocks:
-                self.check_saved_esp_read(bb)
             start,ends = self.function_to_patch_locations(ff)
             if start!=None and ends !=None:
                 new_patches = self.add_stackretencryption_to_function(start,ends)
