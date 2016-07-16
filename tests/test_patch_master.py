@@ -77,8 +77,10 @@ def test_cfe_trials():
                     # because the patch prevent exploitation
                     # this is unlikely, given the naive inputs
                     nose.tools.assert_equal(real,expected)
+
     # it is not impossible that two patches are exactly the same, but it is worth investigation
     nose.tools.assert_equal(len(generated_patches),len(bins)*len(PATCH_TYPES))
+    print "GENERATED:",len(generated_patches),"patches"
 
 
 def run_all():

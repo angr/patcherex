@@ -13,6 +13,7 @@ setup(
         'tracer',
         'povsim',
         'shellphish-qemu',
-        'fidget'
+        'fidget',
+        'farnsworth',
    ],
 )
