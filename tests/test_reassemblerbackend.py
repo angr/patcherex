@@ -239,7 +239,7 @@ if __name__ == "__main__":
     # manual_run_functionality_all(threads=8)
     #test_simple_pointer_encryption()
     #test_functionality()
-    #test_shadowstack()
+    test_shadowstack()
     #test_shiftstack()
     # test_adversarial()
     pass

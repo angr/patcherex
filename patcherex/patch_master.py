@@ -173,23 +173,11 @@ class PatchMaster():
         backend.apply_patches(patches1+patches2+patches3+patches4+patches5+patches6)
         return (backend.get_final_content(),"")
 
-    def generate_mediumfish_binary(self):
-        nr = NetworkRules()
+    def generate_stackshiftreassembler_binary(self):
         backend = ReassemblerBackend(self.infile)
-        cp = IndirectCFI(self.infile,backend)
-        patches1 = cp.get_patches()
-        cp = TransmitProtection(self.infile,backend)
-        patches2 = cp.get_patches()
         cp = ShiftStack(self.infile,backend)
-        patches3 = cp.get_patches()
-        cp = Adversarial(self.infile,backend)
-        patches4 = cp.get_patches()
-        cp = Backdoor(self.infile,backend)
-        patches5 = cp.get_patches()
-        cp = NxStack(self.infile,backend)
-        patches6 = cp.get_patches()
-
-        backend.apply_patches(patches1+patches2+patches3+patches4+patches5+patches6)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
         return (backend.get_final_content(),"")
 
     def generate_heavy_binary(self):
@@ -220,73 +208,11 @@ class PatchMaster():
         backend.apply_patches(patches)
         return backend.get_final_content(),""
 
-    def run(self,return_dict = False):
-        to_be_submitted = {}
-
-        l.info("creating bitflip_binary...")
-        binary = None
-        try:
-            binary, nrule = self.generate_bitflip_binary()
-        except Exception:
-            print "ERROR","during generation of bitflip_binary"
-            traceback.print_exc()
-        if binary != None:
-            to_be_submitted["bitflip"] = (binary, nrule)
-        l.info("bitflip_binary created")
-
-        l.info("creating light_binary...")
-        binary = None
-        try:
-            binary, nrule = self.generate_light_binary()
-        except Exception:
-            print "ERROR","during generation of light_binary"
-            traceback.print_exc()
-        if binary != None:
-            to_be_submitted["light"] = (binary, nrule)
-        l.info("light_binary created")
-
-        l.info("creating medium_binary...")
-        binary = None
-        try:
-            binary, nrule = self.generate_medium_binary()
-        except Exception:
-            print "ERROR","during generation of medium_binary"
-            traceback.print_exc()
-        if binary != None:
-            to_be_submitted["medium"] = (binary, nrule)
-        l.info("medium_binary created")
-
-        l.info("creating heavy_binary...")
-        binary = None
-        try:
-            binary, nrule = self.generate_heavy_binary()
-        except Exception:
-            print "ERROR","during generation of heavy_binary"
-            traceback.print_exc()
-        if binary != None:
-            to_be_submitted["heavy"] = (binary, nrule)
-        l.info("heavy_binary created")
-
-        l.info("creating fidget_binary...")
-        binary = None
-        try:
-            binary, nrule = self.generate_fidget_binary()
-        except Exception:
-            print "ERROR","during generation of fidget_binary"
-            traceback.print_exc()
-        if binary != None:
-            to_be_submitted["fidget"] = (binary, nrule)
-        l.info("fidget_binary created")
-
-        if return_dict:
-            return to_be_submitted
-        else:
-            return to_be_submitted.values()
-
     def create_one_patch(self,patch_type):
         m = getattr(self,"generate_"+patch_type+"_binary")
         patch, network_rule = m()
         return patch, network_rule
+
 
 def process_killer():
     cdll['libc.so.6'].prctl(1,9)
