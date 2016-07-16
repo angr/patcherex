@@ -244,6 +244,11 @@ class PatchMaster():
         else:
             return to_be_submitted.values()
 
+    def create_one_patch(self,patch_type):
+        m = getattr(self,"generate_"+patch_type+"_binary")
+        patch, network_rule = m()
+        return patch, network_rule
+
 def process_killer():
     cdll['libc.so.6'].prctl(1,9)
 
