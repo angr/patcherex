@@ -23,15 +23,18 @@ class Bitflip(object):
         code = '''
             ; given the prereceive patch esi points to the num of received bytes
             ; int 3
+            xor ebx, ebx
             mov  edx, DWORD [esi]
             test edx, edx
             je _bitflip_end
             ; ecx = buf, edx = len
-            _bitflip_not_loop:
-                not BYTE [ecx]
+            _bitflip_loop:
+                mov bl, BYTE [ecx]
+                mov bl, BYTE [{bitflip_translation_table}+ebx]
+                mov BYTE [ecx], bl
                 inc ecx
                 dec edx
-                jne _bitflip_not_loop
+                jne _bitflip_loop
             _bitflip_end:
         '''
         # TODO this is not optimized code, the sse code seems to fail in some cases
@@ -76,6 +79,19 @@ class Bitflip(object):
         return code
 
     @staticmethod
+    def get_translation_table_patch():
+        translations = {'\x00':'\x31','\x43':'\x00','\n':'\x43','\x31':'\n'}
+        full_translation_table = {}
+        tstr = ""
+        for i in xrange(256):
+            c = chr(i)
+            if c in translations:
+                tstr += translations[c]
+            else:
+                tstr += c
+        return AddRODataPatch(tstr,name="bitflip_translation_table")
+
+    @staticmethod
     def get_presyscall_patch(syscall_addr):
         code = '''
             ; if esi was NULL it will be restored to NULL by the syscall wrapper
@@ -106,6 +122,7 @@ class Bitflip(object):
         syscall_addr = victim_addr - 2
 
         patches.extend(Bitflip.get_presyscall_patch(syscall_addr))
+        patches.append(Bitflip.get_translation_table_patch())
         # free registers esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
         # ebx: fd, ecx: buf, edx: count, esi: rx_byte
         code = '''
@@ -124,5 +141,4 @@ class Bitflip(object):
         ''' % (Bitflip.get_bitflip_code())
 
         patches.append(InsertCodePatch(victim_addr,code,"postreceive_bitflip_patch",priority=300))
-
         return patches
