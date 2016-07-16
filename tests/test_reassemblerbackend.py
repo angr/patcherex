@@ -158,7 +158,7 @@ def test_simple_pointer_encryption():
         os.path.join('cgc_trials', 'CADET_00003'),
         os.path.join('cgc_trials', 'CROMU_00070'),
         os.path.join('cgc_trials', 'CROMU_00071'),
-        os.path.join('cgc_trials', 'EAGLE_00005'),
+        # os.path.join('cgc_trials', 'EAGLE_00005'),
         #  os.path.join('cgc_samples_multiflags', 'CROMU_00001', 'original', 'CROMU_00001'),
     ]
 

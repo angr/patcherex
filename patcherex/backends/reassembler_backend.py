@@ -197,7 +197,7 @@ class ReassemblerBackend(Backend):
         """
 
         # Save the binary at a temporary path
-        fd, tmp_file_path = tempfile.mkstemp(suffix="")
+        fd, tmp_file_path = tempfile.mkstemp(prefix='reassembler_')
         os.close(fd)
 
         self.save(tmp_file_path)
