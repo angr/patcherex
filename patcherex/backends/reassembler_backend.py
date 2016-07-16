@@ -189,7 +189,21 @@ class ReassemblerBackend(Backend):
             f.write(data)
 
     def get_final_content(self):
-        raise NotImplementedError('get_final_content() is not implemented. Please bug Fish really hard to get it done.')
+        """
+        Get the content of the patched binary.
+
+        :return: Content of the patched binary.
+        :rtype: str
+        """
+
+        # Save the binary at a temporary path
+        fd, tmp_file_path = tempfile.mkstemp(suffix="")
+        os.close(fd)
+
+        self.save(tmp_file_path)
+
+        with open(tmp_file_path, "rb") as f:
+            return f.read()
 
     #
     # Private methods
