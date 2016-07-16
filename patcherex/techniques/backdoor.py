@@ -120,7 +120,11 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
         patches.append(AddCodePatch(code,name="get_4_rnd"))
 
         if self.enable_bitflip:
-            bitflip_in_backdoor_code = "not BYTE[ecx]"
+            bitflip_in_backdoor_code = '''
+                mov bl, BYTE [ecx]
+                mov bl, BYTE [{bitflip_translation_table}+ebx]
+                mov BYTE [ecx], bl
+            '''
         else:
             bitflip_in_backdoor_code = ""
         code = '''
@@ -367,5 +371,6 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
         patches.extend(self.compute_patches(victim_addr))
         if self.enable_bitflip:
             patches.extend(Bitflip.get_presyscall_patch(victim_addr-2))
+            patches.append(Bitflip.get_translation_table_patch())
 
         return patches
