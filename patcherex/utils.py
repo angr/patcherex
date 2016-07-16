@@ -190,11 +190,14 @@ class ASMConverter(object):
         return 'label', op
 
     @staticmethod
-    def mnemonic_to_att(m, size):
+    def mnemonic_to_att(m, size, op_sort=None):
 
-        if m in ('int', 'pushfd', 'popfd', ):
+        if m in ('int', 'pushfd', 'popfd', 'nop', ):
             return m
-        if m.startswith('j'):
+        if m.startswith('f'):
+            # floating point instructions
+            return m
+        if op_sort not in ('reg', 'mem') and m.startswith('j'):
             return m
 
         m += ASMConverter.size_suffix[size]
@@ -264,7 +267,7 @@ class ASMConverter(object):
                 op_sort, op = ASMConverter.to_att(op, mnemonic=mnemonic)
 
                 # suffix the mnemonic
-                mnemonic = ASMConverter.mnemonic_to_att(mnemonic, size)
+                mnemonic = ASMConverter.mnemonic_to_att(mnemonic, size, op_sort=op_sort)
 
                 #if mnemonic[0] == 'j' and op_sort == 'label':
                 #    op = "." + op

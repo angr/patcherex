@@ -7,7 +7,7 @@ import nose.tools
 
 from patcherex.backends import ReassemblerBackend
 from patcherex.patches import *
-from patcherex.techniques import ShadowStack, SimplePointerEncryption, ShiftStack
+from patcherex.techniques import ShadowStack, SimplePointerEncryption, ShiftStack, Adversarial
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
 
@@ -182,7 +182,7 @@ def run_shiftstack(filename):
         print p._compiler_stdout
         print p._compiler_stderr
 
-    nose.tools.assert_true(r, 'CPUID patching with reassembler fails on binary %s' % filename)
+    nose.tools.assert_true(r, 'ShiftStack patching with reassembler fails on binary %s' % filename)
 
 def test_shiftstack():
     binaries = [
@@ -191,6 +191,33 @@ def test_shiftstack():
 
     for b in binaries:
         run_shiftstack(b)
+
+def run_adversarial(filename):
+    filepath = os.path.join(bin_location, filename)
+
+    p = ReassemblerBackend(filepath, debugging=True)
+
+    patch = Adversarial(filepath, p)
+    patches = patch.get_patches()
+
+    p.apply_patches(patches)
+
+    r = p.save(os.path.join('/', 'tmp', os.path.basename(filename)))
+
+    if not r:
+        print "Compiler says:"
+        print p._compiler_stdout
+        print p._compiler_stderr
+
+    nose.tools.assert_true(r, 'Adversarial patching with reassembler fails on binary %s' % filename)
+
+def disabled_adversarial():
+    binaries = [
+        os.path.join('cgc_trials', 'CADET_00003'),
+    ]
+
+    for b in binaries:
+        run_adversarial(b)
 
 #
 # Tracing
@@ -213,4 +240,5 @@ if __name__ == "__main__":
     #test_simple_pointer_encryption()
     #test_functionality()
     #test_shadowstack()
-    test_shiftstack()
+    #test_shiftstack()
+    # test_adversarial()

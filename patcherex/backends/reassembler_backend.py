@@ -9,6 +9,7 @@ from topsecret import Binary
 
 from ..patches import *
 from ..backend import Backend
+from ..utils import str_overwrite
 from .misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
 
 l = logging.getLogger('reassembler')
@@ -27,6 +28,8 @@ class ReassemblerBackend(Backend):
 
         self._compiler_stdout = None
         self._compiler_stderr = None
+
+        self._raw_file_patches = [ ]
 
         self._load()
 
@@ -68,6 +71,9 @@ class ReassemblerBackend(Backend):
 
             elif isinstance(p, PointerArrayPatch):
                 self._binary.append_data(p.name, p.data, len(p.data), readonly=False, sort='pointer-array')
+
+            elif isinstance(p, RawFilePatch):
+                self._raw_file_patches.append(p)
 
             else:
                 raise NotImplementedError('ReassemblerBackend does not support patch %s. '
@@ -116,6 +122,9 @@ class ReassemblerBackend(Backend):
         # strip the binary
         self._strip(filename)
 
+        # apply raw file patches
+        self._apply_raw_file_patches(filename)
+
         return True
 
     def _strip(self, path):
@@ -159,8 +168,28 @@ class ReassemblerBackend(Backend):
 
         os.remove(tmp_path)
 
+    def _apply_raw_file_patches(self, filename):
+        """
+        Apply raw file patches on the patched binary.
+
+        :param str filename: File path of the patched binary.
+        :return: None
+        """
+
+        if not self._raw_file_patches:
+            return
+
+        with open(filename, "rb") as f:
+            data = f.read()
+
+        for p in self._raw_file_patches:  # type: RawFilePatch
+            data = str_overwrite(data, p.data, p.file_addr)
+
+        with open(filename, "wb") as f:
+            f.write(data)
+
     def get_final_content(self):
-        return ""
+        raise NotImplementedError('get_final_content() is not implemented. Please bug Fish really hard to get it done.')
 
     #
     # Private methods
