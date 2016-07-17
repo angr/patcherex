@@ -385,6 +385,36 @@ def test_fullcfg_properties():
                 instruction_set.add(iaddr)
 
 
+def test_jumpouts_and_indirectcalls():
+    expected_jumpouts = [("KPRCA_00034",0x08050140,[0x0805014f])]
+    exptected_unresolved_calls = [("KPRCA_00025",0x8048ECC)]
+
+    cfg_cache = {}
+    for binary, function_addr, jmps in expected_jumpouts:
+        if binary in cfg_cache:
+            cfg = cfg_cache["binary"]
+        else:
+            filepath = os.path.join(bin_location, "cgc_samples_multiflags/%s/original/%s" % (binary,binary))
+            backend = DetourBackend(filepath)
+            cfg = backend.cfg
+            cfg_cache["binary"] = cfg
+
+        ff  = cfg.functions[function_addr]
+        nose.tools.assert_equal([ a.addr for a in ff.jumpout_sites], jmps)
+
+    for binary, function_addr in exptected_unresolved_calls:
+        if binary in cfg_cache:
+            cfg = cfg_cache["binary"]
+        else:
+            filepath = os.path.join(bin_location, "cgc_samples_multiflags/%s/original/%s" % (binary,binary))
+            backend = DetourBackend(filepath)
+            cfg = backend.cfg
+            cfg_cache["binary"] = cfg
+
+        ff  = cfg.functions[function_addr]
+        nose.tools.assert_true(ff.has_unresolved_calls)
+
+
 def test_setlongjmp_detection():
     solutions = [
             ("cgc_samples_multiflags/CADET_00003/original/CADET_00003",0x80486c8,0x80486e3),
