@@ -55,6 +55,15 @@ def test_cfe_trials():
                 save_patch(tmp_fname,patched_bin)
                 # save_patch("/tmp/cfe1/"+os.path.basename(test)+"_"+patch_type,patched_bin)
 
+                fp = open(test)
+                ocontent = fp.read()
+                fp.close()
+                fp = open(tmp_fname)
+                pcontent = fp.read()
+                fp.close()
+                # it is not impossible that a patched binary is exactly as the original, but it is worth investigation
+                nose.tools.assert_true(ocontent != pcontent)
+
                 nose.tools.assert_equal(type(patched_bin),str)
                 nose.tools.assert_equal(type(nrule),str)
                 if patch_type in PATCH_TYPES_WITH_RULES:
