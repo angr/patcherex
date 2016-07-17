@@ -386,7 +386,7 @@ def test_fullcfg_properties():
 
 
 def test_jumpouts_and_indirectcalls():
-    expected_jumpouts = [("KPRCA_00034",0x08050140,[0x0805015C])]
+    expected_jumpouts = [("KPRCA_00034",0x08050140,[0x0805014f])]
     exptected_unresolved_calls = [("KPRCA_00025",0x8048ECC)]
 
     cfg_cache = {}
@@ -400,7 +400,7 @@ def test_jumpouts_and_indirectcalls():
             cfg_cache["binary"] = cfg
 
         ff  = cfg.functions[function_addr]
-        nose.tools.assert_equal(ff.jumpout_sites,jmps)
+        nose.tools.assert_equal([ a.addr for a in ff.jumpout_sites], jmps)
 
     for binary, function_addr in exptected_unresolved_calls:
         if binary in cfg_cache:
