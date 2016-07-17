@@ -1027,7 +1027,7 @@ def test_backdoor():
                     nose.tools.assert_equal(res,False)
 
 
-@add_fallback_strategy
+@test_reassembler_and_detour
 def test_bitflip():
     all_chars = [chr(c) for c in xrange(256)]
     pipe = subprocess.PIPE
