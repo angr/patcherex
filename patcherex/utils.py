@@ -183,8 +183,10 @@ class ASMConverter(object):
             return 'mem', new_op
         new_op = ASMConverter.imm_to_att(op)
         if new_op is not None:
-            return 'imm', new_op
-
+            if mnemonic[0] != 'j':
+                return 'imm', new_op
+            else:
+                return 'imm', op
         if op[0] == '{' and op[-1] == '}':
             # it's a label
             return 'label', op[1:-1]

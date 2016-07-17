@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 
 import os.path
 import random
@@ -232,14 +233,14 @@ def trace():
     tracer = tracer.Tracer(b, pov_file=pov)
 
 if __name__ == "__main__":
-    # import logging
-    # logging.getLogger('reassembler').setLevel(logging.DEBUG)
+    import logging
+    logging.getLogger('reassembler').setLevel(logging.DEBUG)
 
     # trace()
     # manual_run_functionality_all(threads=8)
-    #test_simple_pointer_encryption()
-    #test_functionality()
+    test_simple_pointer_encryption()
+    test_functionality()
     test_shadowstack()
-    #test_shiftstack()
+    test_shiftstack()
     # test_adversarial()
     pass

@@ -13,11 +13,13 @@ import random
 import patcherex
 import shellphish_qemu
 from patcherex.backends.detourbackend import DetourBackend
+from patcherex.backends.reassembler_backend import ReassemblerBackend
 from patcherex.patches import *
 from tracer import Runner
 from povsim import CGCPovSimulator
 
 l = logging.getLogger("patcherex.test.test_techniques_detourbackend")
+logging.getLogger("reassembler").setLevel("DEBUG")
 
 # TODO ideally these tests should be run in the vm
 
@@ -40,6 +42,35 @@ old_qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__))
 
 global_data_fallback = None
 global_try_pdf_removal = True
+global_BackendClass = None
+
+
+def test_reassembler_and_detour(f):
+    @wraps(f)
+    def wrapper():
+        def args_eat(*args,**kwargs):
+            global_BackendClass.__oldinit__(args[0],args[1])
+
+        global global_data_fallback
+        global global_try_pdf_removal
+        global global_BackendClass
+
+        global_BackendClass = ReassemblerBackend
+        global_BackendClass.__oldinit__ = global_BackendClass.__init__
+        global_BackendClass.__init__ = args_eat
+        f()
+
+        global_BackendClass = DetourBackend
+        global_data_fallback = None
+        global_try_pdf_removal = True
+        f()
+        global_data_fallback = None
+        global_try_pdf_removal = False
+        f()
+        global_data_fallback = True
+        global_try_pdf_removal = False
+        f()
+    return wrapper
 
 
 def add_fallback_strategy(f):
@@ -47,6 +78,9 @@ def add_fallback_strategy(f):
     def wrapper():
         global global_data_fallback
         global global_try_pdf_removal
+        global global_BackendClass
+
+        global_BackendClass = DetourBackend
         global_data_fallback = None
         global_try_pdf_removal = True
         f()
@@ -64,6 +98,9 @@ def add_full_fallback_strategy(f):
     def wrapper():
         global global_data_fallback
         global global_try_pdf_removal
+        global global_BackendClass
+
+        global_BackendClass = DetourBackend
         global_data_fallback = None
         global_try_pdf_removal = True
         f()
@@ -714,7 +751,7 @@ def test_transmitprotection():
                 check_test(test)
 
 
-@add_fallback_strategy
+@test_reassembler_and_detour
 def test_shiftstack():
     logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
     from patcherex.techniques.shiftstack import ShiftStack
@@ -727,25 +764,26 @@ def test_shiftstack():
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
 
-        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = ShiftStack(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        # backend.save("../../vm/shared/patched")
         res = Runner(tmp_file,tinput,record_stdout=True)
         nose.tools.assert_equal(original_output, res.stdout)
 
-        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend._debugging = True
         backend.apply_patches([InsertCodePatch(0x804db6b,"jmp 0x11223344")])
         backend.save(tmp_file)
+        #backend.save("/tmp/aaa")
         res = Runner(tmp_file,tinput,record_stdout=True)
         original_reg_value = res.reg_vals
         nose.tools.assert_equal(original_reg_value['eip'], 0x11223344)
 
         random_stack_pos = set()
         for _ in xrange(6):
-            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = ShiftStack(filepath, backend)
             patches = cp.get_patches()
             backend.apply_patches(patches+[InsertCodePatch(0x804db6b,"jmp 0x11223344")])
@@ -1011,7 +1049,7 @@ def test_bitflip():
     with patcherex.utils.tempdir() as td:
         for test in tests:
             tmp_file = os.path.join(td, "patched")
-            backend = DetourBackend(test,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(test,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = Bitflip(test, backend)
             patches = cp.get_patches()
             backend.apply_patches(patches)
@@ -1031,7 +1069,7 @@ def test_bitflip():
 
         for test in tests:
             tmp_file = os.path.join(td, "patched")
-            backend = DetourBackend(test,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(test,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = Backdoor(test, backend, enable_bitflip=True)
             patches = cp.get_patches()
             backend.apply_patches(patches)
