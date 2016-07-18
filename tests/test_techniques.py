@@ -45,7 +45,7 @@ global_try_pdf_removal = True
 global_BackendClass = None
 
 
-def test_reassembler_and_detour(f):
+def try_reassembler_and_detour(f):
     @wraps(f)
     def wrapper():
         def args_eat(*args,**kwargs):
@@ -751,7 +751,7 @@ def test_transmitprotection():
                 check_test(test)
 
 
-@test_reassembler_and_detour
+@try_reassembler_and_detour
 def test_shiftstack():
     logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
     from patcherex.techniques.shiftstack import ShiftStack
@@ -929,7 +929,7 @@ def test_adversarial():
         nose.tools.assert_true(original_res[1] != patched_res[1])
 
 
-@test_reassembler_and_detour
+@try_reassembler_and_detour
 def test_backdoor():
     def solution_to_str(l):
         # deal with endianness craziness
@@ -1028,7 +1028,7 @@ def test_backdoor():
                     nose.tools.assert_equal(res,False)
 
 
-@test_reassembler_and_detour
+@try_reassembler_and_detour
 def test_bitflip():
     all_chars = [chr(c) for c in xrange(256)]
     pipe = subprocess.PIPE
