@@ -18,12 +18,12 @@ l = logging.getLogger('techniques.simple_ptr_enc')
 
 # TODO: - detect if ebp is used as base pointer in a function or not
 # TODO: - support more types of VEX statements and expressions
-# TODO: - use a dynamic key
 # TODO: - compress the pointer storage array
 # TODO: - use random strings for label names ('begin', 'end', etc.)
 # TODO: - raise proper exceptions
 # TODO: - more testing
 # TODO: - bug fixes
+# TODO: - do not re-encrypt for control-flow changing code, like jmps and calls
 
 
 class MiniAST(object):
