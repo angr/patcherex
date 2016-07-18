@@ -1051,10 +1051,10 @@ def test_bitflip():
             tmp_file = os.path.join(td, "patched")
             backend = global_BackendClass(test,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = Bitflip(test, backend)
+            # backend._debugging = True
             patches = cp.get_patches()
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            # backend.save("/tmp/aaa")
 
             for tlen in slens:
                 ostr = ''.join(random.choice(all_chars) for _ in range(tlen))

@@ -263,7 +263,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 ; random_value is now the challenge
 
                 ;add delimiter to random_value
-                mov eax, DWORD {random_value}
+                mov eax, {random_value}
                 add eax, 4
                 mov DWORD [eax], 0xbaccd004
 

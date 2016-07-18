@@ -52,7 +52,6 @@ def is_floatingpoint_function(backend,ff):
 def detect_syscall_wrapper(backend,ff):
     # see: https://github.com/CyberGrandChallenge/libcgc/blob/master/libcgc.s
     def check_first_instruction(instr):
-        print instr.mnemonic+" "+instr.op_str
         if instr.mnemonic == u'mov':
             if len(instr.operands) == 2:
                 if instr.operands[0].reg == capstone.x86_const.X86_REG_EAX:

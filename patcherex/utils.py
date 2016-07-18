@@ -50,6 +50,8 @@ class ASMConverter(object):
 
         # memory operand
         op = op.lower()
+        if op.strip().startswith("{"):
+            return 4
         if "dword" in op:
             return 4
         elif "word" in op:
@@ -65,6 +67,7 @@ class ASMConverter(object):
                 return 2
             else:
                 return 1
+
         return None
 
     @staticmethod
@@ -216,6 +219,9 @@ class ASMConverter(object):
         converted = []
 
         for l in asm.split('\n'):
+            comment_index = l.find(";")
+            if comment_index != -1:
+                l = l[:comment_index]
 
             # comments
             m = re.match(r"(\s*);([\s\S]*)", l)
@@ -242,10 +248,10 @@ class ASMConverter(object):
                 # switch the op
                 op1, op2 = op2, op1
                 size = ASMConverter.get_size(op1)
-                if size is None: size = ASMConverter.get_size(op2)
-
                 if size is None:
-                    raise NotImplementedError('Not supported')
+                    size = ASMConverter.get_size(op2)
+                if size is None:
+                    raise NotImplementedError('Not supported: ' + l)
 
                 op1 = ASMConverter.to_att(op1, mnemonic=mnemonic)[1]
                 op2 = ASMConverter.to_att(op2, mnemonic=mnemonic)[1]

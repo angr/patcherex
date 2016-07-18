@@ -14,6 +14,9 @@ from .misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
 
 l = logging.getLogger('reassembler')
 
+class CompilationError(Exception):
+    pass
+
 class ReassemblerBackend(Backend):
     def __init__(self, filename, debugging=False):
 
@@ -112,12 +115,13 @@ class ReassemblerBackend(Backend):
 
         self._compiler_stdout, self._compiler_stderr = res
 
+        if retcode != 0:
+            raise CompilationError("File: %s Error: %s" % (tmp_file_path,res))
+            return False
+
         # Remove the temporary file
         if not self._debugging:
             os.remove(tmp_file_path)
-
-        if retcode != 0:
-            return False
 
         # strip the binary
         self._strip(filename)
