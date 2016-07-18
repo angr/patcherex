@@ -263,7 +263,7 @@ class ASMConverter(object):
 
     @staticmethod
     def intel_to_att(asm):
-
+        
         # convert each line from intel syntax to AT&T syntax
 
         converted = []
@@ -289,6 +289,11 @@ class ASMConverter(object):
                 inline_comments = ""
 
             l = l.strip()
+
+            if l.startswith("db"):
+                s = ".byte\t" + l.split("db")[1].strip()
+                converted.append(s)
+                continue
 
             # two operands
             m = re.match(r"(\s*)([\S]+)\s+([^,]+),\s*([^,]+)\s*$", l)

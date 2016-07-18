@@ -418,7 +418,7 @@ def test_stackretencryption():
         '''
 
 
-@add_fallback_strategy
+@try_reassembler_and_detour
 def test_indirectcfi():
     logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
     from patcherex.techniques.indirectcfi import IndirectCFI
@@ -491,7 +491,7 @@ def test_indirectcfi():
         with patcherex.utils.tempdir() as td:
             patched_fname1 = os.path.join(td, "patched")
             #import IPython; IPython.embed()
-            backend = DetourBackend(vulnerable_fname1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(vulnerable_fname1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = IndirectCFI(vulnerable_fname1, backend)
             patches = cp.get_patches()
             backend.apply_patches(patches)
@@ -633,7 +633,7 @@ def test_freeregs():
     #import IPython; IPython.embed()
 
 
-@add_fallback_strategy
+@try_reassembler_and_detour
 def test_transmitprotection():
     def check_test(test):
         values,expected_crash = test
@@ -655,8 +655,6 @@ def test_transmitprotection():
             #print repr(res.stdout)
             nose.tools.assert_equal(len(res.stdout),6+5+5+tsize)
 
-
-
     logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
     from patcherex.techniques.transmitprotection import TransmitProtection
     vulnerable_fname1 = os.path.join(bin_location, "tests/i386/patchrex/arbitrary_transmit_O0")
@@ -672,7 +670,7 @@ def test_transmitprotection():
         print "nlslot:",nslot
         with patcherex.utils.tempdir() as td:
             patched_fname1 = os.path.join(td, "patched1")
-            backend = DetourBackend(vulnerable_fname1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(vulnerable_fname1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = TransmitProtection(vulnerable_fname1, backend)
             cp.nslot=nslot
             patches = cp.get_patches()
@@ -680,7 +678,7 @@ def test_transmitprotection():
             backend.save(patched_fname1)
 
             patched_fname2 = os.path.join(td, "patched2")
-            backend = DetourBackend(vulnerable_fname2,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(vulnerable_fname2,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = TransmitProtection(vulnerable_fname2, backend)
             cp.nslot=nslot
             patches = cp.get_patches()
