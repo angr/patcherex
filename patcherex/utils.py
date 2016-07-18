@@ -123,8 +123,34 @@ class ASMConverter(object):
 
             # TODO: base + index * scale + displacement
 
+            # base + index + displacement
+            m = re.match(r"\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)\s*$", mem_ptr)
+            if m:
+                part_0, sign_1, part_1, sign_2, part_2 = m.groups()
+
+                if all(c in string.digits for c in part_1):
+                    # part_1 is displacement
+                    part_2, part_1 = part_1, part_2
+
+                if not all(c in string.digits for c in part_2):
+                    raise ValueError('Unsupported displacement string "%s"' % part_2)
+
+                base_reg = ASMConverter.reg_to_att(part_0)
+                if base_reg is None: raise ValueError('Unsupported base register "%s"' % part_0)
+                index_reg = ASMConverter.reg_to_att(part_1)
+                if index_reg is None: raise ValueError('Unsupported index register "%s"' % part_1)
+                disp = part_2
+
+                if sign_2 == '-':
+                    disp = '-' + disp
+
+                if sign_1 == '-':
+                    return "%s(%s, %s, -1)" % (disp, base_reg, index_reg)
+                else:
+                    return "%s(%s, %s)" % (disp, base_reg, index_reg)
+
             # base + displacement, or base + index
-            m = re.match(r"\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)", mem_ptr)
+            m = re.match(r"\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)\s*$", mem_ptr)
             if m:
                 base, sign, part = m.group(1), m.group(2), m.group(3)
 
@@ -158,7 +184,7 @@ class ASMConverter(object):
                 return ASMConverter.mem_to_att_base_disp(base_reg, disp, sign)
 
             # base or displacement
-            m = re.match(r"\s*([^\s\+\-]+)", mem_ptr)
+            m = re.match(r"\s*([^\s\+\-]+)\s*$", mem_ptr)
             if m:
                 something = m.group(1)
                 reg = ASMConverter.reg_to_att(something)
@@ -175,6 +201,7 @@ class ASMConverter(object):
         if mem[0] == '{' and mem[-1] == '}':
             return "$%s" % mem[1:-1]
 
+        # raise NotImplementedError('operand "%s" is not supported by ASMConverter. Please bug Fish to fix it.' % mem)
         return None
 
     @staticmethod
@@ -249,6 +276,7 @@ class ASMConverter(object):
             # comments
             m = re.match(r"(\s*);([\s\S]*)", l)
             if m:
+                # converted.append('#CONVERTED FROM: %s\n' % l)
                 converted.append("\t#" + m.group(2))
                 continue
 
@@ -282,6 +310,7 @@ class ASMConverter(object):
                 # suffix the mnemonic
                 mnemonic = ASMConverter.mnemonic_to_att(mnemonic, size)
 
+                # converted.append('#CONVERTED FROM: %s\n' % l)
                 s = "%s%s\t%s, %s%s" % (spaces, mnemonic, op1, op2, inline_comments)
                 converted.append(s)
 
@@ -306,6 +335,7 @@ class ASMConverter(object):
                 #if mnemonic[0] == 'j' and op_sort == 'label':
                 #    op = "." + op
 
+                # converted.append('#CONVERTED FROM: %s\n' % l)
                 s = "%s%s\t%s%s" % (spaces, mnemonic, op, inline_comments)
                 converted.append(s)
 
@@ -319,12 +349,14 @@ class ASMConverter(object):
 
                 mnemonic = ASMConverter.mnemonic_to_att(mnemonic, 4)
 
+                # converted.append('#CONVERTED FROM: %s\n' % l)
                 s = "%s%s%s" % (spaces, mnemonic, inline_comments)
                 converted.append(s)
 
                 continue
 
             # other stuff
+            # converted.append('#CONVERTED FROM: %s\n' % l)
             converted.append(l)
 
         return "\n".join(converted)
