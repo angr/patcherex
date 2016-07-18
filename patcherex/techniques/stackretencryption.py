@@ -1,4 +1,5 @@
 import patcherex
+import identifier
 import angr
 import logging
 from collections import defaultdict
@@ -29,35 +30,33 @@ class StackRetEncryption(object):
         self.max_cfg_steps = 2000
         self.found_setjmp = None
         self.found_longjmp = None
+        self.safe_functions = set()
 
         self.relevant_registers = set(["eax","ebx","ecx","edx","esi","edi"])
         self.reg_free_map, self.reg_not_free_map = self.get_reg_free_map()
 
         added_code = '''
             mov ecx, DWORD [esp+4]
-            xor cx, WORD [%s]
             xor ecx, DWORD [{rnd_xor_key}]
             mov DWORD [esp+4], ecx
             ret
-        ''' % hex(self.flag_page + 0x123)
+        '''
         self.encrypt_using_ecx_patch = AddCodePatch(added_code,name="encrypt_using_ecx")
         added_code = '''
             mov edx, DWORD [esp+4]
-            xor dx, WORD [%s]
             xor edx, DWORD [{rnd_xor_key}]
             mov DWORD [esp+4], edx
             ret
-        ''' % hex(self.flag_page + 0x123)
+        '''
         self.encrypt_using_edx_patch = AddCodePatch(added_code,name="encrypt_using_edx")
         added_code = '''
             push ecx
             mov ecx, DWORD [esp+8]
-            xor cx, WORD [%s]
             xor ecx, DWORD [{rnd_xor_key}]
             mov DWORD [esp+8], ecx
             pop ecx
             ret
-        ''' % hex(self.flag_page + 0x123)
+        '''
         self.safe_encrypt_patch = AddCodePatch(added_code,name="safe_encrypt")
 
         self.used_ecx_patch = False
@@ -190,7 +189,7 @@ class StackRetEncryption(object):
     def function_to_patch_locations(self,ff):
         # TODO tail-call is handled lazily just by considering jumping out functions as not sane
         if cfg_utils.is_sane_function(ff) and cfg_utils.detect_syscall_wrapper(self.patcher,ff) == None \
-                and not cfg_utils.is_floatingpoint_function(self.patcher,ff):
+                and not cfg_utils.is_floatingpoint_function(self.patcher,ff) and not ff.addr in self.safe_functions:
             if cfg_utils.is_longjmp(self.patcher,ff):
                 self.found_longjmp = ff.addr
             elif cfg_utils.is_setjmp(self.patcher,ff):
@@ -307,8 +306,30 @@ class StackRetEncryption(object):
                 return [], True
         return all_succ, False
 
+    def _func_is_safe(self, ident, func):
+        if func not in ident.func_info:
+            return False
+        func_info = ident.func_info[func]
+        return len(func_info.buffers) == 0
+
+    def get_safe_functions(self):
+        ident = identifier.Identifier(self.patcher.project, self.patcher.cfg)
+
+        safe_func_addrs = set()
+        unsafe_func_addrs = set()
+        for f in self.patcher.cfg.functions.values():
+            if self._func_is_safe(ident, f):
+                l.debug("%#x is safe", f.addr)
+                safe_func_addrs.add(f.addr)
+            else:
+                l.debug("%#x is unsafe", f.addr)
+                unsafe_func_addrs.add(f.addr)
+        return safe_func_addrs
+
     def get_patches(self):
         common_patches = self.get_common_patches()
+
+        self.safe_functions = self.get_safe_functions()
 
         cfg = self.patcher.cfg
         patches = []
