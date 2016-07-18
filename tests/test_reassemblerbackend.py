@@ -139,7 +139,7 @@ def run_simple_pointer_encryption(filename):
 
     p = ReassemblerBackend(filepath, debugging=True)
 
-    cp = SimplePointerEncryption(filepath, p)
+    cp = SimplePointerEncryption(filepath, p, optimize=True)
     patches = cp.get_patches()
 
     p.apply_patches(patches)
