@@ -444,6 +444,12 @@ class Sink(BaseNode):
         return s
 
 
+class Killer(BaseNode):
+    def __init__(self, node, ins_size):
+        super(Killer, self).__init__(node.location.ins_addr, node.location.ins_addr + ins_size, status=None)
+        self.node = node
+
+
 class Consumer(BaseNode):
     def __init__(self, node, ins_size):
         super(Consumer, self).__init__(node.location.ins_addr, node.location.ins_addr + ins_size, status='decrypted')
@@ -453,6 +459,7 @@ class Consumer(BaseNode):
         s = "<Consumer @ %#x, %s>" % (self.ins_addr, self.status)
         return s
 
+
 class Transformer(BaseNode):
     def __init__(self, node, ins_size):
         super(Transformer, self).__init__(node.location.ins_addr, node.location.ins_addr + ins_size, status=None)
@@ -461,6 +468,7 @@ class Transformer(BaseNode):
     def __repr__(self):
         s = "<Transformer @ %#x, %s>" % (self.ins_addr, self.status)
         return s
+
 
 class Cluster(BaseNode):
     def __init__(self, ins_addr, end_addr, nodes, status):
@@ -515,6 +523,7 @@ class MemDerefDepGraph(object):
         self._sources = None
         self._sinks = None
         self._transformers = None
+        self._killers = None
 
         # find all sources, sinks, and transformers
         g = self._find_all()
@@ -541,8 +550,11 @@ class MemDerefDepGraph(object):
 
         # find all sources, with transformers included
         for d in self._consumers:
-            sources_ = self._dep_graph.predecessors(d)
-            for s in sources_:
+            in_edges = self._dep_graph.in_edges(d, data=True)
+            for s, _, data in in_edges:
+                if 'type' in data and data['type'] == 'kill':
+                    # skip killing edges
+                    continue
                 if isinstance(s.variable, SimRegisterVariable) and s.variable.reg == self._ptr_reg:
                     sources.add(s)
 
@@ -553,7 +565,8 @@ class MemDerefDepGraph(object):
             # if a register depends on itself, and writes to the very same register, then it's a transformer
             # e.g. inc esi  (esi depends on esi)
             #      add esi, eax  (esi depends on esi and eax, but it writes to itself anyways)
-            preds = self._dep_graph.predecessors(s)
+            in_edges = self._dep_graph.in_edges(s, data=True)
+            preds = [ p for p, _, data in in_edges if 'type' not in data or data['type'] != 'kill' ]  # skip killing edges
             if any([ isinstance(v.variable, SimRegisterVariable) and v.variable.reg == self._ptr_reg for v in preds ]):
                 transformers.add(s)
                 continue
@@ -564,6 +577,7 @@ class MemDerefDepGraph(object):
         # for each source and transformer, find all sinks and consumers
         sinks = set()
         consumers = set()
+        killers = set()
         for s in sources | transformers:
             out_edges = self._dep_graph.out_edges(s, data=True)
             for _, suc, data in out_edges:
@@ -575,6 +589,9 @@ class MemDerefDepGraph(object):
                     elif data['type'] == 'mem_data':
                         # this is a pointer sink
                         sinks.add(suc)
+                        continue
+                    elif data['type'] == 'kill':
+                        killers.add(suc)
                         continue
                 if isinstance(suc.variable, SimRegisterVariable):
                     if suc.variable.reg < 40:  # FIXME: this is ugly
@@ -589,6 +606,7 @@ class MemDerefDepGraph(object):
         self._sinks = sinks
         self._consumers = consumers
         self._transformers = transformers
+        self._killers = killers
 
         # convert them into dicts with instruction addresses as their keys, so we can layout them on a function
         # transition graph
@@ -600,8 +618,13 @@ class MemDerefDepGraph(object):
                          for s in consumers)
         transformers = dict((s.location.ins_addr, Transformer(s, self._function.instruction_size(s.location.ins_addr)))
                             for s in transformers)
+        killers = dict((s.location.ins_addr, Killer(s, self._function.instruction_size(s.location.ins_addr)))
+                       for s in killers)
 
-        g = self._function.subgraph(set(sources.keys() + sinks.keys() + consumers.keys() + transformers.keys()))
+        g = self._function.subgraph(set(sources.keys() + sinks.keys() + consumers.keys() + transformers.keys() +
+                                        killers.keys()
+                                        )
+                                    )
 
         g_ = networkx.DiGraph()
 
@@ -611,15 +634,18 @@ class MemDerefDepGraph(object):
             if src_ is None: src_ = sinks.get(src, None)
             if src_ is None: src_ = consumers.get(src, None)
             if src_ is None: src_ = transformers.get(src, None)
+            if src_ is None: src_ = killers.get(src, None)
             if src_ is None: src_ = MergePoint(src, self._function.instruction_size(src))
 
             dst_ = sources.get(dst, None)
             if dst_ is None: dst_ = sinks.get(dst, None)
             if dst_ is None: dst_ = consumers.get(dst, None)
             if dst_ is None: dst_ = transformers.get(dst, None)
+            if dst_ is None: dst_ = killers.get(dst, None)
             if dst_ is None: dst_ = MergePoint(dst, self._function.instruction_size(src))
 
-            g_.add_edge(src_, dst_)
+            if not isinstance(src_, Killer) and not isinstance(dst_, Killer):
+                g_.add_edge(src_, dst_)
 
         return g_
 
