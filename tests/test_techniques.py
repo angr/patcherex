@@ -916,7 +916,7 @@ def test_adversarial():
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        backend.save("/tmp/aaa")
+        # backend.save("/tmp/aaa")
 
         original_p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
         original_res = original_p.communicate(tinput)
@@ -929,7 +929,7 @@ def test_adversarial():
         nose.tools.assert_true(original_res[1] != patched_res[1])
 
 
-@add_fallback_strategy
+@test_reassembler_and_detour
 def test_backdoor():
     def solution_to_str(l):
         # deal with endianness craziness
@@ -948,14 +948,14 @@ def test_backdoor():
 
         with patcherex.utils.tempdir() as td:
             tmp_file = os.path.join(td, "patched")
-            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = Backdoor(filepath, backend, enable_bitflip=bitflip)
             patches = cp.get_patches()
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            # backend.save("/tmp/aaa")
+            backend.save("/tmp/aaa")
 
-            # test with short and long strings is we destroid original functionality
+            # test with short and long strings if we destroyed original functionality
             # last test is supposed to fail
             tests = ["A","A"*10,real_backdoor_enter[:3],real_backdoor_enter[:3]+"A"*10,
                     "\n"*10,real_backdoor_enter[:3]+"A"*10,real_backdoor_enter+"\n"*10]
@@ -979,7 +979,7 @@ def test_backdoor():
                 tinput = real_backdoor_enter+solution_to_str(solution)
                 tinput += struct.pack("<I",ebx)
                 tinput += struct.pack("<I",eip)
-                # fp = open("../../vm/shared/tinput","wb")
+                # fp = open("/tmp/tinput","wb")
                 # fp.write(tinput)
                 # fp.close()
                 res = Runner(tmp_file,tinput,record_stdout=True,seed=seed,bitflip=bitflip)
@@ -1003,13 +1003,14 @@ def test_backdoor():
                 res = Runner(tmp_file,tinput,record_stdout=True,seed=index,bitflip=bitflip)
                 eip_vals.add(res.reg_vals['eip'])
                 ebx_vals.add(res.reg_vals['ebx'])
-            # check that ebx and eip are actually randomixzed by the fake backdoor
+            # check that ebx and eip are actually randomized by the fake backdoor
             nose.tools.assert_equal(len(eip_vals),ntests)
             nose.tools.assert_equal(len(ebx_vals),ntests)
 
+            # test real backdoor
             for index,tbin in enumerate(bins):
                 tmp_file = os.path.join(td, "patched")
-                backend = DetourBackend(tbin,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+                backend = global_BackendClass(tbin,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
                 cp = Backdoor(tbin, backend,enable_bitflip=bitflip)
                 patches = cp.get_patches()
                 backend.apply_patches(patches)

