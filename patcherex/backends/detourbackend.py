@@ -445,7 +445,11 @@ class DetourBackend(Backend):
                 isinstance(p, InsertCodePatch) or isinstance(p, AddEntryPointPatch))]
         all_code = ""
         for p in relevant_patches:
-            all_code += "\n"+p.code+"\n"
+            if isinstance(p, InsertCodePatch):
+                code = p.code
+            else:
+                code = p.asm_code
+            all_code += "\n"+code+"\n"
         labels = utils.string_to_labels(all_code)
         duplicates = set([x for x in labels if labels.count(x) > 1])
         if len(duplicates) > 1:
