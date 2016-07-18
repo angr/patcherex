@@ -784,6 +784,14 @@ class MemoryDerefCollector(BlockTraverser):
 
                     decryption_addrs = dep_graph.decryption_addrs
                     encryption_addrs = dep_graph.encryption_addrs
+
+                    if not decryption_addrs:
+                        # huh?
+                        l.error('Optimization failed for %s. Fall back to default decryption-encryption strategy.', insn)
+                        insn.decryption_addrs = [ insn.ins_addr ]
+                        insn.encryption_addrs = [ insn.ins_addr + insn.ins_size ]
+                        continue
+
                     consumers = dep_graph.consumers
 
                     covered_insn_addrs = set(i.location.ins_addr for i in consumers)
