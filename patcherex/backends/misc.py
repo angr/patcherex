@@ -11,11 +11,11 @@ popa
 ; we only clean the very bottom, if a patch touches more it has to clean by itself
 ; we are after_restore: edx is 0 and we need to restore eax, I don't care about eflags
 mov eax,  0xbaaaafa0
-_clean_stack_loop:
+_clean_stack_loop_entrypoint:
     mov [eax], edx
     add eax, 4
     cmp eax, 0xbaaab000
-jne _clean_stack_loop
+jne _clean_stack_loop_entrypoint
 xor eax, eax
 ; restore flags
 push 0x202

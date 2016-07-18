@@ -39,7 +39,7 @@ class Adversarial(object):
             pusha
             mov ecx,32
             mov ebx,eax
-            _print_reg_loop:
+            _print_reg_loop_a:
                 rol ebx,4
                 mov edi,ebx
                 and edi,0x0000000f
@@ -49,7 +49,7 @@ class Adversarial(object):
                 call {print}
                 mov ebx,ebp
                 sub ecx,4
-                jnz _print_reg_loop
+                jnz _print_reg_loop_a
 
                 lea eax,[{hex_array}+16]
                 mov ebx,0x1
@@ -77,14 +77,14 @@ class Adversarial(object):
         fail_code = '''
             ; infinite loop allocating and writing memory
             xor ebp, ebp
-            _loop:
+            _loop_adv:
                 inc ebp
                 call _get_eip
                 _get_eip:
                 pop eax
 
                 test eax, eax
-                jz _exit ; never true
+                jz _exit_adv ; never true
                 xor eax, eax
                 mov al, 5
                 mov ebx, 0x1000
@@ -93,7 +93,7 @@ class Adversarial(object):
                 mov edx, {tmp1}
                 int 0x80
                 cmp al, 4 ;ENOMEM
-                je _loop
+                je _loop_adv
                 mov esi, DWORD [{tmp1}]
                 mov edi, esi
                 add edi, 0x1000
@@ -101,11 +101,11 @@ class Adversarial(object):
                     mov DWORD [esi], ebp
                     add esi, 4
                     cmp esi, edi
-                    je _exit2
+                    je _exit2_adv
                     jmp _inner_loop
-                _exit2:
-                jmp _loop
-            _exit:
+                _exit2_adv:
+                jmp _loop_adv
+            _exit_adv:
         '''
         patches.append(AddCodePatch(fail_code,"evil_fail"))
 
@@ -126,13 +126,13 @@ class Adversarial(object):
         mov bl, 0x2 ;stderr!
         int 0x80
         test eax, eax
-        je _e1
+        je _e1_adversarial
         call {evil_fail}
-        _e1:
+        _e1_adversarial:
         cmp DWORD [{tmp1}], 0
-        jg _e2
+        jg _e2_adversarial
         call {evil_fail}
-        _e2:
+        _e2_adversarial:
         xor [{computed_value}], eax
         pushf
         pop eax

@@ -48,6 +48,9 @@ class InvalidVAddrException(PatchingException):
 class IncompatiblePatchesException(PatchingException):
     pass
 
+class DuplicateLabelsException(PatchingException):
+    pass
+
 
 class DetourBackend(Backend):
     # how do we want to design this to track relocations in the blocks...
@@ -436,6 +439,18 @@ class DetourBackend(Backend):
         return applied_patches
 
     def apply_patches(self, patches):
+        # check for duplicate labels, it is not very necessary for this backend
+        # but it is better to behave in the same way of the reassembler backend
+        relevant_patches = [p for p in patches if (isinstance(p, AddCodePatch) or \
+                isinstance(p, InsertCodePatch) or isinstance(p, AddEntryPointPatch))]
+        all_code = ""
+        for p in relevant_patches:
+            all_code += "\n"+p.code+"\n"
+        labels = utils.string_to_labels(all_code)
+        duplicates = set([x for x in labels if labels.count(x) > 1])
+        if len(duplicates) > 1:
+            raise DuplicateLabelsException("found duplicate assembly labels: %s" % (str(duplicates)))
+
         # for now any added code will be executed by jumping out and back ie CGRex
         # apply all add code patches
         self.added_code_file_start = len(self.ncontent)

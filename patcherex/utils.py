@@ -648,3 +648,13 @@ def find_files(folder,extension,only_exec=False):
 def round_up_to_page(addr):
     return (addr + 0x1000 - 1) / 0x1000 * 0x1000
 
+
+def string_to_labels(tstr):
+    labels = []
+    for line in tstr.split("\n"):
+        line = line.strip()
+        m = re.match("^_.*:",line)
+        if m != None:
+            labels.append(m.group(0))
+    labels = [l for l in labels if not any([c in l for c in "( )"])]
+    return labels
