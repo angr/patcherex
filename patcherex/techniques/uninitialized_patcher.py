@@ -7,7 +7,7 @@ from collections import defaultdict
 import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
 
-l = logging.getLogger("patcherex.techniques.StackRetEncryption")
+l = logging.getLogger("patcherex.techniques.uninitialized_patcher")
 
 
 class CfgError(Exception):
