@@ -340,7 +340,6 @@ class UninitializedPatcher(object):
             return
 
         groups = self._make_groups(to_zero)
-        print "groups:", groups
 
         prefix = ""
         suffix = ""
