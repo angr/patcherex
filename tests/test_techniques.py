@@ -1136,7 +1136,6 @@ def test_bitflip():
                 print test, tlen
                 nose.tools.assert_equal(expected,patched)
 
-@add_fallback_strategy
 def test_uninitialized_patcher():
     filepath = os.path.join(bin_location, "cfe_original/CROMU_00070/CROMU_00070")
     temp = tempfile.mktemp(suffix="_patched")
@@ -1178,6 +1177,36 @@ def test_uninitialized_patcher():
     res = p.communicate(poll_input)
     nose.tools.assert_equal(expected_output, res[0])
 
+def test_malloc_patcher():
+    filepath = os.path.join(bin_location, "cfe_original/NRFIN_00078/NRFIN_00078")
+    temp = tempfile.mktemp(suffix="_patched")
+    pm = PatchMaster(filepath)
+    # make the patch for uninitialized stack
+    out_bin, _ = pm.generate_malloc_ext_patch()
+    with open(temp, "wb") as f:
+        f.write(out_bin)
+    os.chmod(temp, 0777)
+
+    # the exploit should no longer work
+    pov = os.path.join(poll_location, "NRFIN_00078_2.pov")
+    for i in range(3):
+        nose.tools.assert_false(CGCPovSimulator().test_binary_pov(pov, temp))
+
+    # the poll should still work
+    poll_input = "a\x00\x00\x00\x00\x00\x00\x00\x00!\x00\x00\x00D1hTwKsiTm8dFvhwwrLqPiV9gogd52Xsu" \
+                 "v\x00\x00\x00\x00\x00\x00\x00\x00\x0a\x00\x00\x00\x5bis6Rg\x5dyo\x2a" \
+                 "n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
+                 "d\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
+                 "q\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+
+    pipe = subprocess.PIPE
+    p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+    res = p.communicate(poll_input)
+    expected_output = res[0]
+
+    p = subprocess.Popen([qemu_location, temp], stdin=pipe, stdout=pipe, stderr=pipe)
+    res = p.communicate(poll_input)
+    nose.tools.assert_equal(expected_output, res[0])
 
 def run_all():
     functions = globals()
@@ -1198,52 +1227,3 @@ if __name__ == "__main__":
         globals()['test_' + sys.argv[1]]()
     else:
         run_all()
-"""
-    <!-- Debug update coordinates -->
-    <write><data>\x02\x10\x00\xbf\xb6\x7e\xabZ\x3e\xbeG\x01\x06\x00u\xd3\x04E\x8ao</data></write>
-    <!-- Debug command succeeded -->
-    <read><length>4</length><match><data>\x02\x00\x00\x00</data></match></read>
-    <read><length>1</length><match><data>\x02</data></match></read>
-    <write><data>\x05\x00\x00\x05</data></write>
-    <read><length>4</length><match><data>\x05\x00\x00\x00</data></match></read>
-    <read><length>1</length><match><data>\x05</data></match></read>
-    <write><data>\x00\x00\x00\x00</data></write>
-    <read><length>4</length><match><data>\x00\x00\x06\x00</data></match></read>
-    <read><length>6</length><match><data>\x012\x00!\x80\x24</data></match></read>
-    <read><length>1</length><match><data>\xfe</data></match></read>
-    <!-- Debug update battery level -->
-    <write><data>\x02\x0b\x00\xbf\xb6\x7e\xabZ\x3e\xbeG\x00\x01\x2bt</data></write>
-    <!-- Debug command succeeded -->
-    <read><length>4</length><match><data>\x02\x00\x00\x00</data></match></read>
-    <read><length>1</length><match><data>\x02</data></match></read>
-    <write><data>\x03R\x00\x01\x08\xe0\x17\x1b\x00\x07\xa8\xdd\x07\xfe\xc1\x1fW\x0e\x00\x08\xfb\xd7\x09i\xdf\xdde\x11\x00\x01\xe61\x11\xfd?\x3c\x8e\x25\x00\x08!\x27\x0c!\x97\x90\x12\x24\x00\x09V\x86\x00OL?d\x2a\x00\x02C\x19\x08\xf3\x1d\x19\x96\x0b\x00\x05\x01\xa3\x06M\xe5\x10\xc1!\x00\x09\xabQ\x08\xea!Z</data></write>
-    <read><length>4</length><match><data>\x03\x05\x00\x00</data></match></read>
-    <read><length>1</length><match><data>\x08</data></match></read>
-    <!-- Debug update coordinates -->
-    <write><data>\x02\x10\x00\xbf\xb6\x7e\xabZ\x3e\xbeG\x01\x06\x02\x02\xec\x08\x84\x85U</data></write>
-    <!-- Debug command succeeded -->
-    <read><length>4</length><match><data>\x02\x00\x00\x00</data></match></read>
-    <read><length>1</length><match><data>\x02</data></match></read>
-    <write><data>\x07\x00\x00\x07</data></write>
-    <read><length>4</length><match><data>\x07\x00\x00\x00</data></match></read>
-    <read><length>1</length><match><data>\x07</data></match></read>
-    <write><data>\x07\x00\x00\x07</data></write>
-    <read><length>4</length><match><data>\x07\x04\x00\x00</data></match></read>
-    <read><length>1</length><match><data>\x0b</data></match></read>
-    <write><data>\x00\x00\x00\x00</data></write>
-    <read><length>4</length><match><data>\x00\x04\x00\x00</data></match></read>
-    <read><length>1</length><match><data>\x04</data></match></read>
-    <write><data>\x03\x02\x00\x02\x00\x07</data></write>
-    <read><length>4</length><match><data>\x03\x04\x00\x00</data></match></read>
-    <read><length>1</length><match><data>\x07</data></match></read>
-    <write><data>\x06\x00\x00\x06</data></write>
-    <read><length>4</length><match><data>\x06\x04\x00\x00</data></match></read>
-    <read><length>1</length><match><data>\x0a</data></match></read>
-    <write><data>\x08\x00\x00\x08</data></write>
-    <read><length>4</length><match><data>\x08\x00\x00\x00</data></match></read>
-    <read><length>1</length><match><data>\x08</data></match></read>
-    <write><data>\x01\x00\x00\x01</data></write>
-    <read><length>4</length><match><data>\x01\x00\x00\x00</data></match></read>
-    <read><length>1</length><match><data>\x01</data></match></read>
-
-"""

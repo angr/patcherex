@@ -35,6 +35,8 @@ from patcherex.techniques.backdoor import Backdoor
 from patcherex.techniques.bitflip import Bitflip
 from patcherex.techniques.fidgetpatches import fidget_it
 from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
+from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
+
 
 from patcherex import utils
 from patcherex.backends.detourbackend import DetourBackend
@@ -229,6 +231,13 @@ class PatchMaster():
     def generate_uninitialized_patch(self):
         backend = DetourBackend(self.infile)
         cp = UninitializedPatcher(self.infile, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        return backend.get_final_content(),""
+
+    def generate_malloc_ext_patch(self):
+        backend = DetourBackend(self.infile)
+        cp = MallocExtPatcher(self.infile, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         return backend.get_final_content(),""
