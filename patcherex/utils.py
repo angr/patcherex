@@ -123,6 +123,12 @@ class ASMConverter(object):
 
             # TODO: base + index * scale + displacement
 
+            # [{this_is_a_label}]
+            m = re.match(r"^\s*\{([\S]+)\}\s*$", mem_ptr)
+            if m:
+                label = m.group(1)
+                return label
+
             # base + index + displacement
             m = re.match(r"\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)\s*$", mem_ptr)
             if m:
