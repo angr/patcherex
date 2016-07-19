@@ -263,6 +263,7 @@ class BlockTraverser(object):
         # update the instruction size of the previous DerefInstruction object
         if self.last_instr is not None and self.last_instr.ins_size is None:
             self.last_instr.ins_size = self.ins_addr - self.last_instr.ins_addr
+            self.last_instr = None
 
     def _handle_statement_WrTmp(self, stmt):
         tmp = stmt.tmp
@@ -376,6 +377,12 @@ class MemoryRefCollector(BlockTraverser):
                      ):
                 self.last_instr = RefInstruction(self.ins_addr, stmt.offset, data)
                 self.instrs.append(self.last_instr)
+
+        # special case handling: writing data to esp
+        if data is not None and stmt.offset is self.sp_offset:
+            if isinstance(stmt.data, pyvex.IRExpr.RdTmp):
+                tmp = stmt.data.tmp
+                self.tmps[tmp] = MiniAST('reg', [ stmt.offset ])
 
     def _handle_statement_Store(self, stmt):
 
