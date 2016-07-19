@@ -10,12 +10,15 @@ import patcherex.utils as utils
 import patcherex
 import shellphish_qemu
 from patcherex.patch_master import PatchMaster
+from povsim import CGCPovSimulator
+
 
 l = logging.getLogger("patcherex.test.test_patch_master")
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
 qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
-
+self_location_folder = os.path.dirname(os.path.realpath(__file__))
+backdoor_pov_location = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov")
 
 os.environ["POSTGRES_DATABASE_NAME"] = "dummy"
 os.environ["POSTGRES_DATABASE_USER"] = "dummy"
@@ -26,6 +29,7 @@ from farnsworth.models.job import PatcherexJob
 PATCH_TYPES = [str(p) for p in PatcherexJob.PATCH_TYPES]
 print "PATCH_TYPES:", PATCH_TYPES
 PATCH_TYPES_WITH_RULES = ["heavy","bitflip"]
+PATCH_TYPES_WITH_BACKDOOR = ["medium","heavy"]
 
 
 def test_cfe_trials():
@@ -53,6 +57,7 @@ def test_cfe_trials():
                 tmp_fname = os.path.join(td,patch_type)
                 generated_patches.add(patched_bin)
                 save_patch(tmp_fname,patched_bin)
+                save_patch("/tmp/aaa",patched_bin)
                 # save_patch("/tmp/cfe1/"+os.path.basename(test)+"_"+patch_type,patched_bin)
 
                 fp = open(test)
@@ -70,6 +75,16 @@ def test_cfe_trials():
                     nose.tools.assert_true(len(nrule)>0)
                 else:
                     nose.tools.assert_true(len(nrule)==0)
+
+                if patch_type in PATCH_TYPES_WITH_BACKDOOR:
+                        if "bitflip" in nrule:
+                            bitflip = True
+                        else:
+                            bitflip = False
+                        pov_tester = CGCPovSimulator()
+                        res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_fname,bitflip=bitflip)
+                        print res
+                        nose.tools.assert_true(res)
 
                 for stdin in inputs:
                     # TODO: test properly multi-cb, right now they are tested as separate binaries
