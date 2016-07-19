@@ -1041,7 +1041,7 @@ class SimplePointerEncryption(Technique):
             begin_label=begin_label,
             end_label=end_label
         )
-        patch = AddEntryPointPatch(asm_code=encrypt_pointers)
+        patch = AddEntryPointPatch(asm_code=encrypt_pointers, after_restore=True)
         patches.append(patch)
 
         # make all pointer-array data belong to ".data"
