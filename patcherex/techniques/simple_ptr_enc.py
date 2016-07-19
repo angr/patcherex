@@ -1044,10 +1044,11 @@ class SimplePointerEncryption(Technique):
         patch = AddEntryPointPatch(asm_code=encrypt_pointers, after_restore=True)
         patches.append(patch)
 
-        # make all pointer-array data belong to ".data"
+        # make all data belong to ".data", so they are writable
+        # TODO: keep the original alignment
         for data in self.backend._binary.data:
-            if data.sort == "pointer-array":
-                data.section_name = ".data"
+            data.section = None
+            data.section_name = ".data"
 
         # insert an encryption patch after each memory referencing instruction
         mem_ref_patch_count = 0
