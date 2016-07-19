@@ -31,6 +31,8 @@ class StackRetEncryption(object):
         self.found_setjmp = None
         self.found_longjmp = None
         self.safe_functions = set()
+        # any function that is called in more than this many places is assumed to be safe
+        self.safe_calls_limit = 5
 
         self.relevant_registers = set(["eax","ebx","ecx","edx","esi","edi"])
         self.reg_free_map, self.reg_not_free_map = self.get_reg_free_map()
@@ -306,11 +308,41 @@ class StackRetEncryption(object):
                 return [], True
         return all_succ, False
 
+    def _block_calls_safe_syscalls(self, block):
+        # checks that the block only calls sycalls that aren't receive
+        # receive is the only one that stack ret encryption is useful for
+
+        target_kind = block.vex.constant_jump_targets_and_jumpkinds
+        if len(target_kind) != 1:
+            return False
+        if target_kind.keys()[0] not in self.patcher.cfg.functions:
+            return False
+        target = self.patcher.cfg.functions[target_kind.keys()[0]]
+        if cfg_utils.detect_syscall_wrapper(self.patcher, target) and \
+                cfg_utils.detect_syscall_wrapper(self.patcher, target) != 3:
+            return True
+        return False
+
     def _func_is_safe(self, ident, func):
         if func not in ident.func_info:
             return False
         func_info = ident.func_info[func]
-        return len(func_info.buffers) == 0
+        if len(func_info.buffers) == 0:
+            return True
+
+        # skip functions that have enough predecessors
+        if len(self.patcher.cfg.get_predecessors(self.patcher.cfg.get_any_node(func.addr))) > self.safe_calls_limit:
+            return True
+
+        is_safe = True
+        for v in func_info.buffers:
+            if v in func_info.stack_var_accesses:
+                for addr, kind in func_info.stack_var_accesses[v]:
+                    if kind == "load":
+                        bbl = self.patcher.project.factory.block(addr)
+                        if not self._block_calls_safe_syscalls(bbl):
+                            is_safe = False
+        return is_safe
 
     def get_safe_functions(self):
         ident = identifier.Identifier(self.patcher.project, self.patcher.cfg)
