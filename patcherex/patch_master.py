@@ -34,6 +34,7 @@ from patcherex.techniques.adversarial import Adversarial
 from patcherex.techniques.backdoor import Backdoor
 from patcherex.techniques.bitflip import Bitflip
 from patcherex.techniques.fidgetpatches import fidget_it
+from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
 
 from patcherex import utils
 from patcherex.backends.detourbackend import DetourBackend
@@ -224,6 +225,13 @@ class PatchMaster():
         return (content,"")
 
     ########################
+
+    def generate_uninitialized_patch(self):
+        backend = DetourBackend(self.infile)
+        cp = UninitializedPatcher(self.infile, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        return backend.get_final_content(),""
 
     def create_one_patch(self,patch_type):
         m = getattr(self,"generate_"+patch_type+"_binary")
