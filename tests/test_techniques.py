@@ -291,7 +291,7 @@ def test_cpuid():
         nose.tools.assert_equal(p.returncode == -11, True)
 
 
-@add_fallback_strategy
+@try_reassembler_and_detour
 def test_stackretencryption():
     logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
     from patcherex.techniques.stackretencryption import StackRetEncryption
@@ -332,7 +332,7 @@ def test_stackretencryption():
         os.chmod(original_file,777)
 
         tmp_file = os.path.join(td, "patched1")
-        backend = DetourBackend(filepath1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = StackRetEncryption(filepath1, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -349,7 +349,7 @@ def test_stackretencryption():
         nose.tools.assert_equal(p.returncode == -11, True)
 
         tmp_file = os.path.join(td, "patched2")
-        backend = DetourBackend(filepath2,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath2,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = StackRetEncryption(filepath2, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -368,7 +368,7 @@ def test_stackretencryption():
 
         # setjmp/longjmp
         tmp_file = os.path.join(td, "patched3")
-        backend = DetourBackend(filepath3,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath3,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = StackRetEncryption(filepath3, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -381,7 +381,7 @@ def test_stackretencryption():
 
         # setjmp/longjmp with cgrex
         tmp_file = os.path.join(td, "patched4")
-        backend = DetourBackend(filepath4,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath4,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = StackRetEncryption(filepath4, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -400,7 +400,7 @@ def test_stackretencryption():
         ''' # TODO for now this is broken
         # function pointer blacklist
         tmp_file = os.path.join(td, "patched5")
-        backend = DetourBackend(filepath5,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath5,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = StackRetEncryption(filepath5, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -426,6 +426,8 @@ def test_indirectcfi():
         ("tests/i386/patchrex/indirect_call_test_O0","b7fff000"),
         ("tests/i386/patchrex/indirect_call_test_fullmem_O0","78000000"),
     ]
+    if global_BackendClass == ReassemblerBackend:
+        tests = tests[:1]
 
     for i,(tbin,addr_str) in enumerate(tests):
         vulnerable_fname1 = os.path.join(bin_location, tbin)
@@ -490,13 +492,12 @@ def test_indirectcfi():
 
         with patcherex.utils.tempdir() as td:
             patched_fname1 = os.path.join(td, "patched")
-            #import IPython; IPython.embed()
             backend = global_BackendClass(vulnerable_fname1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = IndirectCFI(vulnerable_fname1, backend)
             patches = cp.get_patches()
             backend.apply_patches(patches)
             backend.save(patched_fname1)
-            #backend.save("../../vm/shared/patched")
+            backend.save("/tmp/aaa")
             res = Runner(patched_fname1,"00000001\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
 
@@ -530,9 +531,13 @@ def test_indirectcfi():
             print hex(res.reg_vals['eip'])
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             #main -> main
-            res = Runner(patched_fname1,"00000001\n08048620\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            nose.tools.assert_true(res.reg_vals == None)
+            if global_BackendClass != ReassemblerBackend:
+                res = Runner(patched_fname1,"00000001\n08048620\n",record_stdout=True)
+                nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+                nose.tools.assert_true(res.reg_vals == None)
+            else:
+                res = Runner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
+                nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
 
             #stack -> main
             res = Runner(patched_fname1,"00000002\n08048620\n",record_stdout=True)
@@ -570,8 +575,13 @@ def test_indirectcfi():
 
             #unknown -> main
             res = Runner(patched_fname1,"00000004\n08048620\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            nose.tools.assert_true(res.reg_vals == None)
+            if global_BackendClass != ReassemblerBackend:
+                nose.tools.assert_equal(res.stdout,"hello\nCGC")
+                nose.tools.assert_true(res.reg_vals == None)
+            else:
+                res = Runner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
+                nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
+
             '''
             #unknown -> stack
             res = Runner(patched_fname1,"00000004\nbaaaa000\n",record_stdout=True)
@@ -584,7 +594,7 @@ def test_indirectcfi():
             nose.tools.assert_true(res.reg_vals == None)
 
             # call gadget
-            if i==0:
+            if i == 0 and global_BackendClass != ReassemblerBackend:
                 res = Runner(patched_fname1,"00000001\n08048640\n",record_stdout=True)
                 nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
                 res = Runner(patched_fname1,"00000002\n08048640\n",record_stdout=True)
@@ -899,7 +909,7 @@ def test_nxstack():
             nose.tools.assert_equal(original_output, res.stdout)
 
 
-@add_fallback_strategy
+@try_reassembler_and_detour
 def test_adversarial():
     logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
     from patcherex.techniques.adversarial import Adversarial
@@ -909,7 +919,7 @@ def test_adversarial():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = Adversarial(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
