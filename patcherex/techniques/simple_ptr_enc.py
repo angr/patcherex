@@ -799,6 +799,12 @@ class MemoryDerefCollector(BlockTraverser):
                     insn.skip = True
                     continue
 
+                if insn.action == 'jump':
+                    # we don't re-encrypt the target after a jump or a call
+                    insn.decryption_addrs = [ insn.ins_addr ]
+                    insn.encryption_addrs = [ ]
+                    continue
+
                 if insn.ins_addr in insn_addr_to_nodes:
 
                     all_nodes = insn_addr_to_nodes[insn.ins_addr]
