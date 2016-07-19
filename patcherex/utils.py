@@ -290,10 +290,6 @@ class ASMConverter(object):
         converted = []
 
         for l in asm.split('\n'):
-            comment_index = l.find(";")
-            if comment_index != -1:
-                l = l[:comment_index]
-
             # comments
             m = re.match(r"(\s*);([\s\S]*)", l)
             if m:
@@ -302,7 +298,7 @@ class ASMConverter(object):
                 continue
 
             # inline comments
-            m = re.match(r"([\s\S]+);([\s\S]+)", l)
+            m = re.match(r"^([\s\S]+);([\s\S]*)$", l)
             if m:
                 inline_comments = "\t#" + m.group(2)
                 l = m.group(1)
