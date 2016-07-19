@@ -234,21 +234,33 @@ class ASMConverter(object):
         :rtype: str
         """
 
+        if op[0] == '{' and op[-1] == '}':
+            # it's a label
+            label = op[1:-1]
+            if mnemonic[0] == 'j' or mnemonic in ('call', ):
+                return 'label', '%s' % label
+            else:
+                return 'label', '$' + label
+
         new_op = ASMConverter.reg_to_att(op)
         if new_op is not None:
-            return 'reg', new_op
+            if mnemonic[0] == 'j' or mnemonic in ('call', ):
+                return 'reg', '*%s' % new_op
+            else:
+                return 'reg', new_op
         new_op = ASMConverter.mem_to_att(op)
-        if new_op is not None and mnemonic[0] != 'j' and mnemonic not in ('call', ):
-            return 'mem', new_op
+        if new_op is not None:
+            if mnemonic[0] != 'j' and mnemonic not in ('call', ):
+                return 'mem', new_op
+            else:
+                return 'mem', '*%s' % new_op
+
         new_op = ASMConverter.imm_to_att(op)
         if new_op is not None:
             if mnemonic[0] != 'j':
                 return 'imm', new_op
             else:
                 return 'imm', op
-        if op[0] == '{' and op[-1] == '}':
-            # it's a label
-            return 'label', op[1:-1]
 
         # other type of label
         return 'label', op
@@ -256,7 +268,10 @@ class ASMConverter(object):
     @staticmethod
     def mnemonic_to_att(m, size, op_sort=None):
 
-        if m in ('int', 'pushfd', 'popfd', 'nop', ):
+        if m in ('int', 'pushfd', 'popfd', 'nop', 'call', ):
+            return m
+        if m.startswith('j'):
+            # jumps
             return m
         if m.startswith('f'):
             # floating point instructions
