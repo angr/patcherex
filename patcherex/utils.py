@@ -307,9 +307,14 @@ class ASMConverter(object):
 
             l = l.strip()
 
-            if l.startswith("db"):
-                s = ".byte\t" + l.split("db")[1].strip()
-                converted.append(s)
+            # NASM directive: db
+            m = re.match(r"^\s*db\s+([\s\S]+)$", l)
+            if m:
+                hex_bytes = m.group(1).strip()
+                for hex_byte in hex_bytes.split(','):
+                    hex_byte = hex_byte.strip()
+                    s = "\t.byte\t%s" % hex_byte
+                    converted.append(s)
                 continue
 
             # two operands
