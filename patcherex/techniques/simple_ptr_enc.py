@@ -1064,10 +1064,10 @@ class SimplePointerEncryption(Technique):
             else:
                 mem_dst_operand = ref.store_addr
                 asm_code = """
-                push esi
+                mov dword ptr [esp-4], esi
                 mov esi, dword ptr [_POINTER_KEY]
                 add {mem_dst}, esi
-                pop esi
+                mov esi, dword ptr [esp-4]
                 """.format(mem_dst=mem_dst_operand)
             patch = InsertCodePatch(ref.ins_addr + ref.ins_size, asm_code)
             patches.append(patch)
