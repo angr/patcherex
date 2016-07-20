@@ -19,3 +19,6 @@ class Fidget(object):
 
     def get_patches(self):
         return [RawFilePatch(offset, data) for offset, data in self.fidgetress.dump_patches()]
+
+    def get_stack_increases(self):
+        return self.fidgetress.stack_increases
