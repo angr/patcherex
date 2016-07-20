@@ -886,25 +886,29 @@ def test_nxstack():
             nesp = res.reg_vals['esp']
             nose.tools.assert_true(0xbaaab000 < nesp < 0xbaaac000)
 
-            # TODO unfortunately we cannot test this because of: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/5
             # check if the stack is really not executable
-            # backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-            # cp = NxStack(filepath, backend)
-            # patches = cp.get_patches()
-            # if stack_randomization:
-            #     cp =  ShiftStack(filepath, backend)
-            #     patches += cp.get_patches()
-            # code = '''
-            #     mov eax, 0x11223344
-            #     push 0xabb0c031
-            #     jmp esp
-            # '''
-            # backend.apply_patches(patches+[InsertCodePatch(0x804db6b,code)])
-            # backend.save(tmp_file)
+            backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            cp = NxStack(filepath, backend)
+            patches = cp.get_patches()
+            if stack_randomization:
+                cp =  ShiftStack(filepath, backend)
+                patches += cp.get_patches()
+            code = '''
+                mov eax, 0x11223344
+                push 0xabb0c031
+                jmp esp
+            '''
+            backend.apply_patches(patches+[InsertCodePatch(0x804db6b,code)])
+            backend.save(tmp_file)
             # backend.save("/tmp/aaa")
-            # res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
-            # nose.tools.assert_true(0xbaaab000 < res.reg_vals['eip'] < 0xbaaac000)
-            # nose.tools.assert_true(res.reg_vals['esp']!=0x000000ab)
+            # see: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/5
+            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000),\
+                    qemu=shellphish_qemu.qemu_path("cgc-nxtracer"))
+            if res.reg_vals == None:
+                nose.tools.assert_equal(res.returncode,46)
+            else:
+                nose.tools.assert_true(0xbaaab000 < res.reg_vals['eip'] < 0xbaaac000)
+                nose.tools.assert_true(res.reg_vals['eax']!=0x000000ab)
 
             # check if the stack is executable one page before
             backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)

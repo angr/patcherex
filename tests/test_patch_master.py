@@ -59,7 +59,7 @@ def test_cfe_trials():
                 tmp_fname = os.path.join(td,patch_type)
                 generated_patches.add(patched_bin)
                 save_patch(tmp_fname,patched_bin)
-                save_patch(os.path.join("/tmp/cfe1",os.path.basename(test)+"_"+patch_type),patched_bin)
+                # save_patch(os.path.join("/tmp/cfe1",os.path.basename(test)+"_"+patch_type),patched_bin)
 
                 fp = open(test)
                 ocontent = fp.read()
@@ -85,12 +85,10 @@ def test_cfe_trials():
                         bitflip = True
                     else:
                         bitflip = False
-                    pov_tester = CGCPovSimulator()
+                    # see: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/5
+                    pov_tester = CGCPovSimulator(qemu=shellphish_qemu.qemu_path("cgc-nxtracer"))
                     res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_fname,bitflip=bitflip)
-                    # TODO unfortunately this is not a 100% accurate test, because of:
-                    # https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/5
                     nose.tools.assert_true(res)
-                    #import shutil; shutil.copy(tmp_fname,"/tmp/aaa")
 
                 for stdin in inputs:
                     # TODO: test properly multi-cb, right now they are tested as separate binaries
