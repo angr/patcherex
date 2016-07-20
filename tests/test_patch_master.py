@@ -19,7 +19,7 @@ logging.getLogger("povsim.cgc_pov_simulator").setLevel('DEBUG')
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
 qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
 self_location_folder = os.path.dirname(os.path.realpath(__file__))
-backdoor_pov_location = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov")
+backdoor_pov_location = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov.pov")
 
 os.environ["POSTGRES_DATABASE_NAME"] = "dummy"
 os.environ["POSTGRES_DATABASE_USER"] = "dummy"
