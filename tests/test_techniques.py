@@ -45,19 +45,22 @@ global_try_pdf_removal = True
 global_BackendClass = None
 
 
+def args_eat(*args,**kwargs):
+    global_BackendClass.__oldinit__(args[0],args[1])
+
+
 def try_reassembler_and_detour(f):
     @wraps(f)
     def wrapper():
-        def args_eat(*args,**kwargs):
-            global_BackendClass.__oldinit__(args[0],args[1])
 
         global global_data_fallback
         global global_try_pdf_removal
         global global_BackendClass
 
         global_BackendClass = ReassemblerBackend
-        global_BackendClass.__oldinit__ = global_BackendClass.__init__
-        global_BackendClass.__init__ = args_eat
+        if global_BackendClass.__init__.im_func.func_name != "args_eat":
+            global_BackendClass.__oldinit__ = global_BackendClass.__init__
+            global_BackendClass.__init__ = args_eat
         f()
 
         global_BackendClass = DetourBackend
@@ -76,16 +79,15 @@ def try_reassembler_and_detour(f):
 def try_reassembler_and_detour_full(f):
     @wraps(f)
     def wrapper():
-        def args_eat(*args,**kwargs):
-            global_BackendClass.__oldinit__(args[0],args[1])
 
         global global_data_fallback
         global global_try_pdf_removal
         global global_BackendClass
 
         global_BackendClass = ReassemblerBackend
-        global_BackendClass.__oldinit__ = global_BackendClass.__init__
-        global_BackendClass.__init__ = args_eat
+        if global_BackendClass.__init__.im_func.func_name != "args_eat":
+            global_BackendClass.__oldinit__ = global_BackendClass.__init__
+            global_BackendClass.__init__ = args_eat
         f()
 
         global_BackendClass = DetourBackend
@@ -884,7 +886,7 @@ def test_nxstack():
             nesp = res.reg_vals['esp']
             nose.tools.assert_true(0xbaaab000 < nesp < 0xbaaac000)
 
-            # unfortunately we cannot test this because of: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/5
+            # TODO unfortunately we cannot test this because of: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/5
             # check if the stack is really not executable
             # backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             # cp = NxStack(filepath, backend)
@@ -1141,7 +1143,7 @@ def run_all():
 if __name__ == "__main__":
     import sys
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
-    logging.getLogger("patcherex.test.test_techniques_detourbackend").setLevel("INFO")
+    logging.getLogger("patcherex.test.test_techniques").setLevel("INFO")
     logging.getLogger("patcherex.techniques.Backdoor").setLevel("DEBUG")
 
     if len(sys.argv) > 1:
