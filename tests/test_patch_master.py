@@ -31,6 +31,7 @@ PATCH_TYPES = [str(p) for p in PatcherexJob.PATCH_TYPES]
 print "PATCH_TYPES:", PATCH_TYPES
 PATCH_TYPES_WITH_RULES = ["heavy","bitflip"]
 PATCH_TYPES_WITH_BACKDOOR = ["medium","heavy"]
+PATCH_TYPES_AS_ORIGINAL = []
 
 
 def test_cfe_trials():
@@ -43,7 +44,7 @@ def test_cfe_trials():
     nose.tools.assert_true(all([p in PATCH_TYPES for p in PATCH_TYPES_WITH_RULES]))
     tfolder = os.path.join(bin_location, "cfe_original")
     tests = utils.find_files(tfolder,"*",only_exec=True)
-    inputs = ["","A","\n"*1000,"\x00"*1000,"A"*1000]
+    inputs = ["","A","\n"*100,"\x00"*100,"A"*100]
 
     bins = ["CROMU_00070","NRFIN_00073","CROMU_00071"] # ,"KPRCA_00016_1","KPRCA_00056",
     titerator = [t for t in tests if any([b in t for b in bins])]
@@ -58,8 +59,7 @@ def test_cfe_trials():
                 tmp_fname = os.path.join(td,patch_type)
                 generated_patches.add(patched_bin)
                 save_patch(tmp_fname,patched_bin)
-                save_patch("/tmp/aaa",patched_bin)
-                # save_patch("/tmp/cfe1/"+os.path.basename(test)+"_"+patch_type,patched_bin)
+                save_patch(os.path.join("/tmp/cfe1",os.path.basename(test)+"_"+patch_type),patched_bin)
 
                 fp = open(test)
                 ocontent = fp.read()
@@ -67,8 +67,11 @@ def test_cfe_trials():
                 fp = open(tmp_fname)
                 pcontent = fp.read()
                 fp.close()
-                # it is not impossible that a patched binary is exactly as the original, but it is worth investigation
-                nose.tools.assert_true(ocontent != pcontent)
+
+                if patch_type not in PATCH_TYPES_AS_ORIGINAL:
+                    # it is not impossible that a patched binary is exactly as the original
+                    # but it is worth investigation
+                    nose.tools.assert_true(ocontent != pcontent)
 
                 nose.tools.assert_equal(type(patched_bin),str)
                 nose.tools.assert_equal(type(nrule),str)
@@ -84,7 +87,8 @@ def test_cfe_trials():
                         bitflip = False
                     pov_tester = CGCPovSimulator()
                     res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_fname,bitflip=bitflip)
-                    # TODO unfortunately this is not a 100% accurate test, because of: 
+                    # TODO unfortunately this is not a 100% accurate test, because of:
+                    # https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/5
                     nose.tools.assert_true(res)
                     #import shutil; shutil.copy(tmp_fname,"/tmp/aaa")
 

