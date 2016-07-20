@@ -1063,7 +1063,7 @@ def test_backdoor():
                 backend.save(tmp_file)
                 # backend.save("/tmp/aaa")
                 pov_tester = CGCPovSimulator()
-                backdoor_pov_location = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov")
+                backdoor_pov_location = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov.pov")
                 res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_file,bitflip=bitflip)
                 if index < len(bins)-2:
                     if not res:
