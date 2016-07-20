@@ -1438,7 +1438,7 @@ def test_entrypointpatch_restore():
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
         patches.append(InsertCodePatch(0x80480a0, "jmp 0x4567890", "goto_crash"))
-        patches.append(AddEntryPointPatch("mov eax, 0x34567890"))
+        patches.append(AddEntryPointPatch("mov eax, 0x34567890", name="entry_patch1"))
         backend.apply_patches(patches)
         backend.save(tmp_file)
         res = Runner(tmp_file, "00000001\n", record_stdout=True)
@@ -1447,13 +1447,54 @@ def test_entrypointpatch_restore():
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
         patches.append(InsertCodePatch(0x80480a0, "jmp 0x4567890", "goto_crash"))
-        patches.append(AddEntryPointPatch("mov eax, 0x34567890", after_restore=True))
+        patches.append(AddEntryPointPatch("mov eax, 0x34567890", after_restore=True, name="entry_patch2"))
         backend.apply_patches(patches)
         backend.save(tmp_file)
         res = Runner(tmp_file, "00000001\n", record_stdout=True)
         original_reg_value_mod = dict(original_reg_value)
         original_reg_value_mod['eax'] = 0x34567890
         nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
+
+
+def test_piling():
+    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+
+        backend = DetourBackend(filepath,data_fallback=global_data_fallback)
+        patches = []
+        code_print_a = "mov eax, 2; \n" \
+                       "mov ebx, 1; \n" \
+                       "mov ecx, {the_first_string}; \n" \
+                       "mov edx, 13; \n" \
+                       "mov esi, 0; \n" \
+                       "int 0x80;"
+        code_print_b = "mov eax, 2; \n" \
+                       "mov ebx, 1; \n" \
+                       "mov ecx, {the_second_string}; \n" \
+                       "mov edx, 8; \n" \
+                       "mov esi, 0; \n" \
+                       "int 0x80;"
+
+        patches.append(AddRODataPatch("does it work\n", "the_first_string"))
+        patches.append(AddRODataPatch("nope no\n", name="the_second_string"))
+        patches.append(InsertCodePatch(0x80480a0, code_print_a, "test_code"))
+        patches.append(InsertCodePatch(0x80480a0, code_print_b, name="second_add_code_patch"))
+
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        res = Runner(tmp_file, "abcdefg\n", record_stdout=True)
+        expected = \
+"""does it work
+nope no
+
+Welcome to Palindrome Finder
+
+\tPlease enter a possible palindrome: 		Nope, that's not a palindrome
+
+\tPlease enter a possible palindrome: """
+        nose.tools.assert_true(res.stdout.startswith(expected))
 
 
 def test_pdf_removal():
