@@ -13,7 +13,7 @@ class Patch(object):
 
 
 class InlinePatch(Patch):
-    def __init__(self, instruction_addr, new_asm, name=None):
+    def __init__(self, instruction_addr, new_asm, name):
         super(InlinePatch, self).__init__(name)
         self.instruction_addr = instruction_addr
         self.new_asm = new_asm
@@ -23,7 +23,7 @@ class InlinePatch(Patch):
 
 
 class AddRODataPatch(Patch):
-    def __init__(self, data, name=None):
+    def __init__(self, data, name):
         super(AddRODataPatch, self).__init__(name)
         self.data = data
 
@@ -32,7 +32,7 @@ class AddRODataPatch(Patch):
 
 
 class AddRWDataPatch(Patch):
-    def __init__(self, tlen, name=None):
+    def __init__(self, tlen, name):
         super(AddRWDataPatch, self).__init__(name)
         assert type(tlen) == int
         self.len = tlen
@@ -42,7 +42,7 @@ class AddRWDataPatch(Patch):
 
 
 class AddRWInitDataPatch(Patch):
-    def __init__(self, data, name=None):
+    def __init__(self, data, name):
         super(AddRWInitDataPatch, self).__init__(name)
         self.data = data
 
@@ -76,7 +76,7 @@ class CodePatch(Patch):
             return asm_str
 
 class AddCodePatch(CodePatch):
-    def __init__(self, asm_code, name=None, is_c=False, optimization="-Oz"):
+    def __init__(self, asm_code, name, is_c=False, optimization="-Oz"):
         super(AddCodePatch, self).__init__(name, asm_code, is_c=is_c, optimization=optimization)
 
     def __repr__(self):
@@ -84,7 +84,7 @@ class AddCodePatch(CodePatch):
 
 
 class AddEntryPointPatch(CodePatch):
-    def __init__(self, asm_code, name=None, priority=1, after_restore=False):
+    def __init__(self, asm_code, name, priority=1, after_restore=False):
         super(AddEntryPointPatch, self).__init__(name, asm_code)
         self.priority = priority
         self.after_restore = after_restore
@@ -95,7 +95,7 @@ class AddEntryPointPatch(CodePatch):
 
 
 class InsertCodePatch(CodePatch):
-    def __init__(self, addr, code, name=None, priority=1):
+    def __init__(self, addr, code, name, priority=1):
         super(InsertCodePatch, self).__init__(name, asm_code=code)
         self.addr = addr
         self.priority = priority
@@ -109,7 +109,7 @@ class InsertCodePatch(CodePatch):
 
 
 class RawFilePatch(Patch):
-    def __init__(self, file_addr, data, name=None):
+    def __init__(self, file_addr, data, name):
         super(RawFilePatch, self).__init__(name)
         self.file_addr = file_addr
         self.data = data
@@ -119,7 +119,7 @@ class RawFilePatch(Patch):
 
 
 class RawMemPatch(Patch):
-    def __init__(self, addr, data, name=None):
+    def __init__(self, addr, data, name):
         super(RawMemPatch, self).__init__(name)
         self.addr = addr
         self.data = data
@@ -128,7 +128,7 @@ class RawMemPatch(Patch):
         return "RawMemPatch [%s] %08x (%d)" % (self.name,self.addr,len(self.data))
 
 class SegmentHeaderPatch(Patch):
-    def __init__(self, segment_headers, name=None):
+    def __init__(self, segment_headers, name):
         super(SegmentHeaderPatch, self).__init__(name)
         self.segment_headers = segment_headers
 
@@ -137,7 +137,7 @@ class SegmentHeaderPatch(Patch):
 
 
 class AddSegmentHeaderPatch(Patch):
-    def __init__(self, new_segment, name=None):
+    def __init__(self, new_segment, name):
         super(AddSegmentHeaderPatch, self).__init__(name)
         self.new_segment = new_segment
 
@@ -146,7 +146,7 @@ class AddSegmentHeaderPatch(Patch):
 
 
 class PointerArrayPatch(Patch):
-    def __init__(self, addr, pointers, name=None):
+    def __init__(self, addr, pointers, name):
         super(PointerArrayPatch, self).__init__(name)
         self.addr = addr
         self.pointers = pointers

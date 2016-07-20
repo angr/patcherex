@@ -332,10 +332,12 @@ class UninitializedPatcher(object):
         if any(v >= 0 for v in to_zero):
             return
 
+        patch_name = "uninit_patch%#x" % ff.addr
+
         if len(to_zero) == 1:
             code = "mov DWORD [esp%#x], 0; " % to_zero[0]
             l.debug("adding:\n%s", code)
-            patch = InsertCodePatch(ff.addr, code)
+            patch = InsertCodePatch(ff.addr, code, patch_name)
             self.patches.append(patch)
             return
 
@@ -391,7 +393,7 @@ class UninitializedPatcher(object):
 
         code = prefix + body + suffix
         l.debug("adding:\n%s", code)
-        self.patches.append(InsertCodePatch(ff.addr, code))
+        self.patches.append(InsertCodePatch(ff.addr, code, patch_name))
 
 
     def get_patches(self):
