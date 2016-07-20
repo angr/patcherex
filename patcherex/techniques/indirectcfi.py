@@ -15,6 +15,7 @@ class CfgError(Exception):
 
 
 class IndirectCFI(object):
+    global_counter = 0
 
     def __init__(self,binary_fname,backend,allow_reg_reuse=True):
         self.binary_fname = binary_fname
@@ -75,11 +76,11 @@ class IndirectCFI(object):
         if instruction.mnemonic == u"call":
             gadget_protection = '''
             cmp dl,0x58
-            jb _gadget_exit
+            jb _gadget_exit_%d
             cmp dl,0x5f
             jbe 0x8047332
-            _gadget_exit:
-            '''
+            _gadget_exit_%d:
+            ''' % (IndirectCFI.global_counter,IndirectCFI.global_counter)
         else:
             gadget_protection = ""
 
@@ -93,27 +94,31 @@ class IndirectCFI(object):
         shr edx,24 ;most significant byte of target in dl
         mov dh, BYTE [{%s}]
         cmp dh,0
-        jne _check
+        jne _check_%d
             mov BYTE [{%s}], dl
-            jmp _exit
+            jmp _exit_%d
 
-        _check:
+        _check_%d:
         cmp dl,0x43
-        jb _cond2
+        jb _cond2_%d
         cmp dh, 0x43
-        jb _bad ; < >
-        jmp _exit ; > >
+        jb _bad_%d ; < >
+        jmp _exit_%d ; > >
 
-        _cond2:
+        _cond2_%d:
         cmp dh, 0x43
-        jb _exit
+        jb _exit_%d
 
-        _bad:
+        _bad_%d:
         jmp 0x8047333; > <
-        _exit: ; < <
+        _exit_%d: ; < <
         pop edx
-        ''' % (target_resolver,gadget_protection,data_patch_name,data_patch_name)
+        ''' % (target_resolver,gadget_protection,data_patch_name,IndirectCFI.global_counter,data_patch_name,\
+                IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter, \
+                IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter, \
+                IndirectCFI.global_counter)
         # the memory regions should be correct with binaries up to 8MB of stack, 1GB of heap, about 930 MB of binary
+        IndirectCFI.global_counter+=1
 
         code_patch = InsertCodePatch(int(instruction.address),new_code,name="indirect_cfi_for_%08x"%instruction.address)
         data_patch = AddRWDataPatch(1,"saved_first_target_%08x"%instruction.address)

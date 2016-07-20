@@ -1,7 +1,9 @@
 
 import struct
 
+import utils
 from .utils import ASMConverter
+
 
 class Patch(object):
     def __init__(self, name):
@@ -69,7 +71,9 @@ class CodePatch(Patch):
         if not self.is_c:
             return ASMConverter.intel_to_att(self.asm_code)
         else:
-            raise NotImplementedError()
+            code = utils.compile_c(self.asm_code,optimization=self.optimization)
+            asm_str = ".byte " + ", ".join([hex(ord(b)) for b in code])
+            return asm_str
 
 class AddCodePatch(CodePatch):
     def __init__(self, asm_code, name=None, is_c=False, optimization="-Oz"):

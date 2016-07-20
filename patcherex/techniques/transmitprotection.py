@@ -88,22 +88,22 @@ class TransmitProtection(Technique):
 
         code = '''
         cmp ecx, 0x4347c000
-        jb _exit
+        jb _exit_tp
         cmp ecx, 0x4347d000
-        jae _exit
+        jae _exit_tp
         cmp ebx, 0x1 ; check if stdin or stdout (apparently they are the same!)
         je _correct_fd
         test ebx, ebx
         je _correct_fd
         test ebx, ebx
-        jne _exit
+        jne _exit_tp
         _correct_fd:
         cmp edx, 0x4 ;the idea is that even if transmit is short, eventually this will be retransmitted
-        jb _exit2
+        jb _exit_tp_2
         jmp 0x8047ffc
-        _exit2:
+        _exit_tp_2:
         cmp edx, 0x0
-        je _exit
+        je _exit_tp
 
         ; slow path begins
         push ecx
@@ -119,10 +119,10 @@ class TransmitProtection(Technique):
         pop eax
         pop edx
         pop ecx
-        je _exit
+        je _exit_tp
 
         jmp 0x8047ffb
-        _exit:
+        _exit_tp:
         ''' % utils.get_nasm_c_wrapper_code("transmit_protection_array_handler",get_return=True,debug=False)
         patches.append(InsertCodePatch(victim_addr,code,name="transmit_protection",priority=200))
         patches.append(AddRWDataPatch(self.nslot+1,name="last_transmit_array"))

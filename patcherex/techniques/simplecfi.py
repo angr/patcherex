@@ -19,28 +19,28 @@ class SimpleCFI(object):
         # it assumes that eax points to the "after call" instruction
         added_code = '''
             cmp BYTE [eax-0x5], 0xE8 ; call 0x11223344
-            je _exit    
+            je _exit_sc
             cmp BYTE [eax-0x6], 0xFF ; call [0x11223344]
-            je _exit
+            je _exit_sc
             cmp BYTE [eax-0x2], 0xFF ; call eax
-            je _exit
+            je _exit_sc
             cmp BYTE [eax-0x3], 0xFF ; call [eax+edx]
-            je _exit
+            je _exit_sc
             cmp BYTE [eax-0x4], 0xFF ; call [eax+edx+0x1]
-            je _exit
+            je _exit_sc
             cmp BYTE [eax-0x7], 0xFF ; call [eax*8+edx+0x11223344]
-            je _exit
+            je _exit_sc
             cmp BYTE [eax-0x3], 0xE8 ; call 0x1122 (using 0x66 as prefix before E8)
-            je _exit
+            je _exit_sc
             cmp BYTE [eax-0x5], 0xFF ; not sure if possible
-            je _exit
+            je _exit_sc
             ; terminate(0x45)
             xor ebx, ebx
             mov bl, 0x45
             xor eax, eax
             inc eax
             int 0x80
-            _exit:
+            _exit_sc:
             ret
         '''
         common_patches.append(AddCodePatch(added_code,name="simplecfi_test_int"))

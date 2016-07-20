@@ -13,11 +13,13 @@ import random
 import patcherex
 import shellphish_qemu
 from patcherex.backends.detourbackend import DetourBackend
+from patcherex.backends.reassembler_backend import ReassemblerBackend
 from patcherex.patches import *
 from tracer import Runner
 from povsim import CGCPovSimulator
 
 l = logging.getLogger("patcherex.test.test_techniques_detourbackend")
+logging.getLogger("reassembler").setLevel("DEBUG")
 
 # TODO ideally these tests should be run in the vm
 
@@ -40,6 +42,68 @@ old_qemu_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__))
 
 global_data_fallback = None
 global_try_pdf_removal = True
+global_BackendClass = None
+
+
+def args_eat(*args,**kwargs):
+    global_BackendClass.__oldinit__(args[0],args[1])
+
+
+def try_reassembler_and_detour(f):
+    @wraps(f)
+    def wrapper():
+
+        global global_data_fallback
+        global global_try_pdf_removal
+        global global_BackendClass
+
+        global_BackendClass = ReassemblerBackend
+        if global_BackendClass.__init__.im_func.func_name != "args_eat":
+            global_BackendClass.__oldinit__ = global_BackendClass.__init__
+            global_BackendClass.__init__ = args_eat
+        f()
+
+        global_BackendClass = DetourBackend
+        global_data_fallback = None
+        global_try_pdf_removal = True
+        f()
+        global_data_fallback = None
+        global_try_pdf_removal = False
+        f()
+        global_data_fallback = True
+        global_try_pdf_removal = False
+        f()
+    return wrapper
+
+
+def try_reassembler_and_detour_full(f):
+    @wraps(f)
+    def wrapper():
+
+        global global_data_fallback
+        global global_try_pdf_removal
+        global global_BackendClass
+
+        global_BackendClass = ReassemblerBackend
+        if global_BackendClass.__init__.im_func.func_name != "args_eat":
+            global_BackendClass.__oldinit__ = global_BackendClass.__init__
+            global_BackendClass.__init__ = args_eat
+        f()
+
+        global_BackendClass = DetourBackend
+        global_data_fallback = None
+        global_try_pdf_removal = True
+        f()
+        global_data_fallback = True
+        global_try_pdf_removal = True
+        f()
+        global_data_fallback = None
+        global_try_pdf_removal = False
+        f()
+        global_data_fallback = True
+        global_try_pdf_removal = False
+        f()
+    return wrapper
 
 
 def add_fallback_strategy(f):
@@ -47,6 +111,9 @@ def add_fallback_strategy(f):
     def wrapper():
         global global_data_fallback
         global global_try_pdf_removal
+        global global_BackendClass
+
+        global_BackendClass = DetourBackend
         global_data_fallback = None
         global_try_pdf_removal = True
         f()
@@ -64,6 +131,9 @@ def add_full_fallback_strategy(f):
     def wrapper():
         global global_data_fallback
         global global_try_pdf_removal
+        global global_BackendClass
+
+        global_BackendClass = DetourBackend
         global_data_fallback = None
         global_try_pdf_removal = True
         f()
@@ -254,7 +324,7 @@ def test_cpuid():
         nose.tools.assert_equal(p.returncode == -11, True)
 
 
-@add_fallback_strategy
+@try_reassembler_and_detour
 def test_stackretencryption():
     logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
     from patcherex.techniques.stackretencryption import StackRetEncryption
@@ -295,7 +365,7 @@ def test_stackretencryption():
         os.chmod(original_file,777)
 
         tmp_file = os.path.join(td, "patched1")
-        backend = DetourBackend(filepath1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = StackRetEncryption(filepath1, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -312,7 +382,7 @@ def test_stackretencryption():
         nose.tools.assert_equal(p.returncode == -11, True)
 
         tmp_file = os.path.join(td, "patched2")
-        backend = DetourBackend(filepath2,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath2,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = StackRetEncryption(filepath2, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -331,7 +401,7 @@ def test_stackretencryption():
 
         # setjmp/longjmp
         tmp_file = os.path.join(td, "patched3")
-        backend = DetourBackend(filepath3,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath3,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = StackRetEncryption(filepath3, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -344,7 +414,7 @@ def test_stackretencryption():
 
         # setjmp/longjmp with cgrex
         tmp_file = os.path.join(td, "patched4")
-        backend = DetourBackend(filepath4,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath4,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = StackRetEncryption(filepath4, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -363,7 +433,7 @@ def test_stackretencryption():
         ''' # TODO for now this is broken
         # function pointer blacklist
         tmp_file = os.path.join(td, "patched5")
-        backend = DetourBackend(filepath5,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath5,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = StackRetEncryption(filepath5, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -381,7 +451,7 @@ def test_stackretencryption():
         '''
 
 
-@add_fallback_strategy
+@try_reassembler_and_detour
 def test_indirectcfi():
     logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
     from patcherex.techniques.indirectcfi import IndirectCFI
@@ -389,6 +459,8 @@ def test_indirectcfi():
         ("tests/i386/patchrex/indirect_call_test_O0","b7fff000"),
         ("tests/i386/patchrex/indirect_call_test_fullmem_O0","78000000"),
     ]
+    if global_BackendClass == ReassemblerBackend:
+        tests = tests[:1]
 
     for i,(tbin,addr_str) in enumerate(tests):
         vulnerable_fname1 = os.path.join(bin_location, tbin)
@@ -453,13 +525,12 @@ def test_indirectcfi():
 
         with patcherex.utils.tempdir() as td:
             patched_fname1 = os.path.join(td, "patched")
-            #import IPython; IPython.embed()
-            backend = DetourBackend(vulnerable_fname1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(vulnerable_fname1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = IndirectCFI(vulnerable_fname1, backend)
             patches = cp.get_patches()
             backend.apply_patches(patches)
             backend.save(patched_fname1)
-            #backend.save("../../vm/shared/patched")
+            backend.save("/tmp/aaa")
             res = Runner(patched_fname1,"00000001\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
 
@@ -493,9 +564,13 @@ def test_indirectcfi():
             print hex(res.reg_vals['eip'])
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             #main -> main
-            res = Runner(patched_fname1,"00000001\n08048620\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            nose.tools.assert_true(res.reg_vals == None)
+            if global_BackendClass != ReassemblerBackend:
+                res = Runner(patched_fname1,"00000001\n08048620\n",record_stdout=True)
+                nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+                nose.tools.assert_true(res.reg_vals == None)
+            else:
+                res = Runner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
+                nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
 
             #stack -> main
             res = Runner(patched_fname1,"00000002\n08048620\n",record_stdout=True)
@@ -533,8 +608,13 @@ def test_indirectcfi():
 
             #unknown -> main
             res = Runner(patched_fname1,"00000004\n08048620\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            nose.tools.assert_true(res.reg_vals == None)
+            if global_BackendClass != ReassemblerBackend:
+                nose.tools.assert_equal(res.stdout,"hello\nCGC")
+                nose.tools.assert_true(res.reg_vals == None)
+            else:
+                res = Runner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
+                nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
+
             '''
             #unknown -> stack
             res = Runner(patched_fname1,"00000004\nbaaaa000\n",record_stdout=True)
@@ -547,7 +627,7 @@ def test_indirectcfi():
             nose.tools.assert_true(res.reg_vals == None)
 
             # call gadget
-            if i==0:
+            if i == 0 and global_BackendClass != ReassemblerBackend:
                 res = Runner(patched_fname1,"00000001\n08048640\n",record_stdout=True)
                 nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
                 res = Runner(patched_fname1,"00000002\n08048640\n",record_stdout=True)
@@ -596,7 +676,7 @@ def test_freeregs():
     #import IPython; IPython.embed()
 
 
-@add_fallback_strategy
+@try_reassembler_and_detour
 def test_transmitprotection():
     def check_test(test):
         values,expected_crash = test
@@ -618,8 +698,6 @@ def test_transmitprotection():
             #print repr(res.stdout)
             nose.tools.assert_equal(len(res.stdout),6+5+5+tsize)
 
-
-
     logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
     from patcherex.techniques.transmitprotection import TransmitProtection
     vulnerable_fname1 = os.path.join(bin_location, "tests/i386/patchrex/arbitrary_transmit_O0")
@@ -635,7 +713,7 @@ def test_transmitprotection():
         print "nlslot:",nslot
         with patcherex.utils.tempdir() as td:
             patched_fname1 = os.path.join(td, "patched1")
-            backend = DetourBackend(vulnerable_fname1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(vulnerable_fname1,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = TransmitProtection(vulnerable_fname1, backend)
             cp.nslot=nslot
             patches = cp.get_patches()
@@ -643,7 +721,7 @@ def test_transmitprotection():
             backend.save(patched_fname1)
 
             patched_fname2 = os.path.join(td, "patched2")
-            backend = DetourBackend(vulnerable_fname2,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(vulnerable_fname2,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = TransmitProtection(vulnerable_fname2, backend)
             cp.nslot=nslot
             patches = cp.get_patches()
@@ -714,7 +792,7 @@ def test_transmitprotection():
                 check_test(test)
 
 
-@add_fallback_strategy
+@try_reassembler_and_detour
 def test_shiftstack():
     logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
     from patcherex.techniques.shiftstack import ShiftStack
@@ -727,25 +805,26 @@ def test_shiftstack():
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
 
-        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = ShiftStack(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        # backend.save("../../vm/shared/patched")
         res = Runner(tmp_file,tinput,record_stdout=True)
         nose.tools.assert_equal(original_output, res.stdout)
 
-        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend._debugging = True
         backend.apply_patches([InsertCodePatch(0x804db6b,"jmp 0x11223344")])
         backend.save(tmp_file)
+        #backend.save("/tmp/aaa")
         res = Runner(tmp_file,tinput,record_stdout=True)
         original_reg_value = res.reg_vals
         nose.tools.assert_equal(original_reg_value['eip'], 0x11223344)
 
         random_stack_pos = set()
         for _ in xrange(6):
-            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = ShiftStack(filepath, backend)
             patches = cp.get_patches()
             backend.apply_patches(patches+[InsertCodePatch(0x804db6b,"jmp 0x11223344")])
@@ -766,7 +845,7 @@ def test_shiftstack():
         nose.tools.assert_true(len(random_stack_pos)>=2)
 
 
-@add_full_fallback_strategy # this changes the headers, let't test it in all 4 cases
+@try_reassembler_and_detour_full # this changes the headers, let't test it in all 4 cases
 def test_nxstack():
     logging.getLogger("patcherex.techniques.NxStack").setLevel("DEBUG")
     from patcherex.techniques.nxstack import NxStack
@@ -781,7 +860,7 @@ def test_nxstack():
         with patcherex.utils.tempdir() as td:
             tmp_file = os.path.join(td, "patched")
 
-            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = NxStack(filepath, backend)
             patches = cp.get_patches()
             if stack_randomization:
@@ -795,7 +874,7 @@ def test_nxstack():
             nose.tools.assert_equal(original_output, res.stdout)
 
             # check if the stack is where we expect
-            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = NxStack(filepath, backend)
             patches = cp.get_patches()
             if stack_randomization:
@@ -807,27 +886,28 @@ def test_nxstack():
             nesp = res.reg_vals['esp']
             nose.tools.assert_true(0xbaaab000 < nesp < 0xbaaac000)
 
+            # TODO unfortunately we cannot test this because of: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/5
             # check if the stack is really not executable
-            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-            cp = NxStack(filepath, backend)
-            patches = cp.get_patches()
-            if stack_randomization:
-                cp =  ShiftStack(filepath, backend)
-                patches += cp.get_patches()
-            code = '''
-                mov eax, 0x11223344
-                push 0xabb0c031
-                jmp esp
-            '''
-            backend.apply_patches(patches+[InsertCodePatch(0x804db6b,code)])
-            backend.save(tmp_file)
+            # backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            # cp = NxStack(filepath, backend)
+            # patches = cp.get_patches()
+            # if stack_randomization:
+            #     cp =  ShiftStack(filepath, backend)
+            #     patches += cp.get_patches()
+            # code = '''
+            #     mov eax, 0x11223344
+            #     push 0xabb0c031
+            #     jmp esp
+            # '''
+            # backend.apply_patches(patches+[InsertCodePatch(0x804db6b,code)])
+            # backend.save(tmp_file)
             # backend.save("/tmp/aaa")
-            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
-            nose.tools.assert_true(0xbaaab000 < res.reg_vals['eip'] < 0xbaaac000)
-            nose.tools.assert_true(res.reg_vals['esp']!=0x000000ab)
+            # res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+            # nose.tools.assert_true(0xbaaab000 < res.reg_vals['eip'] < 0xbaaac000)
+            # nose.tools.assert_true(res.reg_vals['esp']!=0x000000ab)
 
             # check if the stack is executable one page before
-            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = NxStack(filepath, backend)
             patches = cp.get_patches()
             if stack_randomization:
@@ -847,7 +927,7 @@ def test_nxstack():
 
             # check read write on stack to the expanded one and autogrow
             # test that behaves like the original even after all these pushes
-            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = NxStack(filepath, backend)
             patches = cp.get_patches()
             if stack_randomization:
@@ -863,7 +943,7 @@ def test_nxstack():
             nose.tools.assert_equal(original_output, res.stdout)
 
 
-@add_fallback_strategy
+@try_reassembler_and_detour
 def test_adversarial():
     logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
     from patcherex.techniques.adversarial import Adversarial
@@ -873,12 +953,12 @@ def test_adversarial():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         cp = Adversarial(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        backend.save("/tmp/aaa")
+        # backend.save("/tmp/aaa")
 
         original_p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
         original_res = original_p.communicate(tinput)
@@ -891,7 +971,7 @@ def test_adversarial():
         nose.tools.assert_true(original_res[1] != patched_res[1])
 
 
-@add_fallback_strategy
+@try_reassembler_and_detour
 def test_backdoor():
     def solution_to_str(l):
         # deal with endianness craziness
@@ -910,14 +990,14 @@ def test_backdoor():
 
         with patcherex.utils.tempdir() as td:
             tmp_file = os.path.join(td, "patched")
-            backend = DetourBackend(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = Backdoor(filepath, backend, enable_bitflip=bitflip)
             patches = cp.get_patches()
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            # backend.save("/tmp/aaa")
+            backend.save("/tmp/aaa")
 
-            # test with short and long strings is we destroid original functionality
+            # test with short and long strings if we destroyed original functionality
             # last test is supposed to fail
             tests = ["A","A"*10,real_backdoor_enter[:3],real_backdoor_enter[:3]+"A"*10,
                     "\n"*10,real_backdoor_enter[:3]+"A"*10,real_backdoor_enter+"\n"*10]
@@ -941,7 +1021,7 @@ def test_backdoor():
                 tinput = real_backdoor_enter+solution_to_str(solution)
                 tinput += struct.pack("<I",ebx)
                 tinput += struct.pack("<I",eip)
-                # fp = open("../../vm/shared/tinput","wb")
+                # fp = open("/tmp/tinput","wb")
                 # fp.write(tinput)
                 # fp.close()
                 res = Runner(tmp_file,tinput,record_stdout=True,seed=seed,bitflip=bitflip)
@@ -965,13 +1045,14 @@ def test_backdoor():
                 res = Runner(tmp_file,tinput,record_stdout=True,seed=index,bitflip=bitflip)
                 eip_vals.add(res.reg_vals['eip'])
                 ebx_vals.add(res.reg_vals['ebx'])
-            # check that ebx and eip are actually randomixzed by the fake backdoor
+            # check that ebx and eip are actually randomized by the fake backdoor
             nose.tools.assert_equal(len(eip_vals),ntests)
             nose.tools.assert_equal(len(ebx_vals),ntests)
 
+            # test real backdoor
             for index,tbin in enumerate(bins):
                 tmp_file = os.path.join(td, "patched")
-                backend = DetourBackend(tbin,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+                backend = global_BackendClass(tbin,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
                 cp = Backdoor(tbin, backend,enable_bitflip=bitflip)
                 patches = cp.get_patches()
                 backend.apply_patches(patches)
@@ -989,7 +1070,7 @@ def test_backdoor():
                     nose.tools.assert_equal(res,False)
 
 
-@add_fallback_strategy
+@try_reassembler_and_detour
 def test_bitflip():
     all_chars = [chr(c) for c in xrange(256)]
     pipe = subprocess.PIPE
@@ -1011,12 +1092,12 @@ def test_bitflip():
     with patcherex.utils.tempdir() as td:
         for test in tests:
             tmp_file = os.path.join(td, "patched")
-            backend = DetourBackend(test,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(test,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = Bitflip(test, backend)
+            # backend._debugging = True
             patches = cp.get_patches()
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            # backend.save("/tmp/aaa")
 
             for tlen in slens:
                 ostr = ''.join(random.choice(all_chars) for _ in range(tlen))
@@ -1031,7 +1112,7 @@ def test_bitflip():
 
         for test in tests:
             tmp_file = os.path.join(td, "patched")
-            backend = DetourBackend(test,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+            backend = global_BackendClass(test,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = Backdoor(test, backend, enable_bitflip=True)
             patches = cp.get_patches()
             backend.apply_patches(patches)
@@ -1062,7 +1143,7 @@ def run_all():
 if __name__ == "__main__":
     import sys
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
-    logging.getLogger("patcherex.test.test_techniques_detourbackend").setLevel("INFO")
+    logging.getLogger("patcherex.test.test_techniques").setLevel("INFO")
     logging.getLogger("patcherex.techniques.Backdoor").setLevel("DEBUG")
 
     if len(sys.argv) > 1:

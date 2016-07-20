@@ -50,6 +50,8 @@ class ASMConverter(object):
 
         # memory operand
         op = op.lower()
+        if op.strip().startswith("{"):
+            return 4
         if "dword" in op:
             return 4
         elif "word" in op:
@@ -65,6 +67,7 @@ class ASMConverter(object):
                 return 2
             else:
                 return 1
+
         return None
 
     @staticmethod
@@ -91,6 +94,21 @@ class ASMConverter(object):
         return "%%%s" % reg
 
     @staticmethod
+    def mem_to_att_base_disp(base_reg, disp, sign):
+        if sign == '-':
+            disp = '-' + disp
+        return "%s(%s)" % (disp, base_reg)
+
+    @staticmethod
+    def mem_to_att_base_index(base_reg, index_reg, sign):
+        if sign == '-':
+            # scale is -1
+            return "(%s, %s, -1)" % (base_reg, index_reg)
+        else:
+            # scale is 1
+            return "(%s, %s)" % (base_reg, index_reg)
+
+    @staticmethod
     def mem_to_att(mem):
         """
         Convert a memory operand string from intel syntax to AT&T syntax
@@ -104,35 +122,75 @@ class ASMConverter(object):
             mem_ptr = m.group(1)
 
             # TODO: base + index * scale + displacement
-            # m = re.match(r"")
 
-            # base + displacement
-            m = re.match(r"\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)", mem_ptr)
+            # [{this_is_a_label}]
+            m = re.match(r"^\s*\{([\S]+)\}\s*$", mem_ptr)
             if m:
-                base, sign, disp = m.group(1), m.group(2), m.group(3)
+                label = m.group(1)
+                return label
+
+            # base + index + displacement
+            m = re.match(r"\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)\s*$", mem_ptr)
+            if m:
+                part_0, sign_1, part_1, sign_2, part_2 = m.groups()
+
+                if all(c in string.digits for c in part_1):
+                    # part_1 is displacement
+                    part_2, part_1 = part_1, part_2
+
+                if not all(c in string.digits for c in part_2):
+                    raise ValueError('Unsupported displacement string "%s"' % part_2)
+
+                base_reg = ASMConverter.reg_to_att(part_0)
+                if base_reg is None: raise ValueError('Unsupported base register "%s"' % part_0)
+                index_reg = ASMConverter.reg_to_att(part_1)
+                if index_reg is None: raise ValueError('Unsupported index register "%s"' % part_1)
+                disp = part_2
+
+                if sign_2 == '-':
+                    disp = '-' + disp
+
+                if sign_1 == '-':
+                    return "%s(%s, %s, -1)" % (disp, base_reg, index_reg)
+                else:
+                    return "%s(%s, %s)" % (disp, base_reg, index_reg)
+
+            # base + displacement, or base + index
+            m = re.match(r"\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)\s*$", mem_ptr)
+            if m:
+                base, sign, part = m.group(1), m.group(2), m.group(3)
 
                 base_reg = ASMConverter.reg_to_att(base)
                 if base_reg is None:
                     # some idiot wrote it in this way: displacement + base
                     # e.g. {this_is_a_label} + edi
                     # fuck anyone who wrote assembly like that...
-                    base, disp = disp, base
+                    base, part = part, base
 
                 base_reg = ASMConverter.reg_to_att(base)
 
                 if base_reg is None:
                     raise ValueError('Unsupported input: %s' % mem_ptr)
 
-                if disp[0] == '{' and disp[-1] == '}':
-                    disp = disp[1:-1]
+                # let's decide if the part is an index or a displacement
 
-                if sign == '-':
-                    disp = '-' + disp
+                if part[0] == '{' and part[-1] == '}':
+                    # disp might be a label. treat it as a displacement
+                    part = part[1:-1]
+                else:
+                    # if part is a register, it's a "base + index"
+                    disp_reg = ASMConverter.reg_to_att(part)
+                    if disp_reg is not None:
+                        # oh it is a register!
+                        return ASMConverter.mem_to_att_base_index(base_reg, disp_reg, sign)
 
-                return "%s(%s)" % (disp, base_reg)
+                # it's a "base + displacement"
+                disp = part
+
+                return ASMConverter.mem_to_att_base_disp(base_reg, disp, sign)
 
             # base or displacement
-            m = re.match(r"\s*([^\s\+\-]+)", mem_ptr)
+            m = re.match(r"\s*([^\s\+\-]+)\s*$", mem_ptr)
             if m:
                 something = m.group(1)
                 reg = ASMConverter.reg_to_att(something)
@@ -149,6 +207,7 @@ class ASMConverter(object):
         if mem[0] == '{' and mem[-1] == '}':
             return "$%s" % mem[1:-1]
 
+        # raise NotImplementedError('operand "%s" is not supported by ASMConverter. Please bug Fish to fix it.' % mem)
         return None
 
     @staticmethod
@@ -175,19 +234,33 @@ class ASMConverter(object):
         :rtype: str
         """
 
-        new_op = ASMConverter.reg_to_att(op)
-        if new_op is not None:
-            return 'reg', new_op
-        new_op = ASMConverter.mem_to_att(op)
-        if new_op is not None and mnemonic[0] != 'j' and mnemonic not in ('call', ):
-            return 'mem', new_op
-        new_op = ASMConverter.imm_to_att(op)
-        if new_op is not None:
-            return 'imm', new_op
-
         if op[0] == '{' and op[-1] == '}':
             # it's a label
-            return 'label', op[1:-1]
+            label = op[1:-1]
+            if mnemonic[0] == 'j' or mnemonic in ('call', ):
+                return 'label', '%s' % label
+            else:
+                return 'label', '$' + label
+
+        new_op = ASMConverter.reg_to_att(op)
+        if new_op is not None:
+            if mnemonic[0] == 'j' or mnemonic in ('call', ):
+                return 'reg', '*%s' % new_op
+            else:
+                return 'reg', new_op
+        new_op = ASMConverter.mem_to_att(op)
+        if new_op is not None:
+            if mnemonic[0] != 'j' and mnemonic not in ('call', ):
+                return 'mem', new_op
+            else:
+                return 'mem', '*%s' % new_op
+
+        new_op = ASMConverter.imm_to_att(op)
+        if new_op is not None:
+            if mnemonic[0] != 'j':
+                return 'imm', new_op
+            else:
+                return 'imm', op
 
         # other type of label
         return 'label', op
@@ -195,7 +268,10 @@ class ASMConverter(object):
     @staticmethod
     def mnemonic_to_att(m, size, op_sort=None):
 
-        if m in ('int', 'pushfd', 'popfd', 'nop', ):
+        if m in ('int', 'pushfd', 'popfd', 'nop', 'call', ):
+            return m
+        if m.startswith('j'):
+            # jumps
             return m
         if m.startswith('f'):
             # floating point instructions
@@ -208,21 +284,21 @@ class ASMConverter(object):
 
     @staticmethod
     def intel_to_att(asm):
-
+        
         # convert each line from intel syntax to AT&T syntax
 
         converted = []
 
         for l in asm.split('\n'):
-
             # comments
             m = re.match(r"(\s*);([\s\S]*)", l)
             if m:
+                # converted.append('#CONVERTED FROM: %s\n' % l)
                 converted.append("\t#" + m.group(2))
                 continue
 
             # inline comments
-            m = re.match(r"([\s\S]+);([\s\S]+)", l)
+            m = re.match(r"^([\s\S]+);([\s\S]*)$", l)
             if m:
                 inline_comments = "\t#" + m.group(2)
                 l = m.group(1)
@@ -230,6 +306,16 @@ class ASMConverter(object):
                 inline_comments = ""
 
             l = l.strip()
+
+            # NASM directive: db
+            m = re.match(r"^\s*db\s+([\s\S]+)$", l)
+            if m:
+                hex_bytes = m.group(1).strip()
+                for hex_byte in hex_bytes.split(','):
+                    hex_byte = hex_byte.strip()
+                    s = "\t.byte\t%s" % hex_byte
+                    converted.append(s)
+                continue
 
             # two operands
             m = re.match(r"(\s*)([\S]+)\s+([^,]+),\s*([^,]+)\s*$", l)
@@ -240,10 +326,10 @@ class ASMConverter(object):
                 # switch the op
                 op1, op2 = op2, op1
                 size = ASMConverter.get_size(op1)
-                if size is None: size = ASMConverter.get_size(op2)
-
                 if size is None:
-                    raise NotImplementedError('Not supported')
+                    size = ASMConverter.get_size(op2)
+                if size is None:
+                    raise NotImplementedError('Not supported: ' + l)
 
                 op1 = ASMConverter.to_att(op1, mnemonic=mnemonic)[1]
                 op2 = ASMConverter.to_att(op2, mnemonic=mnemonic)[1]
@@ -251,6 +337,7 @@ class ASMConverter(object):
                 # suffix the mnemonic
                 mnemonic = ASMConverter.mnemonic_to_att(mnemonic, size)
 
+                # converted.append('#CONVERTED FROM: %s\n' % l)
                 s = "%s%s\t%s, %s%s" % (spaces, mnemonic, op1, op2, inline_comments)
                 converted.append(s)
 
@@ -275,6 +362,7 @@ class ASMConverter(object):
                 #if mnemonic[0] == 'j' and op_sort == 'label':
                 #    op = "." + op
 
+                # converted.append('#CONVERTED FROM: %s\n' % l)
                 s = "%s%s\t%s%s" % (spaces, mnemonic, op, inline_comments)
                 converted.append(s)
 
@@ -288,12 +376,14 @@ class ASMConverter(object):
 
                 mnemonic = ASMConverter.mnemonic_to_att(mnemonic, 4)
 
+                # converted.append('#CONVERTED FROM: %s\n' % l)
                 s = "%s%s%s" % (spaces, mnemonic, inline_comments)
                 converted.append(s)
 
                 continue
 
             # other stuff
+            # converted.append('#CONVERTED FROM: %s\n' % l)
             converted.append(l)
 
         return "\n".join(converted)
@@ -580,3 +670,13 @@ def find_files(folder,extension,only_exec=False):
 def round_up_to_page(addr):
     return (addr + 0x1000 - 1) / 0x1000 * 0x1000
 
+
+def string_to_labels(tstr):
+    labels = []
+    for line in tstr.split("\n"):
+        line = line.strip()
+        m = re.match("^_.*:",line)
+        if m != None:
+            labels.append(m.group(0))
+    labels = [l for l in labels if not any([c in l for c in "( )"])]
+    return labels

@@ -14,6 +14,9 @@ from .misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
 
 l = logging.getLogger('reassembler')
 
+class CompilationError(Exception):
+    pass
+
 class ReassemblerBackend(Backend):
     def __init__(self, filename, debugging=False):
 
@@ -30,6 +33,7 @@ class ReassemblerBackend(Backend):
         self._compiler_stderr = None
 
         self._raw_file_patches = [ ]
+        self._add_segment_patches = [ ]
 
         self._load()
 
@@ -49,6 +53,7 @@ class ReassemblerBackend(Backend):
 
         entry_point_asm_before_restore = [ ]
         entry_point_asm_after_restore = [ ]
+
 
         for p in patches:
             if isinstance(p, InsertCodePatch):
@@ -74,6 +79,9 @@ class ReassemblerBackend(Backend):
 
             elif isinstance(p, RawFilePatch):
                 self._raw_file_patches.append(p)
+
+            elif isinstance(p, AddSegmentHeaderPatch):
+                self._add_segment_patches.append(p)
 
             else:
                 raise NotImplementedError('ReassemblerBackend does not support patch %s. '
@@ -112,12 +120,13 @@ class ReassemblerBackend(Backend):
 
         self._compiler_stdout, self._compiler_stderr = res
 
+        if retcode != 0:
+            raise CompilationError("File: %s Error: %s" % (tmp_file_path,res))
+            return False
+
         # Remove the temporary file
         if not self._debugging:
             os.remove(tmp_file_path)
-
-        if retcode != 0:
-            return False
 
         # strip the binary
         self._strip(filename)
@@ -125,7 +134,57 @@ class ReassemblerBackend(Backend):
         # apply raw file patches
         self._apply_raw_file_patches(filename)
 
+        # add segments
+        self._add_segments(filename,self._add_segment_patches)
+
         return True
+
+    def _add_segments(self, filename, patches):
+        fp = open(filename)
+        content = fp.read()
+        fp.close()
+
+        # dump the original segments
+        old_segments = []
+        header_size = 16 + 2*2 + 4*5 + 2*6
+        buf = content[0:header_size]
+        (cgcef_type, cgcef_machine, cgcef_version, cgcef_entry, cgcef_phoff,
+            cgcef_shoff, cgcef_flags, cgcef_ehsize, cgcef_phentsize, cgcef_phnum,
+            cgcef_shentsize, cgcef_shnum, cgcef_shstrndx) = struct.unpack("<xxxxxxxxxxxxxxxxHHLLLLLHHHHHH", buf)
+        phent_size = 8 * 4
+        assert cgcef_phnum != 0
+        assert cgcef_phentsize == phent_size
+        pt_types = {0: "NULL", 1: "LOAD", 6: "PHDR", 0x60000000+0x474e551: "GNU_STACK", 0x6ccccccc: "CGCPOV2"}
+        segments = []
+        for i in xrange(0, cgcef_phnum):
+            hdr = content[cgcef_phoff + phent_size * i:cgcef_phoff + phent_size * i + phent_size]
+            (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align) = struct.unpack("<IIIIIIII", hdr)
+            assert p_type in pt_types
+            old_segments.append((p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align))
+
+        # align size of the entire ELF
+        content = utils.pad_str(content, 0x10)
+        # change pointer to program headers to point at the end of the elf
+        content = utils.str_overwrite(content, struct.pack("<I", len(content)), 0x1C)
+
+        new_segments = [p.new_segment for p in patches]
+        all_segments = old_segments + new_segments
+
+        # add all segments at the end of the file
+        for segment in all_segments:
+            content = utils.str_overwrite(content, struct.pack("<IIIIIIII", *segment))
+
+        # we overwrite the first original program header,
+        # we do not need it anymore since we have moved original program headers at the bottom of the file
+        content = utils.str_overwrite(content, "SHELLPHISH\x00", 0x34)
+
+        # set the total number of segment headers
+        content = utils.str_overwrite(content, struct.pack("<H", len(all_segments)), 0x2c)
+
+        # update the file
+        fp = open(filename,"wb")
+        fp.write(content)
+        fp.close()
 
     def _strip(self, path):
         """

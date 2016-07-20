@@ -15,9 +15,9 @@ class RandomSyscallLoop(object):
         patches = []
         added_code = '''
             xor edi, edi
-            _loop:
+            _loop_rs:
             cmp edi, 1000000
-            je _exit
+            je _exit_rs
             inc edi
             ;int random(void *buf, size_t count, size_t *rnd_bytes) [7]
             mov eax, 0x7
@@ -25,8 +25,8 @@ class RandomSyscallLoop(object):
             mov ecx, 0x10
             mov edx, {random_result}
             int 0x80
-            jmp _loop
-            _exit:
+            jmp _loop_rs
+            _exit_rs:
             ;
         '''
         patches.append(AddEntryPointPatch(added_code,name="random_loop"))

@@ -40,42 +40,6 @@ class Bitflip(object):
         # TODO this is not optimized code, the sse code seems to fail in some cases
         # and it does not seem to be that faster
         # maybe the problem is that I corrupt xmm registers (test failing is test_patch_master NRFIN_00073)
-        # for reference, this is the sse code:
-        '''
-            ; given the prereceive patch esi points to the num of received bytes
-            mov   edx, DWORD [esi]
-            ; ecx = buf, edx = len
-            test   edx,edx
-            je     _bitflip_end
-            xor    esi,esi
-            mov    eax,edx
-            and    eax,0xffffffe0
-            je     _bitflip_final_comparison
-            xor    esi,esi
-            pcmpeqd xmm0,xmm0
-            _xmm_loop:
-                movdqu xmm1, [ecx+esi*1]
-                movdqu xmm2, [ecx+esi*1+0x10]
-                pxor   xmm1,xmm0
-                pxor   xmm2,xmm0
-                movdqu [ecx+esi*1],xmm1
-                movdqu [ecx+esi*1+0x10],xmm2
-                add    esi,0x20
-                cmp    eax,esi
-                jne    _xmm_loop
-                mov    esi,eax
-            _bitflip_final_comparison:
-            cmp    esi,edx
-            je     _bitflip_end
-            add    ecx,esi
-            sub    edx,esi
-            _last_bitflip_loop:
-                not    BYTE [ecx]
-                inc    ecx
-                dec    edx
-                jne    _last_bitflip_loop
-            _bitflip_end:
-        '''
         return code
 
     @staticmethod

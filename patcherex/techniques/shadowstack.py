@@ -32,7 +32,7 @@ class ShadowStack(object):
             pusha
             mov ecx,32
             mov ebx,eax
-            _print_reg_loop:
+            _print_reg_loop_ss:
                 rol ebx,4
                 mov edi,ebx
                 and edi,0x0000000f
@@ -42,7 +42,7 @@ class ShadowStack(object):
                 call {print}
                 mov ebx,ebp
                 sub ecx,4
-                jnz _print_reg_loop
+                jnz _print_reg_loop_ss
             popa
             ret
         '''
@@ -86,7 +86,7 @@ class ShadowStack(object):
             ; print a null terminated string pointed by eax
             pusha
             mov ecx, eax
-            _loop:
+            _loop_ss:
                 cmp BYTE [ecx],0
                 je _out
                 mov edx,1
@@ -95,7 +95,7 @@ class ShadowStack(object):
                 mov esi,0x0
                 int 0x80
                 inc ecx
-                jmp _loop
+                jmp _loop_ss
             _out:
             popa
             ret
