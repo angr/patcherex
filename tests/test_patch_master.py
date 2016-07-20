@@ -14,6 +14,7 @@ from povsim import CGCPovSimulator
 
 
 l = logging.getLogger("patcherex.test.test_patch_master")
+logging.getLogger("povsim.cgc_pov_simulator").setLevel('DEBUG')
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
 qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
@@ -77,14 +78,15 @@ def test_cfe_trials():
                     nose.tools.assert_true(len(nrule)==0)
 
                 if patch_type in PATCH_TYPES_WITH_BACKDOOR:
-                        if "bitflip" in nrule:
-                            bitflip = True
-                        else:
-                            bitflip = False
-                        pov_tester = CGCPovSimulator()
-                        res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_fname,bitflip=bitflip)
-                        print res
-                        nose.tools.assert_true(res)
+                    if "bitflip" in nrule:
+                        bitflip = True
+                    else:
+                        bitflip = False
+                    pov_tester = CGCPovSimulator()
+                    res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_fname,bitflip=bitflip)
+                    # TODO unfortunately this is not a 100% accurate test, because of: 
+                    nose.tools.assert_true(res)
+                    #import shutil; shutil.copy(tmp_fname,"/tmp/aaa")
 
                 for stdin in inputs:
                     # TODO: test properly multi-cb, right now they are tested as separate binaries

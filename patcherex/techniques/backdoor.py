@@ -196,8 +196,10 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
             ''' % (Bitflip.get_bitflip_code())
 
         code = code_header + '''
+            _enter_backddor:
+            ; makes the backdoor compatible with nx
+            sub esp, 0x1000
 
-            _enter_backdoor:
             ; we do not check rx_bytes: the assumption is that the network will never split the 4 bytes we send 
             ; I think it is a correct assumption because on the pov side we send 4 bytes together and 4 is very small
             mov esi, edx
