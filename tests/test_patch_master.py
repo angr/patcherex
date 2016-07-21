@@ -128,7 +128,7 @@ def test_cfe_trials():
         for test in titerator:
                 for patch_type in PATCH_TYPES:
                     tests.append((test,patch_type,td))
-        pool = multiprocessing.Pool(20)
+        pool = multiprocessing.Pool(5)
         res = pool.map(run_one_test,tests)
         for r in res:
             if r[0] == False:
