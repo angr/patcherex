@@ -15,5 +15,6 @@ setup(
         'shellphish-qemu',
         'fidget',
         'farnsworth',
+        'identifier',
    ],
 )
