@@ -32,7 +32,7 @@ from patcherex.techniques.nxstack import NxStack
 from patcherex.techniques.adversarial import Adversarial
 from patcherex.techniques.backdoor import Backdoor
 from patcherex.techniques.bitflip import Bitflip
-from patcherex.techniques.fidgetpatches import Fidget
+from patcherex.techniques.fidgetpatches import fidget_it
 
 from patcherex import utils
 from patcherex.backends.detourbackend import DetourBackend
@@ -141,6 +141,17 @@ class PatchMaster():
         backend.apply_patches(patches1)
         return (backend.get_final_content(),nr.get_bitflip_rule())
 
+    def generate_fidget_bitflip_binary(self):
+        nr = NetworkRules()
+        midfile = self.infile + '.fidget' + str(random.randrange(0,1000))
+        fidget_it(self.infile, midfile)
+        backend = DetourBackend(midfile)
+        cp = Bitflip(midfile,backend)
+        patches1 = cp.get_patches()
+
+        backend.apply_patches(patches1)
+        return (backend.get_final_content(),nr.get_bitflip_rule())
+
     def generate_light_binary(self):
         nr = NetworkRules()
         backend = DetourBackend(self.infile)
@@ -200,13 +211,6 @@ class PatchMaster():
 
         backend.apply_patches(patches1+patches2+patches3+patches4+patches5+patches6+patches7)
         return (backend.get_final_content(),nr.get_bitflip_rule())
-
-    def generate_fidget_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = Fidget(self.infile, backend, mode='safe')
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content(),""
 
     def create_one_patch(self,patch_type):
         m = getattr(self,"generate_"+patch_type+"_binary")
