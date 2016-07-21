@@ -1,4 +1,5 @@
 import patcherex
+import identifier
 import angr
 import logging
 from collections import defaultdict
@@ -29,35 +30,35 @@ class StackRetEncryption(object):
         self.max_cfg_steps = 2000
         self.found_setjmp = None
         self.found_longjmp = None
+        self.safe_functions = set()
+        # any function that is called in more than this many places is assumed to be safe
+        self.safe_calls_limit = 5
 
         self.relevant_registers = set(["eax","ebx","ecx","edx","esi","edi"])
         self.reg_free_map, self.reg_not_free_map = self.get_reg_free_map()
 
         added_code = '''
             mov ecx, DWORD [esp+4]
-            xor cx, WORD [%s]
             xor ecx, DWORD [{rnd_xor_key}]
             mov DWORD [esp+4], ecx
             ret
-        ''' % hex(self.flag_page + 0x123)
+        '''
         self.encrypt_using_ecx_patch = AddCodePatch(added_code,name="encrypt_using_ecx")
         added_code = '''
             mov edx, DWORD [esp+4]
-            xor dx, WORD [%s]
             xor edx, DWORD [{rnd_xor_key}]
             mov DWORD [esp+4], edx
             ret
-        ''' % hex(self.flag_page + 0x123)
+        '''
         self.encrypt_using_edx_patch = AddCodePatch(added_code,name="encrypt_using_edx")
         added_code = '''
             push ecx
             mov ecx, DWORD [esp+8]
-            xor cx, WORD [%s]
             xor ecx, DWORD [{rnd_xor_key}]
             mov DWORD [esp+8], ecx
             pop ecx
             ret
-        ''' % hex(self.flag_page + 0x123)
+        '''
         self.safe_encrypt_patch = AddCodePatch(added_code,name="safe_encrypt")
 
         self.used_ecx_patch = False
@@ -190,7 +191,7 @@ class StackRetEncryption(object):
     def function_to_patch_locations(self,ff):
         # TODO tail-call is handled lazily just by considering jumping out functions as not sane
         if cfg_utils.is_sane_function(ff) and cfg_utils.detect_syscall_wrapper(self.patcher,ff) == None \
-                and not cfg_utils.is_floatingpoint_function(self.patcher,ff):
+                and not cfg_utils.is_floatingpoint_function(self.patcher,ff) and not ff.addr in self.safe_functions:
             if cfg_utils.is_longjmp(self.patcher,ff):
                 self.found_longjmp = ff.addr
             elif cfg_utils.is_setjmp(self.patcher,ff):
@@ -307,8 +308,60 @@ class StackRetEncryption(object):
                 return [], True
         return all_succ, False
 
+    def _block_calls_safe_syscalls(self, block):
+        # checks that the block only calls sycalls that aren't receive
+        # receive is the only one that stack ret encryption is useful for
+
+        target_kind = block.vex.constant_jump_targets_and_jumpkinds
+        if len(target_kind) != 1:
+            return False
+        if target_kind.keys()[0] not in self.patcher.cfg.functions:
+            return False
+        target = self.patcher.cfg.functions[target_kind.keys()[0]]
+        if cfg_utils.detect_syscall_wrapper(self.patcher, target) and \
+                cfg_utils.detect_syscall_wrapper(self.patcher, target) != 3:
+            return True
+        return False
+
+    def _func_is_safe(self, ident, func):
+        if func not in ident.func_info:
+            return False
+        func_info = ident.func_info[func]
+        if len(func_info.buffers) == 0:
+            return True
+
+        # skip functions that have enough predecessors
+        if len(self.patcher.cfg.get_predecessors(self.patcher.cfg.get_any_node(func.addr))) > self.safe_calls_limit:
+            return True
+
+        is_safe = True
+        for v in func_info.buffers:
+            if v in func_info.stack_var_accesses:
+                for addr, kind in func_info.stack_var_accesses[v]:
+                    if kind == "load":
+                        bbl = self.patcher.project.factory.block(addr)
+                        if not self._block_calls_safe_syscalls(bbl):
+                            is_safe = False
+        return is_safe
+
+    def get_safe_functions(self):
+        ident = identifier.Identifier(self.patcher.project, self.patcher.cfg)
+
+        safe_func_addrs = set()
+        unsafe_func_addrs = set()
+        for f in self.patcher.cfg.functions.values():
+            if self._func_is_safe(ident, f):
+                l.debug("%#x is safe", f.addr)
+                safe_func_addrs.add(f.addr)
+            else:
+                l.debug("%#x is unsafe", f.addr)
+                unsafe_func_addrs.add(f.addr)
+        return safe_func_addrs
+
     def get_patches(self):
         common_patches = self.get_common_patches()
+
+        self.safe_functions = self.get_safe_functions()
 
         cfg = self.patcher.cfg
         patches = []
