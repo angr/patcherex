@@ -43,7 +43,7 @@ def save_patch(fname,patch_content):
     os.chmod(fname, 0755)
 
 
-def run_one_test(args):
+def try_one_patch(args):
     test,patch_type,td = args
     print "="*5,"test",test,patch_type,"started"
     inputs = ["","A","\x00","\nA\x00 "*50]
@@ -129,7 +129,7 @@ def test_cfe_trials():
                 for patch_type in PATCH_TYPES:
                     tests.append((test,patch_type,td))
         pool = multiprocessing.Pool(5)
-        res = pool.map(run_one_test,tests)
+        res = pool.map(try_one_patch,tests)
         for r in res:
             if r[0] == False:
                 print "ERROR:","while running",res[1]
