@@ -1136,77 +1136,83 @@ def test_bitflip():
                 print test, tlen
                 nose.tools.assert_equal(expected,patched)
 
-def test_uninitialized_patcher():
+@try_reassembler_and_detour
+def test_uninitialized():
     filepath = os.path.join(bin_location, "cfe_original/CROMU_00070/CROMU_00070")
-    temp = tempfile.mktemp(suffix="_patched")
-    pm = PatchMaster(filepath)
-    # make the patch for uninitialized stack
-    out_bin, _ = pm.generate_uninitialized_patch()
-    with open(temp, "wb") as f:
-        f.write(out_bin)
-    os.chmod(temp, 0777)
+    from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
 
-    # the exploit should no longer work
-    pov = os.path.join(poll_location, "CROMU_00070_2.pov")
-    for i in range(3):
-        nose.tools.assert_false(CGCPovSimulator().test_binary_pov(pov, temp))
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = global_BackendClass(filepath)
+        cp = UninitializedPatcher(filepath, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
 
-    # the poll should still work
-    poll_input = "\x02\x10\x00\xbf\xb6\x7e\xabZ\x3e\xbeG\x01\x06\x00u\xd3\x04E\x8ao" \
-                 "\x05\x00\x00\x05" \
-                 "\x00\x00\x00\x00" \
-                 "\x02\x0b\x00\xbf\xb6\x7e\xabZ\x3e\xbeG\x00\x01\x2bt" \
-                 "\x03R\x00\x01\x08\xe0\x17\x1b\x00\x07\xa8\xdd\x07\xfe\xc1\x1fW\x0e\x00\x08\xfb\xd7\x09i\xdf\xdde" \
-                 "\x11\x00\x01\xe61\x11\xfd?\x3c\x8e\x25\x00\x08!\x27\x0c!\x97\x90\x12\x24\x00\x09V\x86\x00OL?d\x2a" \
-                 "\x00\x02C\x19\x08\xf3\x1d\x19\x96\x0b\x00\x05\x01\xa3\x06M\xe5\x10\xc1!\x00\x09\xabQ\x08\xea!Z" \
-                 "\x02\x10\x00\xbf\xb6\x7e\xabZ\x3e\xbeG\x01\x06\x02\x02\xec\x08\x84\x85U" \
-                 "\x07\x00\x00\x07" \
-                 "\x07\x00\x00\x07" \
-                 "\x00\x00\x00\x00" \
-                 "\x03\x02\x00\x02\x00\x07" \
-                 "\x06\x00\x00\x06" \
-                 "\x08\x00\x00\x08" \
-                 "\x01\x00\x00\x01"
+        # the exploit should no longer work
+        pov = os.path.join(poll_location, "CROMU_00070_2.pov")
+        for i in range(3):
+            nose.tools.assert_false(CGCPovSimulator().test_binary_pov(pov, tmp_file))
 
-    pipe = subprocess.PIPE
-    p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
-    res = p.communicate(poll_input)
-    expected_output = res[0]
+        # the poll should still work
+        poll_input = "\x02\x10\x00\xbf\xb6\x7e\xabZ\x3e\xbeG\x01\x06\x00u\xd3\x04E\x8ao" \
+                     "\x05\x00\x00\x05" \
+                     "\x00\x00\x00\x00" \
+                     "\x02\x0b\x00\xbf\xb6\x7e\xabZ\x3e\xbeG\x00\x01\x2bt" \
+                     "\x03R\x00\x01\x08\xe0\x17\x1b\x00\x07\xa8\xdd\x07\xfe\xc1\x1fW\x0e\x00\x08\xfb\xd7\x09i\xdf\xdde" \
+                     "\x11\x00\x01\xe61\x11\xfd?\x3c\x8e\x25\x00\x08!\x27\x0c!\x97\x90\x12\x24\x00\x09V\x86\x00OL?d\x2a" \
+                     "\x00\x02C\x19\x08\xf3\x1d\x19\x96\x0b\x00\x05\x01\xa3\x06M\xe5\x10\xc1!\x00\x09\xabQ\x08\xea!Z" \
+                     "\x02\x10\x00\xbf\xb6\x7e\xabZ\x3e\xbeG\x01\x06\x02\x02\xec\x08\x84\x85U" \
+                     "\x07\x00\x00\x07" \
+                     "\x07\x00\x00\x07" \
+                     "\x00\x00\x00\x00" \
+                     "\x03\x02\x00\x02\x00\x07" \
+                     "\x06\x00\x00\x06" \
+                     "\x08\x00\x00\x08" \
+                     "\x01\x00\x00\x01"
 
-    p = subprocess.Popen([qemu_location, temp], stdin=pipe, stdout=pipe, stderr=pipe)
-    res = p.communicate(poll_input)
-    nose.tools.assert_equal(expected_output, res[0])
+        pipe = subprocess.PIPE
+        p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(poll_input)
+        expected_output = res[0]
 
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(poll_input)
+        nose.tools.assert_equal(expected_output, res[0])
+
+@try_reassembler_and_detour
 def test_malloc_patcher():
+    from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
     filepath = os.path.join(bin_location, "cfe_original/NRFIN_00078/NRFIN_00078")
-    temp = tempfile.mktemp(suffix="_patched")
-    pm = PatchMaster(filepath)
-    # make the patch for uninitialized stack
-    out_bin, _ = pm.generate_malloc_ext_patch()
-    with open(temp, "wb") as f:
-        f.write(out_bin)
-    os.chmod(temp, 0777)
 
-    # the exploit should no longer work
-    pov = os.path.join(poll_location, "NRFIN_00078_2.pov")
-    for i in range(3):
-        nose.tools.assert_false(CGCPovSimulator().test_binary_pov(pov, temp))
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = global_BackendClass(filepath)
+        cp = MallocExtPatcher(filepath, backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
 
-    # the poll should still work
-    poll_input = "a\x00\x00\x00\x00\x00\x00\x00\x00!\x00\x00\x00D1hTwKsiTm8dFvhwwrLqPiV9gogd52Xsu" \
-                 "v\x00\x00\x00\x00\x00\x00\x00\x00\x0a\x00\x00\x00\x5bis6Rg\x5dyo\x2a" \
-                 "n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
-                 "d\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
-                 "q\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
+        # the exploit should no longer work
+        pov = os.path.join(poll_location, "NRFIN_00078_2.pov")
+        for i in range(3):
+            nose.tools.assert_false(CGCPovSimulator().test_binary_pov(pov, tmp_file))
 
-    pipe = subprocess.PIPE
-    p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
-    res = p.communicate(poll_input)
-    expected_output = res[0]
+        # the poll should still work
+        poll_input = "a\x00\x00\x00\x00\x00\x00\x00\x00!\x00\x00\x00D1hTwKsiTm8dFvhwwrLqPiV9gogd52Xsu" \
+                     "v\x00\x00\x00\x00\x00\x00\x00\x00\x0a\x00\x00\x00\x5bis6Rg\x5dyo\x2a" \
+                     "n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
+                     "d\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00" \
+                     "q\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00"
 
-    p = subprocess.Popen([qemu_location, temp], stdin=pipe, stdout=pipe, stderr=pipe)
-    res = p.communicate(poll_input)
-    nose.tools.assert_equal(expected_output, res[0])
+        pipe = subprocess.PIPE
+        p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(poll_input)
+        expected_output = res[0]
+
+        p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(poll_input)
+        nose.tools.assert_equal(expected_output, res[0])
 
 def run_all():
     functions = globals()

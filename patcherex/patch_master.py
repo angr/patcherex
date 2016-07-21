@@ -48,13 +48,9 @@ from networkrules import NetworkRules
 l = logging.getLogger("patcherex.PatchMaster")
 
 class PatchMaster():
-    # TODO cfg creation should be here somewhere, so that we can avoid recomputing it everytime
-    # having a serious caching system would be even better
 
     def __init__(self,infile):
         self.infile = infile
-        # to ease autotesting:
-        self.ngenerated_patches = 4
 
     def generate_shadow_stack_binary(self):
         backend = DetourBackend(self.infile)
@@ -190,6 +186,8 @@ class PatchMaster():
 
     def generate_medium_detour_fidget_binary(self):
         tmp_file = tempfile.mktemp()
+        print self.infile
+        print tmp_file
         fidget_it(self.infile, tmp_file)
 
         nr = NetworkRules()
@@ -202,8 +200,8 @@ class PatchMaster():
         patches.extend(Adversarial(tmp_file,backend).get_patches())
         patches.extend(Backdoor(tmp_file,backend).get_patches())
         patches.extend(NxStack(tmp_file,backend).get_patches())
-        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
-        patches.extend(StackRetEncryption(self.infile,backend).get_patches())
+        patches.extend(MallocExtPatcher(tmp_file,backend).get_patches())
+        patches.extend(StackRetEncryption(tmp_file,backend).get_patches())
 
         backend.apply_patches(patches)
         content = backend.get_final_content()
@@ -212,6 +210,8 @@ class PatchMaster():
 
     def generate_medium_reassembler_fidget_binary(self):
         tmp_file = tempfile.mktemp()
+        print self.infile
+        print tmp_file
         fidget_it(self.infile, tmp_file)
 
         nr = NetworkRules()
@@ -224,8 +224,8 @@ class PatchMaster():
         patches.extend(Adversarial(tmp_file,backend).get_patches())
         patches.extend(Backdoor(tmp_file,backend).get_patches())
         patches.extend(NxStack(tmp_file,backend).get_patches())
-        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
-        patches.extend(StackRetEncryption(self.infile,backend).get_patches())
+        patches.extend(MallocExtPatcher(tmp_file,backend).get_patches())
+        patches.extend(StackRetEncryption(tmp_file,backend).get_patches())
 
         backend.apply_patches(patches)
         content = backend.get_final_content()

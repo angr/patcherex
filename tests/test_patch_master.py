@@ -57,7 +57,7 @@ def test_cfe_trials():
             pm = PatchMaster(test)
 
             for patch_type in PATCH_TYPES:
-                if "fidget"in patch_type: continue
+                if ("fidget"  in patch_type): continue
                 patched_bin, nrule = pm.create_one_patch(patch_type)
                 tmp_fname = os.path.join(td,patch_type)
                 generated_patches.add(patched_bin)
