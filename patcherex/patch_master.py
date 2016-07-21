@@ -128,6 +128,22 @@ class PatchMaster():
         patches = cp.get_patches()
         backend.apply_patches(patches)
         return backend.get_final_content()
+    
+    def generate_nxstack_binary(self):
+        backend = DetourBackend(self.infile)
+        cp = NxStack(self.infile,backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        return backend.get_final_content()
+
+    def generate_bitflip_binary(self):
+        nr = NetworkRules()
+        backend = DetourBackend(self.infile)
+        cp = Bitflip(self.infile,backend)
+        patches1 = cp.get_patches()
+
+        backend.apply_patches(patches1)
+        return (backend.get_final_content(),nr.get_bitflip_rule())
 
     def generate_fidget_bitflip_binary(self):
         nr = NetworkRules()

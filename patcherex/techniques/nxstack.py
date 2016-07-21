@@ -2,6 +2,7 @@ import patcherex
 
 import logging
 import struct
+import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
 
 l = logging.getLogger("patcherex.techniques.NxStack")
@@ -13,8 +14,19 @@ class NxStack(object):
         self.patcher = backend
 
     def get_patches(self):
-        # TODO nx stack should be only used if static analysis tells us that no code is executed on the stack
-        # see issue: https://git.seclab.cs.ucsb.edu/cgc/patcherex/issues/14
+        cfg = self.patcher.cfg
+        for k,ff in cfg.functions.iteritems():
+            if not ff.is_syscall and ff.startpoint != None and ff.endpoints != None and \
+                    cfg_utils.detect_syscall_wrapper(self.patcher,ff) == None and \
+                    not cfg_utils.is_floatingpoint_function(self.patcher,ff):
+                call_sites = ff.get_call_sites()
+                for cs in call_sites:
+                    nn = ff.get_node(cs)
+                    # max stack size is 8MB
+                    if any([0xba2aa000 <=  n.addr < 0xbaaab000 for n in nn.successors()]):
+                        l.warning("found call to stack at %08x, avoiding nx" % nn.addr)
+                        return []
+
         patches = []
         nxsegment_after_stack =(0x1, 0x0, 0xbaaab000, 0xbaaab000, 0x0, 0x1000, 0x6, 0x1000)
         patches.append(AddSegmentHeaderPatch(nxsegment_after_stack, name="nxstack_segment_header"))

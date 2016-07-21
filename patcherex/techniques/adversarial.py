@@ -114,30 +114,36 @@ class Adversarial(object):
         ; int 3
 
         ; 1) transmit flag page to stderr
-        ;  - check if it fails (it should not even if we try to send two pages)
         ;  - confuse dynamic detection of type2
         ; int transmit(int fd, const void *buf, size_t count, size_t *tx_bytes) [2]
         mov ecx,  0x4347c000
-        mov edx, 0x10000
+        xor edx, edx
+        mov dl, 0x4
         mov esi, {tmp1}
         xor eax, eax
         mov al, 0x2
         xor ebx, ebx
         mov bl, 0x2 ;stderr!
         int 0x80
-        test eax, eax
-        je _e1_adversarial
-        call {evil_fail}
-        _e1_adversarial:
-        cmp DWORD [{tmp1}], 0
-        jg _e2_adversarial
-        call {evil_fail}
-        _e2_adversarial:
+
+        xor eax, eax
         xor [{computed_value}], eax
         pushf
         pop eax
         ; int 3
         xor [{computed_value}], eax
+
+        ; 1.5) check fs/gs segment register coherence
+        push 0x11223344
+        mov esi, 0x11223344
+        mov eax, esp
+        db 0x64, 0x8b, 0x08 ;            mov    ecx,DWORD PTR fs:[eax]
+        db 0x65, 0x8b, 0x10 ;            mov    edx,DWORD PTR gs:[eax]
+        cmp ecx, esi
+        jne {evil_fail}
+        cmp edx, esi
+        jne {evil_fail}
+        pop eax
 
         ; some insanity to get out
         call _get_eip4
