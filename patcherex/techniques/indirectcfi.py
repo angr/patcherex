@@ -34,7 +34,25 @@ class IndirectCFI(object):
         # in this case we could protect eax to be less than about 500
         return "standard"
 
-    def handle_standard_cj(self,instruction):
+    def is_mainbin_call(self,addr,ff):
+        # TODO it seems that it is not really possible that all the call targets are resolved 
+        # for instance in original/NRFIN_00008 we have:
+        # <BlockNode at 0x804974f (size 19)> ['0x8049762', '0x9000020']
+        baddr = self.patcher.cfg.get_any_node(addr,anyaddr=True).addr
+        if baddr == None:
+            return False
+        call_sites = ff.get_call_sites()
+        for cs in call_sites:
+            if cs == baddr:
+                nn = ff.get_node(cs)
+                # print nn, map(hex,[n.addr for n in nn.successors()])
+                if all([0x8048000 <=  n.addr < 0x9000000 for n in nn.successors()]):
+                    l.info("Found indirect call always targeting the main bin at: %#8x: %s" % \
+                            (instruction.address, map(hex([n.addr for n in nn.successors()]))))
+                    return True
+        return False
+
+    def handle_standard_cj(self,instruction,ff):
         def compile_mem_access(instruction):
             # I could use some compiler-like approach like the old cgrex, but I think it is overkill
             # instead, I just "copy" the code from capstone
@@ -84,45 +102,63 @@ class IndirectCFI(object):
         else:
             gadget_protection = ""
 
-        # I assume that something that does not jump above 0x43 will never jump below and viceversa
-        # this is true unless there are binaries bigger than 1GB or allocate bigger than 1GB
-        new_code = '''
-        push edx
-        %s
-        mov dl, BYTE [edx] ;less significant byte of target in dl (and check access)
-        %s
-        shr edx,24 ;most significant byte of target in dl
-        mov dh, BYTE [{%s}]
-        cmp dh,0
-        jne _check_%d
-            mov BYTE [{%s}], dl
-            jmp _exit_%d
-
-        _check_%d:
-        cmp dl,0x43
-        jb _cond2_%d
-        cmp dh, 0x43
-        jb _bad_%d ; < >
-        jmp _exit_%d ; > >
-
-        _cond2_%d:
-        cmp dh, 0x43
-        jb _exit_%d
-
-        _bad_%d:
-        jmp 0x8047333; > <
-        _exit_%d: ; < <
-        pop edx
-        ''' % (target_resolver,gadget_protection,data_patch_name,IndirectCFI.global_counter,data_patch_name,\
-                IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter, \
-                IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter, \
-                IndirectCFI.global_counter)
-        # the memory regions should be correct with binaries up to 8MB of stack, 1GB of heap, about 930 MB of binary
         IndirectCFI.global_counter+=1
 
-        code_patch = InsertCodePatch(int(instruction.address),new_code,name="indirect_cfi_for_%08x"%instruction.address)
-        data_patch = AddRWDataPatch(1,"saved_first_target_%08x"%instruction.address)
-        return [code_patch,data_patch]
+        if self.is_mainbin_call(instruction.address,ff):
+            new_code = '''
+            push edx
+            %s
+            mov dl, BYTE [edx] ;less significant byte of target in dl (and check access)
+            %s
+            shr edx,24 ;most significant byte of target in dl
+            cmp dl,0x09
+            ja  0x8047333
+            cmp dl,0x08
+            jb  0x8047333
+            pop edx
+            ''' % (target_resolver,gadget_protection)
+            code_patch = InsertCodePatch(int(instruction.address),new_code,name="indirect_cfi_for_%08x"%instruction.address)
+            return [code_patch]
+
+        else:
+            # I assume that something that does not jump above 0x43 will never jump below and viceversa
+            # this is true unless there are binaries bigger than 1GB or allocate bigger than 1GB
+            new_code = '''
+            push edx
+            %s
+            mov dl, BYTE [edx] ;less significant byte of target in dl (and check access)
+            %s
+            shr edx,24 ;most significant byte of target in dl
+            mov dh, BYTE [{%s}]
+            cmp dh,0
+            jne _check_%d
+                mov BYTE [{%s}], dl
+                jmp _exit_%d
+
+            _check_%d:
+            cmp dl,0x43
+            jb _cond2_%d
+            cmp dh, 0x43
+            jb _bad_%d ; < >
+            jmp _exit_%d ; > >
+
+            _cond2_%d:
+            cmp dh, 0x43
+            jb _exit_%d
+
+            _bad_%d:
+            jmp 0x8047333; > <
+            _exit_%d: ; < <
+            pop edx
+            ''' % (target_resolver,gadget_protection,data_patch_name,IndirectCFI.global_counter,data_patch_name,\
+                    IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter, \
+                    IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter, \
+                    IndirectCFI.global_counter)
+            # the memory regions should be correct with binaries up to 8MB of stack, 1GB of heap, about 930 MB of binary
+
+            code_patch = InsertCodePatch(int(instruction.address),new_code,name="indirect_cfi_for_%08x"%instruction.address)
+            data_patch = AddRWDataPatch(1,"saved_first_target_%08x"%instruction.address)
+            return [code_patch,data_patch]
 
     def get_patches(self):
         patches = []
@@ -132,31 +168,34 @@ class IndirectCFI(object):
         # the overlapping instruction issue seems to be fixed, at least partially
         # I am still using a dict and raising warnings in case of problems.
         sci = {}
-        for function in cfg.functions.values():
-            for bb in function.blocks:
-                for ci in bb.capstone.insns:
-                    if ci.group(capstone.x86_const.X86_GRP_CALL) or ci.group(capstone.x86_const.X86_GRP_JUMP):
-                        if len(ci.operands) != 1:
-                            l.warning("Unexpected operand size for CALL/JUMP: %s" % str(ci))
-                        else:
-                            op = ci.operands[0]
-                            if op.type != capstone.x86_const.X86_OP_IMM:
-                                if ci.address in sci:
-                                    old_ci = sci[ci.address]
-                                    tstr = "instruction at %08x (bb: %08x, function %08x) " % \
-                                            (ci.address,bb.addr,function.addr)
-                                    tstr += "previously found at bb: %08x in function: %08x" % \
-                                            (old_ci[1].addr,old_ci[2].addr)
-                                    l.warning(tstr)
-                                else:
-                                    sci[ci.address] = (ci,bb,function)
+        for ff in cfg.functions.values():
+            if not ff.is_syscall and ff.startpoint != None and ff.endpoints != None and \
+                    cfg_utils.detect_syscall_wrapper(self.patcher,ff) == None and \
+                    not cfg_utils.is_floatingpoint_function(self.patcher,ff):
+                for bb in ff.blocks:
+                    for ci in bb.capstone.insns:
+                        if ci.group(capstone.x86_const.X86_GRP_CALL) or ci.group(capstone.x86_const.X86_GRP_JUMP):
+                            if len(ci.operands) != 1:
+                                l.warning("Unexpected operand size for CALL/JUMP: %s" % str(ci))
+                            else:
+                                op = ci.operands[0]
+                                if op.type != capstone.x86_const.X86_OP_IMM:
+                                    if ci.address in sci:
+                                        old_ci = sci[ci.address]
+                                        tstr = "instruction at %08x (bb: %08x, function %08x) " % \
+                                                (ci.address,bb.addr,ff.addr)
+                                        tstr += "previously found at bb: %08x in function: %08x" % \
+                                                (old_ci[1].addr,old_ci[2].addr)
+                                        l.warning(tstr)
+                                    else:
+                                        sci[ci.address] = (ci,bb,ff)
 
-        for instruction,bb,function in sci.values():
+        for instruction,bb,ff in sci.values():
             l.info("Found indirect CALL/JUMP: %s" % str(instruction))
             cj_type = self.classify_cj(instruction)
             if cj_type == "standard":
                 try:
-                    new_patches = self.handle_standard_cj(instruction)
+                    new_patches = self.handle_standard_cj(instruction,ff)
                 except utils.NasmException:
                     l.warning("NASM exception while compiling mem_access for %s" % instruction)
                     continue
