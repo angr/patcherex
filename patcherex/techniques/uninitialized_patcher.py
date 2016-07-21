@@ -380,7 +380,10 @@ class UninitializedPatcher(object):
                     body += "mov DWORD [esp%#x], %s; \n" % (off, zero_reg)
             else:
                 if offset_reg_curr != g[0]:
-                    body += "add %s, %#x; \n" % (offset_reg, g[0]-offset_reg_curr)
+                    if g[0]-offset_reg_curr > 0:
+                        body += "add %s, %#x; \n" % (offset_reg, g[0]-offset_reg_curr)
+                    else:
+                        body += "sub %s, %#x; \n" % (offset_reg, offset_reg_curr-g[0])
                 offset_reg_curr = g[0]
                 for off in g:
                     if off == offset_reg_curr:
