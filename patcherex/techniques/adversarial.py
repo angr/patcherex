@@ -71,8 +71,8 @@ class Adversarial(object):
 
         # 0) destroy section header pointers
         # remove these if you want to be able to run the patched binary in GDB
-        patches.append(RawFilePatch(0x20,struct.pack("<I",0xfffffefe)))
-        patches.append(RawFilePatch(0x30,struct.pack("<H",0xfefe)))
+        # patches.append(RawFilePatch(0x20,struct.pack("<I",0xfffffefe)))
+        # patches.append(RawFilePatch(0x30,struct.pack("<H",0xfefe)))
 
         fail_code = '''
             ; infinite loop allocating and writing memory

@@ -29,9 +29,10 @@ os.environ["POSTGRES_DATABASE_PASSWORD"] = "dummy"
 from farnsworth.models.job import PatcherexJob
 PATCH_TYPES = [str(p) for p in PatcherexJob.PATCH_TYPES]
 print "PATCH_TYPES:", PATCH_TYPES
-PATCH_TYPES_WITH_RULES = ["heavy","bitflip"]
-PATCH_TYPES_WITH_BACKDOOR = ["medium","heavy"]
-PATCH_TYPES_AS_ORIGINAL = []
+
+PATCH_TYPES_WITH_RULES = ["voidbitflip"]
+PATCH_TYPES_WITH_BACKDOOR = ["medium_detour","medium_reassembler"]
+PATCH_TYPES_AS_ORIGINAL = ["voidbitflip"]
 
 
 def test_cfe_trials():
@@ -41,7 +42,7 @@ def test_cfe_trials():
         fp.close()
         os.chmod(fname, 0755)
 
-    nose.tools.assert_true(all([p in PATCH_TYPES for p in PATCH_TYPES_WITH_RULES]))
+    #nose.tools.assert_true(all([p in PATCH_TYPES for p in PATCH_TYPES_WITH_RULES]))
     tfolder = os.path.join(bin_location, "cfe_original")
     tests = utils.find_files(tfolder,"*",only_exec=True)
     inputs = ["","A","\n"*100,"\x00"*100,"A"*100]
@@ -49,6 +50,7 @@ def test_cfe_trials():
     bins = ["CROMU_00070","NRFIN_00073","CROMU_00071"] # ,"KPRCA_00016_1","KPRCA_00056",
     titerator = [t for t in tests if any([b in t for b in bins])]
     generated_patches = set()
+    errors = []
     for tnumber,test in enumerate(titerator):
         with patcherex.utils.tempdir() as td:
             print "=====",str(tnumber+1)+"/"+str(len(titerator)),"building patches for",test
@@ -59,7 +61,8 @@ def test_cfe_trials():
                 tmp_fname = os.path.join(td,patch_type)
                 generated_patches.add(patched_bin)
                 save_patch(tmp_fname,patched_bin)
-                # save_patch(os.path.join("/tmp/cfe1",os.path.basename(test)+"_"+patch_type),patched_bin)
+                save_patch("/tmp/aaa",patched_bin)
+                save_patch(os.path.join("/tmp/cfe1",os.path.basename(test)+"_"+patch_type),patched_bin)
 
                 fp = open(test)
                 ocontent = fp.read()
@@ -72,9 +75,12 @@ def test_cfe_trials():
                     # it is not impossible that a patched binary is exactly as the original
                     # but it is worth investigation
                     nose.tools.assert_true(ocontent != pcontent)
+                else:
+                    nose.tools.assert_equal(ocontent, pcontent)
 
                 nose.tools.assert_equal(type(patched_bin),str)
                 nose.tools.assert_equal(type(nrule),str)
+
                 if patch_type in PATCH_TYPES_WITH_RULES:
                     nose.tools.assert_true(len(nrule)>0)
                 else:
@@ -116,8 +122,9 @@ def test_cfe_trials():
                     nose.tools.assert_equal(real,expected)
 
     # it is not impossible that two patches are exactly the same, but it is worth investigation
-    nose.tools.assert_equal(len(generated_patches),len(bins)*len(PATCH_TYPES))
-    print "GENERATED:",len(generated_patches),"patches"
+    print "\n".join(errors)
+    nose.tools.assert_equal(len(set(generated_patches)),len(bins)*len(PATCH_TYPES))
+    print "Generated",len(generated_patches),"different patches of ",len(PATCH_TYPES),"types:",PATCH_TYPES
 
 
 def run_all():

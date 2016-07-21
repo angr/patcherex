@@ -1,6 +1,6 @@
 import fidget
 
-def fidget_it(infile, outfile, mode='normal'):
+def fidget_it(infile, outfile, mode='safe'):
     if mode == 'normal':
         technique = fidget.FidgetDefaultTechnique()
     elif mode == 'safe':
