@@ -248,6 +248,7 @@ add DWORD [esp+%d], %s;
 
         code = prefix + added_code + suffix
         l.debug("adding:\n%s", code)
-        self.patches.append(InsertCodePatch(malloc_addr, code, "malloc_rand_code"))
+        # priority of 101 to ensure we are applied
+        self.patches.append(InsertCodePatch(malloc_addr, code, "malloc_rand_code", priority=101))
 
         return list(self.patches)
