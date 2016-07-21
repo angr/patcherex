@@ -4,6 +4,7 @@ import struct
 import bisect
 import logging
 from collections import OrderedDict
+from collections import defaultdict
 
 import patcherex
 from patcherex import utils
@@ -439,6 +440,25 @@ class DetourBackend(Backend):
         return applied_patches
 
     def apply_patches(self, patches):
+        # deal with stackable patches
+        # add stackable patches to the one with highest priority
+        insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
+        insert_code_patches_dict = defaultdict(list)
+        for p in insert_code_patches:
+            insert_code_patches_dict[p.addr].append(p)
+        insert_code_patches_dict_sorted = defaultdict(list)
+        for k,v in insert_code_patches_dict.iteritems():
+            insert_code_patches_dict_sorted[k] = sorted(v,key=lambda x:-1*x.priority)
+
+        insert_code_patches_stackable = [p for p in patches if isinstance(p, InsertCodePatch) and p.stackable]
+        for sp in insert_code_patches_stackable:
+            assert len(sp.dependencies) == 0
+            if sp.addr in insert_code_patches_dict_sorted:
+                highest_priority_at_addr = insert_code_patches_dict_sorted[sp.addr][0]
+                if highest_priority_at_addr != sp:
+                    highest_priority_at_addr.asm_code += "\n"+sp.asm_code+"\n"
+                    patches.remove(sp)
+
         # check for duplicate labels, it is not very necessary for this backend
         # but it is better to behave in the same way of the reassembler backend
         relevant_patches = [p for p in patches if (isinstance(p, AddCodePatch) or \

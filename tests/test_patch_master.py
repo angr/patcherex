@@ -62,8 +62,8 @@ def test_cfe_trials():
                 tmp_fname = os.path.join(td,patch_type)
                 generated_patches.add(patched_bin)
                 save_patch(tmp_fname,patched_bin)
-                save_patch("/tmp/aaa",patched_bin)
-                save_patch(os.path.join("/tmp/cfe1",os.path.basename(test)+"_"+patch_type),patched_bin)
+                # save_patch("/tmp/aaa",patched_bin)
+                # save_patch(os.path.join("/tmp/cfe1",os.path.basename(test)+"_"+patch_type),patched_bin)
 
                 fp = open(test)
                 ocontent = fp.read()

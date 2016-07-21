@@ -1456,6 +1456,7 @@ def test_entrypointpatch_restore():
         nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
 
 
+@add_fallback_strategy
 def test_piling():
     filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
 
@@ -1480,7 +1481,7 @@ def test_piling():
         patches.append(AddRODataPatch("does it work\n", "the_first_string"))
         patches.append(AddRODataPatch("nope no\n", name="the_second_string"))
         patches.append(InsertCodePatch(0x80480a0, code_print_a, "test_code"))
-        patches.append(InsertCodePatch(0x80480a0, code_print_b, name="second_add_code_patch"))
+        patches.append(InsertCodePatch(0x80480a0, code_print_b, name="second_add_code_patch", stackable=True))
 
         backend.apply_patches(patches)
         backend.save(tmp_file)
