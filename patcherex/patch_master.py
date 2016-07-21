@@ -159,14 +159,14 @@ class PatchMaster():
         patches.extend(TransmitProtection(self.infile,backend).get_patches())
         patches.extend(ShiftStack(self.infile,backend).get_patches())
         patches.extend(Adversarial(self.infile,backend).get_patches())
-        patches.extend(Backdoor(self.infile,backend).get_patches())
+        patches.extend(Backdoor(self.infile,backend,enable_bitflip=True).get_patches())
         patches.extend(NxStack(self.infile,backend).get_patches())
         patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
         patches.extend(StackRetEncryption(self.infile,backend).get_patches())
         patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
 
         backend.apply_patches(patches)
-        return (backend.get_final_content(),"")
+        return (backend.get_final_content(),nr.get_bitflip_rule())
 
     def generate_medium_reassembler_binary(self):
         nr = NetworkRules()
@@ -177,19 +177,17 @@ class PatchMaster():
         patches.extend(TransmitProtection(self.infile,backend).get_patches())
         patches.extend(ShiftStack(self.infile,backend).get_patches())
         patches.extend(Adversarial(self.infile,backend).get_patches())
-        patches.extend(Backdoor(self.infile,backend).get_patches())
+        patches.extend(Backdoor(self.infile,backend,enable_bitflip=True).get_patches())
         patches.extend(NxStack(self.infile,backend).get_patches())
         patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
         patches.extend(StackRetEncryption(self.infile,backend).get_patches())
         patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
 
         backend.apply_patches(patches)
-        return (backend.get_final_content(),"")
+        return (backend.get_final_content(),nr.get_bitflip_rule())
 
     def generate_medium_detour_fidget_binary(self):
         tmp_file = tempfile.mktemp()
-        print self.infile
-        print tmp_file
         fidget_it(self.infile, tmp_file)
 
         nr = NetworkRules()
@@ -200,7 +198,7 @@ class PatchMaster():
         patches.extend(TransmitProtection(tmp_file,backend).get_patches())
         patches.extend(ShiftStack(tmp_file,backend).get_patches())
         patches.extend(Adversarial(tmp_file,backend).get_patches())
-        patches.extend(Backdoor(tmp_file,backend).get_patches())
+        patches.extend(Backdoor(tmp_file,backend,enable_bitflip=True).get_patches())
         patches.extend(NxStack(tmp_file,backend).get_patches())
         patches.extend(MallocExtPatcher(tmp_file,backend).get_patches())
         patches.extend(StackRetEncryption(tmp_file,backend).get_patches())
@@ -209,12 +207,10 @@ class PatchMaster():
         backend.apply_patches(patches)
         content = backend.get_final_content()
         os.unlink(tmp_file)
-        return (content,"")
+        return (content,nr.get_bitflip_rule())
 
     def generate_medium_reassembler_fidget_binary(self):
         tmp_file = tempfile.mktemp()
-        print self.infile
-        print tmp_file
         fidget_it(self.infile, tmp_file)
 
         nr = NetworkRules()
@@ -225,7 +221,7 @@ class PatchMaster():
         patches.extend(TransmitProtection(tmp_file,backend).get_patches())
         patches.extend(ShiftStack(tmp_file,backend).get_patches())
         patches.extend(Adversarial(tmp_file,backend).get_patches())
-        patches.extend(Backdoor(tmp_file,backend).get_patches())
+        patches.extend(Backdoor(tmp_file,backend,enable_bitflip=True).get_patches())
         patches.extend(NxStack(tmp_file,backend).get_patches())
         patches.extend(MallocExtPatcher(tmp_file,backend).get_patches())
         patches.extend(StackRetEncryption(tmp_file,backend).get_patches())
@@ -234,7 +230,7 @@ class PatchMaster():
         backend.apply_patches(patches)
         content = backend.get_final_content()
         os.unlink(tmp_file)
-        return (content,"")
+        return (content,nr.get_bitflip_rule())
 
     ########################
 

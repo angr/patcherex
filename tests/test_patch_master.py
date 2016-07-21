@@ -30,8 +30,8 @@ from farnsworth.models.job import PatcherexJob
 PATCH_TYPES = [str(p) for p in PatcherexJob.PATCH_TYPES]
 print "PATCH_TYPES:", PATCH_TYPES
 
-PATCH_TYPES_WITH_RULES = ["voidbitflip"]
-PATCH_TYPES_WITH_BACKDOOR = ["medium_detour","medium_reassembler"]
+PATCH_TYPES_WITH_RULES = ["voidbitflip","medium_detour","medium_reassembler","medium_detour_fidget","medium_reassembler_fidget"]
+PATCH_TYPES_WITH_BACKDOOR = ["medium_detour","medium_reassembler","medium_detour_fidget","medium_reassembler_fidget"]
 PATCH_TYPES_AS_ORIGINAL = ["voidbitflip"]
 
 
@@ -50,14 +50,14 @@ def test_cfe_trials():
     bins = ["CROMU_00070","NRFIN_00073","CROMU_00071"] # ,"KPRCA_00016_1","KPRCA_00056",
     titerator = [t for t in tests if any([b in t for b in bins])]
     generated_patches = set()
-    errors = []
     for tnumber,test in enumerate(titerator):
         with patcherex.utils.tempdir() as td:
-            print "=====",str(tnumber+1)+"/"+str(len(titerator)),"building patches for",test
+            print "="*10,str(tnumber+1)+"/"+str(len(titerator)),"building patches for",test
             pm = PatchMaster(test)
 
             for patch_type in PATCH_TYPES:
-                if ("fidget"  in patch_type): continue
+                print "="*5, patch_type
+                # if ("fidget"  not in patch_type): continue
                 patched_bin, nrule = pm.create_one_patch(patch_type)
                 tmp_fname = os.path.join(td,patch_type)
                 generated_patches.add(patched_bin)
@@ -123,8 +123,7 @@ def test_cfe_trials():
                     nose.tools.assert_equal(real,expected)
 
     # it is not impossible that two patches are exactly the same, but it is worth investigation
-    print "\n".join(errors)
-    # nose.tools.assert_equal(len(set(generated_patches)),len(bins)*len(PATCH_TYPES))
+    nose.tools.assert_equal(len(set(generated_patches)),len(bins)*len(PATCH_TYPES))
     print "Generated",len(generated_patches),"different patches of ",len(PATCH_TYPES),"types:",PATCH_TYPES
 
 
