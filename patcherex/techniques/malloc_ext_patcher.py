@@ -217,8 +217,7 @@ class MallocExtPatcher(object):
             xor edx, edx
             int 0x80
         '''
-        self.patches.append(AddEntryPointPatch(added_code))
-
+        self.patches.append(AddEntryPointPatch(added_code, "malloc_rand_init"))
 
         ff = cfg.functions[malloc_addr]
         # get free regs
@@ -249,6 +248,6 @@ add DWORD [esp+%d], %s;
 
         code = prefix + added_code + suffix
         l.debug("adding:\n%s", code)
-        self.patches.append(InsertCodePatch(malloc_addr, code))
+        self.patches.append(InsertCodePatch(malloc_addr, code, "malloc_rand_code"))
 
         return list(self.patches)

@@ -1041,7 +1041,7 @@ class SimplePointerEncryption(Technique):
             begin_label=begin_label,
             end_label=end_label
         )
-        patch = AddEntryPointPatch(asm_code=encrypt_pointers, after_restore=True)
+        patch = AddEntryPointPatch(asm_code=encrypt_pointers, after_restore=True, name="encrypt_all_pointers_entry")
         patches.append(patch)
 
         # make all data belong to ".data", so they are writable
@@ -1069,7 +1069,7 @@ class SimplePointerEncryption(Technique):
                 add {mem_dst}, esi
                 mov esi, dword ptr [esp-4]
                 """.format(mem_dst=mem_dst_operand)
-            patch = InsertCodePatch(ref.ins_addr + ref.ins_size, asm_code)
+            patch = InsertCodePatch(ref.ins_addr + ref.ins_size, asm_code, "encrypt_ref%#x" % ref.ins_addr)
             patches.append(patch)
             mem_ref_patch_count += 1
 
@@ -1097,7 +1097,7 @@ class SimplePointerEncryption(Technique):
                 patch_addrs = deref.decryption_addrs
 
             for patch_addr in patch_addrs:
-                patch = InsertCodePatch(patch_addr, asm_code)
+                patch = InsertCodePatch(patch_addr, asm_code, "decrypt_ref%#x" % patch_addr)
                 patches.append(patch)
                 mem_deref_decryption_patch_count += 1
 
@@ -1124,7 +1124,7 @@ class SimplePointerEncryption(Technique):
                 else:
                     patch_addrs = deref.encryption_addrs
                 for encryption_addr in patch_addrs:
-                    patch = InsertCodePatch(encryption_addr, asm_code)
+                    patch = InsertCodePatch(encryption_addr, asm_code, "re-ecnryption%#x" % encryption_addr)
                     patches.append(patch)
 
                     mem_deref_encryption_patch_count += 1
@@ -1191,7 +1191,7 @@ class SimplePointerEncryption(Technique):
                     sub {reg}, [_POINTER_KEY]
                 .{lbl}:
                 """.format(reg=reg, lbl=lbl_name)
-                patch = InsertCodePatch(last_instr_addr, asm)
+                patch = InsertCodePatch(last_instr_addr, asm, "syscall_decrypt_%#x" % last_instr_addr)
                 patches.append(patch)
 
             for index in argument_indices_out:
@@ -1208,7 +1208,7 @@ class SimplePointerEncryption(Technique):
                 .{lbl}:
                 """.format(reg=reg, lbl=lbl_name)
 
-                patch = InsertCodePatch(last_instr_addr + 2, asm)  # len(int 80h) == 2
+                patch = InsertCodePatch(last_instr_addr + 2, asm, "syscall_encrypt_%#x" % last_instr_addr)  # len(int 80h) == 2
                 patches.append(patch)
 
         return patches
