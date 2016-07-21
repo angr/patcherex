@@ -129,6 +129,13 @@ class PatchMaster():
         backend.apply_patches(patches)
         return backend.get_final_content()
 
+    def generate_nxstack_binary(self):
+        backend = DetourBackend(self.infile)
+        cp = NxStack(self.infile,backend)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        return backend.get_final_content()
+
 
     ##################
 

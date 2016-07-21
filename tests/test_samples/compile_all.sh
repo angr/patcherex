@@ -38,3 +38,5 @@ rm $OUT/backdoorme9; $SCRIPT backdoorme9.c -Ofast -o $OUT/backdoorme9
 
 rm $OUT/echo1; $SCRIPT echo1.c -o $OUT/echo1
 rm $OUT/echo2; $SCRIPT echo2.c -o $OUT/echo2
+
+rm $OUT/call_stack_main; $SCRIPT call_stack_main.c -o $OUT/call_stack_main
