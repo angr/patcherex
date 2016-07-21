@@ -165,6 +165,7 @@ class PatchMaster():
         patches.extend(Adversarial(self.infile,backend).get_patches())
         patches.extend(Backdoor(self.infile,backend).get_patches())
         patches.extend(NxStack(self.infile,backend).get_patches())
+        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
         patches.extend(StackRetEncryption(self.infile,backend).get_patches())
 
         backend.apply_patches(patches)
@@ -181,6 +182,7 @@ class PatchMaster():
         patches.extend(Adversarial(self.infile,backend).get_patches())
         patches.extend(Backdoor(self.infile,backend).get_patches())
         patches.extend(NxStack(self.infile,backend).get_patches())
+        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
         patches.extend(StackRetEncryption(self.infile,backend).get_patches())
 
         backend.apply_patches(patches)
@@ -200,6 +202,8 @@ class PatchMaster():
         patches.extend(Adversarial(tmp_file,backend).get_patches())
         patches.extend(Backdoor(tmp_file,backend).get_patches())
         patches.extend(NxStack(tmp_file,backend).get_patches())
+        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
+        patches.extend(StackRetEncryption(self.infile,backend).get_patches())
 
         backend.apply_patches(patches)
         content = backend.get_final_content()
@@ -220,6 +224,8 @@ class PatchMaster():
         patches.extend(Adversarial(tmp_file,backend).get_patches())
         patches.extend(Backdoor(tmp_file,backend).get_patches())
         patches.extend(NxStack(tmp_file,backend).get_patches())
+        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
+        patches.extend(StackRetEncryption(self.infile,backend).get_patches())
 
         backend.apply_patches(patches)
         content = backend.get_final_content()
