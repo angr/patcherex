@@ -163,7 +163,7 @@ class PatchMaster():
         patches.extend(NxStack(self.infile,backend).get_patches())
         patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
         patches.extend(StackRetEncryption(self.infile,backend).get_patches())
-        patches.extend(UninitializedPatcher(tmp_file,backend).get_patches())
+        patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
 
         backend.apply_patches(patches)
         return (backend.get_final_content(),"")
@@ -181,7 +181,7 @@ class PatchMaster():
         patches.extend(NxStack(self.infile,backend).get_patches())
         patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
         patches.extend(StackRetEncryption(self.infile,backend).get_patches())
-        patches.extend(UninitializedPatcher(tmp_file,backend).get_patches())
+        patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
 
         backend.apply_patches(patches)
         return (backend.get_final_content(),"")
