@@ -166,8 +166,6 @@ class MallocExtPatcher(object):
 
         try:
             succ, is_terminate = self.get_all_succ(addr)
-            # if addr==0x0804B390:
-            #    import IPython; IPython.embed()
             if is_terminate:
                 return [addr]
             if len(succ)==0:
@@ -243,7 +241,7 @@ class MallocExtPatcher(object):
             use_reg = free_regs[0]
 
         added_code = """add DWORD [{malloc_pseudorand}], 13;
-mov DWORD %s, [{malloc_pseudorand}];
+mov %s, DWORD [{malloc_pseudorand}];
 and %s, 0x3c;
 add %s, 0x4;
 add DWORD [esp+%d], %s;
