@@ -13,6 +13,7 @@ import subprocess
 import random
 import concurrent.futures
 import datetime
+import tempfile
 import cPickle as pickle
 from ctypes import cdll
 from cStringIO import StringIO
@@ -185,43 +186,42 @@ class PatchMaster():
     def generate_medium_detour_fidget_binary(self):
         tmp_file = tempfile.mktemp()
         fidget_it(self.infile, tmp_file)
-        self.infile = tmp_file
 
         nr = NetworkRules()
-        backend = DetourBackend(self.infile)
+        backend = DetourBackend(tmp_file)
         patches = []
 
-        patches.extend(IndirectCFI(self.infile,backend).get_patches())
-        patches.extend(TransmitProtection(self.infile,backend).get_patches())
-        patches.extend(ShiftStack(self.infile,backend).get_patches())
-        patches.extend(Adversarial(self.infile,backend).get_patches())
-        patches.extend(Backdoor(self.infile,backend).get_patches())
-        patches.extend(NxStack(self.infile,backend).get_patches())
+        patches.extend(IndirectCFI(tmp_file,backend).get_patches())
+        patches.extend(TransmitProtection(tmp_file,backend).get_patches())
+        patches.extend(ShiftStack(tmp_file,backend).get_patches())
+        patches.extend(Adversarial(tmp_file,backend).get_patches())
+        patches.extend(Backdoor(tmp_file,backend).get_patches())
+        patches.extend(NxStack(tmp_file,backend).get_patches())
 
         backend.apply_patches(patches)
+        content = backend.get_final_content()
         os.unlink(tmp_file)
-        return (backend.get_final_content(),"")
+        return (content,"")
 
     def generate_medium_reassembler_fidget_binary(self):
         tmp_file = tempfile.mktemp()
         fidget_it(self.infile, tmp_file)
-        self.infile = tmp_file
 
         nr = NetworkRules()
-        backend = ReassemblerBackend(self.infile)
+        backend = ReassemblerBackend(tmp_file)
         patches = []
 
-        patches.extend(IndirectCFI(self.infile,backend).get_patches())
-        patches.extend(TransmitProtection(self.infile,backend).get_patches())
-        patches.extend(ShiftStack(self.infile,backend).get_patches())
-        patches.extend(Adversarial(self.infile,backend).get_patches())
-        patches.extend(Backdoor(self.infile,backend).get_patches())
-        patches.extend(NxStack(self.infile,backend).get_patches())
+        patches.extend(IndirectCFI(tmp_file,backend).get_patches())
+        patches.extend(TransmitProtection(tmp_file,backend).get_patches())
+        patches.extend(ShiftStack(tmp_file,backend).get_patches())
+        patches.extend(Adversarial(tmp_file,backend).get_patches())
+        patches.extend(Backdoor(tmp_file,backend).get_patches())
+        patches.extend(NxStack(tmp_file,backend).get_patches())
 
         backend.apply_patches(patches)
+        content = backend.get_final_content()
         os.unlink(tmp_file)
-        return (backend.get_final_content(),"")
-
+        return (content,"")
 
     ########################
 
