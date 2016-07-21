@@ -130,7 +130,7 @@ class Adversarial(object):
         xor [{computed_value}], eax
         pushf
         pop eax
-        int 3
+        ; int 3
         xor [{computed_value}], eax
 
         ; 1.5) check fs/gs segment register coherence
