@@ -3,6 +3,7 @@ import identifier
 import angr
 import logging
 from collections import defaultdict
+from angr.lifter import AngrMemoryError
 
 import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
@@ -259,7 +260,10 @@ class UninitializedPatcher(object):
         while to_process:
             bl, seen, written = to_process.pop()
             seen.add(bl)
-            insts = self.patcher.project.factory.block(bl.addr, max_size=bl.size).instruction_addrs
+            try:
+                insts = self.patcher.project.factory.block(bl.addr, max_size=bl.size).instruction_addrs
+            except AngrMemoryError:
+                insts = []
             for i in insts:
                 if i in inverted_stack_accesses:
                     actions = inverted_stack_accesses[i]
@@ -283,7 +287,9 @@ class UninitializedPatcher(object):
 
                             if bl.addr in call_sites:
                                 call_target = ff.get_call_target(bl.addr)
-                                if call_target is not None:
+                                # this is not 100% correct if a binary is bigger than 16MB
+                                # unfortunately, the region for unresolved calls is 0x9000000
+                                if call_target is not None and (0x8000000 < call_target < 0x9000000):
                                     call_target = self.patcher.cfg.functions[call_target]
                             else:
                                 call_target = None
