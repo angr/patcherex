@@ -14,6 +14,7 @@ import random
 import concurrent.futures
 import datetime
 import tempfile
+import termcolor
 import cPickle as pickle
 from ctypes import cdll
 from cStringIO import StringIO
@@ -48,6 +49,31 @@ from networkrules import NetworkRules
 l = logging.getLogger("patcherex.PatchMaster")
 
 TEST_RESULTS = False
+
+
+def test_bin(original,patched,bitflip=False):
+    import shellphish_qemu
+    qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
+    timeout = 15
+    inputs = ["","B","\n","\x00","B\n \x00"*50]
+    pipe = subprocess.PIPE
+
+    main_args = ["timeout","-k",str(timeout),str(timeout),qemu_location]
+
+    for tinput in inputs:
+        p = subprocess.Popen(main_args + [original], stdin=pipe, stdout=pipe, stderr=pipe)
+        stdout,_ = p.communicate(tinput)
+        original_res = (stdout,p.returncode)
+        if bitflip:
+            used_args = main_args + ["-bitflip"]
+        p = subprocess.Popen(used_args + [patched], stdin=pipe, stdout=pipe, stderr=pipe)
+        stdout,_ = p.communicate(tinput)
+        patched_res = (stdout,p.returncode)
+        assert original_res == patched_res, "unexpected output in %s using %s:\n%s\nvs\n%s" % \
+                (patched,repr(tinput),original_res,patched_res)
+    print "tested using qemu"
+    return
+
 
 class PatchMaster():
 
@@ -383,6 +409,9 @@ if __name__ == "__main__":
         print "="*50,"process started at",str(datetime.datetime.now())
         print " ".join(map(shellquote,sys.argv))
 
+        if "--test" in sys.argv:
+            TEST_RESULTS = True
+
         logging.getLogger("patcherex.techniques.CpuId").setLevel("INFO")
         logging.getLogger("patcherex.techniques.Packer").setLevel("INFO")
         logging.getLogger("patcherex.techniques.QemuDetection").setLevel("INFO")
@@ -407,11 +436,14 @@ if __name__ == "__main__":
         m = getattr(pm,"generate_"+technique+"_binary")
         res = m()
         # handle generate_ methods returning also a network rule
+        bitflip = False
         if len(res) == 2:
             if not any([output_fname.endswith("_"+str(i)) for i in xrange(2,10)]):
                 fp = open(os.path.join(os.path.dirname(output_fname),"ids.rules"),"wb")
                 fp.write(res[1])
                 fp.close()
+                if "bitflip" in res[1]:
+                    bitflip = True
             patched_bin_content = res[0]
         else:
             patched_bin_content = res
@@ -420,16 +452,19 @@ if __name__ == "__main__":
         fp.write(patched_bin_content)
         fp.close()
         os.chmod(output_fname, 0755)
+
+        if TEST_RESULTS:
+            test_bin(input_fname,output_fname,bitflip)
+
         print "="*50,"process ended at",str(datetime.datetime.now())
 
     elif sys.argv[1] == "multi" or sys.argv[1] == "multi_name" or sys.argv[1] == "multi_name2":
         out = sys.argv[2]
         techniques = sys.argv[3].split(",")
-        files = sys.argv[7:]
-        technique_in_filename = True
-
-        if "--test" in sys.argv:
+        if "--test" == sys.argv[7]:
             TEST_RESULTS = True
+        files = sys.argv[8:]
+        technique_in_filename = True
 
         if sys.argv[1] == "multi_name":
             tasks = []
@@ -486,6 +521,11 @@ if __name__ == "__main__":
             key = (sep.join(res[1][0].split(sep)[-3:]),res[1][1])
             status = res[0]
             value = res[2]
+            if status:
+                status = termcolor.colored(status,"green")
+            else:
+                status = termcolor.colored(status,"red")
+
             print "=" * 20, str(i+1)+"/"+str(ntasks), key, status
             #print value
             res_dict[key] = res
