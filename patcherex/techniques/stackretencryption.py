@@ -219,7 +219,11 @@ class StackRetEncryption(object):
 
     def is_last_returning_block(self,node):
         node = self.patcher.cfg.get_any_node(node.addr)
-        function = self.patcher.cfg.functions[node.function_address]
+        try:
+            function = self.patcher.cfg.functions[node.function_address]
+        except KeyError:
+            # TODO this is probably a cfg bug
+            return False
         if any([node.addr == e.addr for e in function.ret_sites]):
             return True
         return False
@@ -263,10 +267,15 @@ class StackRetEncryption(object):
         reg_free_map = dict()
         reg_not_free_map = dict()
         for n in self.patcher.cfg.nodes():
-            assert n.addr not in reg_free_map #no duplicated nodes
-            assert n.addr != 0 #no weird nodes
+            try:
+                bl = self.patcher.project.factory.block(n.addr)
+            except AngrMemoryError:
+                bl = None
 
-            bl = self.patcher.project.factory.block(n.addr)
+            # no weird or duplicate nodes
+            if bl == None or (n.addr in reg_free_map) or n.addr == 0:
+                continue
+
             used_regs = set()
             free_regs = set()
 
