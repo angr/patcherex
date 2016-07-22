@@ -58,7 +58,7 @@ def test_bin(original,patched,bitflip=False):
     inputs = ["","B","\n","\x00","B\n \x00"*50]
     pipe = subprocess.PIPE
 
-    main_args = ["timeout","-k",str(timeout),str(timeout),qemu_location]
+    main_args = ["timeout","-s","9",str(timeout),qemu_location]
 
     for tinput in inputs:
         p = subprocess.Popen(main_args + [original], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -67,7 +67,7 @@ def test_bin(original,patched,bitflip=False):
         if bitflip:
             used_args = main_args + ["-bitflip"]
         else:
-            used_args = main_args + ["-bitflip"]
+            used_args = main_args
         p = subprocess.Popen(used_args + [patched], stdin=pipe, stdout=pipe, stderr=pipe)
         stdout,_ = p.communicate(tinput)
         patched_res = (stdout,p.returncode)
