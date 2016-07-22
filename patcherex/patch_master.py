@@ -341,6 +341,8 @@ def worker(inq,outq,filename_with_technique=True,timeout=60*3):
         delete_if_exists(output_fname)
         delete_if_exists(output_fname+"_log")
         args = ["timeout","-s","9",str(timeout),os.path.realpath(__file__),"single",input_file,technique,output_fname]
+        if TEST_RESULTS:
+            args += ["--test"]
         res = exec_cmd(args)
         with open(output_fname+"_log","wb") as fp:
             fp.write("\n"+"="*50+" STDOUT\n")
@@ -463,6 +465,7 @@ if __name__ == "__main__":
         techniques = sys.argv[3].split(",")
         if "--test" == sys.argv[7]:
             TEST_RESULTS = True
+
         files = sys.argv[8:]
         technique_in_filename = True
 
