@@ -47,6 +47,8 @@ from networkrules import NetworkRules
 
 l = logging.getLogger("patcherex.PatchMaster")
 
+TEST_RESULTS = False
+
 class PatchMaster():
 
     def __init__(self,infile):
@@ -343,8 +345,6 @@ def ftodir2(f,technique,out):
 
 
 if __name__ == "__main__":
-
-
     if sys.argv[1] == "run":
         logging.getLogger("patcherex.techniques.CpuId").setLevel("INFO")
         logging.getLogger("patcherex.techniques.Packer").setLevel("INFO")
@@ -427,6 +427,9 @@ if __name__ == "__main__":
         techniques = sys.argv[3].split(",")
         files = sys.argv[7:]
         technique_in_filename = True
+
+        if "--test" in sys.argv:
+            TEST_RESULTS = True
 
         if sys.argv[1] == "multi_name":
             tasks = []

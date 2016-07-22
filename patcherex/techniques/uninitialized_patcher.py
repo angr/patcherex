@@ -72,10 +72,15 @@ class UninitializedPatcher(object):
         reg_free_map = dict()
         reg_not_free_map = dict()
         for n in self.patcher.cfg.nodes():
-            assert n.addr not in reg_free_map #no duplicated nodes
-            assert n.addr != 0 #no weird nodes
+            try:
+                bl = self.patcher.project.factory.block(n.addr)
+            except AngrMemoryError:
+                bl = None
 
-            bl = self.patcher.project.factory.block(n.addr)
+            # no weird or duplicate nodes
+            if bl == None or (n.addr in reg_free_map) or n.addr == 0:
+                continue
+
             used_regs = set()
             free_regs = set()
 
@@ -132,7 +137,11 @@ class UninitializedPatcher(object):
 
     def is_last_returning_block(self,node):
         node = self.patcher.cfg.get_any_node(node.addr)
-        function = self.patcher.cfg.functions[node.function_address]
+        try:
+            function = self.patcher.cfg.functions[node.function_address]
+        except KeyError:
+            # TODO this is probably a cfg bug
+            return False
         if any([node.addr == e.addr for e in function.ret_sites]):
             return True
         return False
@@ -366,7 +375,8 @@ class UninitializedPatcher(object):
 
         offset_reg = "XXX"  # these should not be used
         offset_reg_curr = 0xffff  # these should not be used
-        if any(len(g) >= 3 for g in groups):
+        min_group_size = 3
+        if any(len(g) >= min_group_size for g in groups):
             # use a register for the offset
             if len(free_regs) > 1:
                 offset_reg = free_regs[1]
@@ -375,13 +385,15 @@ class UninitializedPatcher(object):
                 offset_reg = "edi"
                 suffix = "pop edi; \n" + suffix
                 groups = self._fix_groups(groups, 4)
+                if not any(len(g) >= min_group_size for g in groups):
+                    min_group_size = min(len(g) for g in groups)
 
-            first_group_off = next(g[0] for g in groups if len(g) >= 3)
+            first_group_off = next(g[0] for g in groups if len(g) >= min_group_size)
             prefix += "lea %s, [esp%#x]; \n" % (offset_reg, first_group_off)
             offset_reg_curr = first_group_off
 
         for g in groups:
-            if len(g) < 3:
+            if len(g) < min_group_size:
                 for off in g:
                     body += "mov DWORD [esp%#x], %s; \n" % (off, zero_reg)
             else:

@@ -110,7 +110,11 @@ class MallocExtPatcher(object):
 
     def is_last_returning_block(self,node):
         node = self.patcher.cfg.get_any_node(node.addr)
-        function = self.patcher.cfg.functions[node.function_address]
+        try:
+            function = self.patcher.cfg.functions[node.function_address]
+        except KeyError:
+            # TODO this is probably a cfg bug
+            return False
         if any([node.addr == e.addr for e in function.ret_sites]):
             return True
         return False
@@ -217,7 +221,8 @@ class MallocExtPatcher(object):
             xor edx, edx
             int 0x80
         '''
-        self.patches.append(AddEntryPointPatch(added_code, "malloc_rand_init"))
+        self.patches.append(AddEntryPointPatch(added_code))
+
 
         ff = cfg.functions[malloc_addr]
         # get free regs
@@ -248,7 +253,6 @@ add DWORD [esp+%d], %s;
 
         code = prefix + added_code + suffix
         l.debug("adding:\n%s", code)
-        # priority of 101 to ensure we are applied
-        self.patches.append(InsertCodePatch(malloc_addr, code, "malloc_rand_code", priority=101))
+        self.patches.append(InsertCodePatch(malloc_addr, code))
 
         return list(self.patches)
