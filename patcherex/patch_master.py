@@ -66,6 +66,8 @@ def test_bin(original,patched,bitflip=False):
         original_res = (stdout,p.returncode)
         if bitflip:
             used_args = main_args + ["-bitflip"]
+        else:
+            used_args = main_args + ["-bitflip"]
         p = subprocess.Popen(used_args + [patched], stdin=pipe, stdout=pipe, stderr=pipe)
         stdout,_ = p.communicate(tinput)
         patched_res = (stdout,p.returncode)
@@ -444,8 +446,8 @@ if __name__ == "__main__":
                 fp = open(os.path.join(os.path.dirname(output_fname),"ids.rules"),"wb")
                 fp.write(res[1])
                 fp.close()
-                if "bitflip" in res[1]:
-                    bitflip = True
+            if "bitflip" in res[1]:
+                bitflip = True
             patched_bin_content = res[0]
         else:
             patched_bin_content = res
