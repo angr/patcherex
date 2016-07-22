@@ -351,6 +351,12 @@ class ASMConverter(object):
         if op_sort not in ('reg', 'mem') and m.startswith('j'):
             return m
 
+        # special case for some mnemonics
+        if m == 'movsx':
+            size_suffix = ASMConverter.size_suffix[size]
+            m = 'movs' + size_suffix + 'l'
+            return m
+
         m += ASMConverter.size_suffix[size]
         return m
 
