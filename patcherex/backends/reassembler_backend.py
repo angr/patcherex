@@ -86,6 +86,9 @@ class ReassemblerBackend(Backend):
             elif isinstance(p, AddLabelPatch):
                 self._binary.add_label(p.name, p.addr)
 
+            elif isinstance(p, RemoveInstructionPatch):
+                self._binary.remove_instruction(p.ins_addr)
+
             else:
                 raise NotImplementedError('ReassemblerBackend does not support patch %s. '
                                           'Please bug Fish to implement it' % type(p)

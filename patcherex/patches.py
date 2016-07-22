@@ -165,3 +165,13 @@ class PointerArrayPatch(Patch):
     def __repr__(self):
         return "PointerArrayPatch [%s] %#08x (%d)" % (self.name, self.addr, len(self.data))
 
+
+class RemoveInstructionPatch(Patch):
+    def __init__(self, ins_addr, ins_size, name=None):
+        super(RemoveInstructionPatch, self).__init__(name)
+
+        self.ins_addr = ins_addr
+        self.ins_size = ins_size
+
+    def __repr__(self):
+        return "RemoveInstructionPatch @ %#x, %d bytes" % (self.ins_addr, self.ins_size)

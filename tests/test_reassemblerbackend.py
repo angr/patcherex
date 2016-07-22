@@ -8,7 +8,7 @@ import nose.tools
 
 from patcherex.backends import ReassemblerBackend
 from patcherex.patches import *
-from patcherex.techniques import ShadowStack, SimplePointerEncryption, ShiftStack, Adversarial
+from patcherex.techniques import ShadowStack, SimplePointerEncryption, ShiftStack, Adversarial, BinaryOptimization
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
 
@@ -219,6 +219,36 @@ def disabled_adversarial():
 
     for b in binaries:
         run_adversarial(b)
+
+def run_optimization(filename):
+    filepath = os.path.join(bin_location, filename)
+
+    p = ReassemblerBackend(filepath, debugging=True)
+
+    cp = BinaryOptimization(filepath, p)
+    patches = cp.get_patches()
+
+    p.apply_patches(patches)
+
+    r = p.save(os.path.join('/', 'tmp', os.path.basename(filename)))
+
+    if not r:
+        print "Compiler says:"
+        print p._compiler_stdout
+        print p._compiler_stderr
+
+    nose.tools.assert_true(r, 'Shadowstack patching with reassembler fails on binary %s' % filename)
+
+def test_optimization():
+    binaries = [
+        #os.path.join('cgc_trials', 'CADET_00003'),
+        #os.path.join('cgc_trials', 'CROMU_00070'),
+        os.path.join('cgc_trials', 'CROMU_00071'),
+        #os.path.join('cgc_trials', 'EAGLE_00005'),
+    ]
+
+    for b in binaries:
+        run_optimization(b)
 
 #
 # Tracing
