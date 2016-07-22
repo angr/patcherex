@@ -3,7 +3,7 @@ import identifier
 import angr
 import logging
 from collections import defaultdict
-from angr.lifter import AngrMemoryError
+from angr.lifter import AngrMemoryError,AngrTranslationError
 
 import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
@@ -271,7 +271,7 @@ class UninitializedPatcher(object):
             seen.add(bl)
             try:
                 insts = self.patcher.project.factory.block(bl.addr, max_size=bl.size).instruction_addrs
-            except AngrMemoryError:
+            except (AngrMemoryError,AngrTranslationError):
                 insts = []
             for i in insts:
                 if i in inverted_stack_accesses:

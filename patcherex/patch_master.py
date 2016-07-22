@@ -347,12 +347,12 @@ def worker(inq,outq,filename_with_technique=True,timeout=60*3):
             args += ["--test"]
         res = exec_cmd(args)
         with open(output_fname+"_log","wb") as fp:
-            fp.write("\n"+"="*50+" STDOUT\n")
+            fp.write("\n"+"="*30+" STDOUT\n")
             fp.write(res[0])
-            fp.write("\n"+"="*50+" STDERR\n")
+            fp.write("\n"+"="*30+" STDERR\n")
             fp.write(res[1])
-            fp.write("\n"+"="*50+" RETCODE\n")
-            fp.write(str(res[2]))
+            fp.write("\n"+"="*30+" RETCODE: ")
+            fp.write(str(res[2]).strip())
             fp.write("\n")
         if(res[2]!=0 or not os.path.exists(output_fname)):
             outq.put((False,(input_file,technique,output_dir),res))

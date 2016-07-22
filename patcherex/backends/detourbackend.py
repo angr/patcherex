@@ -658,7 +658,8 @@ class DetourBackend(Backend):
         insert_code_patches = sorted([p for p in insert_code_patches],key=lambda x:-1*x.priority)
         applied_patches = []
         while True:
-            l.info("applied_patches is: |" + "-".join([p.name for p in applied_patches])+"|")
+            name_list = [str(p) if (p==None or p.name==None) else p.name for p in applied_patches]
+            l.info("applied_patches is: |" + "-".join(name_list)+"|")
             assert all([a == b for a,b in zip(applied_patches,insert_code_patches)])
             for patch in insert_code_patches[len(applied_patches):]:
                     self.save_state(applied_patches)
