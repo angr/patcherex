@@ -261,8 +261,8 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 ; int 3
                 ; mov DWORD [{random_value}], 0x0006a87c ; uncomment for debug
                 mov eax, DWORD [{random_value}]
-                ; jmp eax ; uncomment for debug
                 and eax, 0x7ffff ; the challenge goes from0 to 0x7ffff, 19 bits, 0.5M possibilities
+                ; jmp eax ; uncomment for debug
                 mov DWORD [{random_value}], eax
                 ; random_value is now the challenge
 

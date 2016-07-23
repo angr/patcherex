@@ -24,13 +24,13 @@ class NxStack(object):
                     nn = ff.get_node(cs)
                     # max stack size is 8MB
                     if any([0xba2aa000 <=  n.addr < 0xbaaab000 for n in nn.successors()]):
-                        l.warning("found call to stack at %08x, avoiding nx" % nn.addr)
+                        l.warning("found call to stack at %#8x, avoiding nx" % nn.addr)
                         return []
 
             for block in ff.blocks:
                 for s in block.vex.statements:
                     if any([0xba2aa000 <= v.value <= 0xbaaab000 for v in s.constants]):
-                        l.warning("found constant that looks stack-related, avoiding nx")
+                        l.warning("found constant that looks stack-related at %#8x, avoiding nx" % block.addr)
                         return []
 
         patches = []
