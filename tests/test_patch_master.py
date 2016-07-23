@@ -6,6 +6,7 @@ import struct
 import subprocess
 import logging
 import multiprocessing
+import sys
 
 import patcherex.utils as utils
 import patcherex
