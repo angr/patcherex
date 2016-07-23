@@ -42,7 +42,9 @@ PATCH_TYPES_WITH_BACKDOOR = ["medium_detour_flip",
                    "medium_detour_flip_fidget",
                    "medium_reassembler_flip_fidget",
                    "medium_detour",
-                   "medium_reassembler"]
+                   "medium_reassembler",
+                   "light_detour",
+                   "light_reassembler"]
 PATCH_TYPES_AS_ORIGINAL = ["voidbitflip"]
 
 
