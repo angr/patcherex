@@ -83,6 +83,9 @@ class ReassemblerBackend(Backend):
             elif isinstance(p, AddSegmentHeaderPatch):
                 self._add_segment_patches.append(p)
 
+            elif isinstance(p, AddLabelPatch):
+                self._binary.add_label(p.name, p.addr)
+
             else:
                 raise NotImplementedError('ReassemblerBackend does not support patch %s. '
                                           'Please bug Fish to implement it' % type(p)
