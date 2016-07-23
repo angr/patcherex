@@ -314,6 +314,40 @@ class PatchMaster():
         backend.apply_patches(patches)
         return (backend.get_final_content(),"")
 
+    def generate_light_detour_binary(self):
+        nr = NetworkRules()
+        backend = DetourBackend(self.infile)
+        patches = []
+
+        patches.extend(IndirectCFI(self.infile,backend).get_patches())
+        patches.extend(TransmitProtection(self.infile,backend).get_patches())
+        patches.extend(ShiftStack(self.infile,backend).get_patches())
+        patches.extend(Adversarial(self.infile,backend).get_patches())
+        patches.extend(Backdoor(self.infile,backend).get_patches())
+        patches.extend(NxStack(self.infile,backend).get_patches())
+        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
+        patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
+
+        backend.apply_patches(patches)
+        return (backend.get_final_content(),"")
+
+    def generate_light_reassembler_binary(self):
+        nr = NetworkRules()
+        backend = ReassemblerBackend(self.infile)
+        patches = []
+
+        patches.extend(IndirectCFI(self.infile,backend).get_patches())
+        patches.extend(TransmitProtection(self.infile,backend).get_patches())
+        patches.extend(ShiftStack(self.infile,backend).get_patches())
+        patches.extend(Adversarial(self.infile,backend).get_patches())
+        patches.extend(Backdoor(self.infile,backend).get_patches())
+        patches.extend(NxStack(self.infile,backend).get_patches())
+        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
+        patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
+
+        backend.apply_patches(patches)
+        return (backend.get_final_content(),"")
+
     ########################
 
     def generate_uninitialized_patch(self):
