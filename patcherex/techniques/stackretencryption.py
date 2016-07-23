@@ -367,6 +367,78 @@ class StackRetEncryption(object):
                 unsafe_func_addrs.add(f.addr)
         return safe_func_addrs
 
+    def find_savedretaccess_functions(self,functions):
+        def is_ebp_based_function(ff):
+            def instruction_to_str(instr):
+                return str(instr.mnemonic+" "+instr.op_str)
+
+            instructions = self.patcher.project.factory.block(ff.addr).capstone.insns
+            if instruction_to_str(instructions[0]) == "push ebp" and\
+                    instruction_to_str(instructions[1]) == "mov ebp, esp":
+                return True
+            else:
+                return False
+
+        blacklist = set()
+        for k, ff in functions.iteritems():
+            if not is_ebp_based_function(ff):
+                continue
+
+            for block in ff.blocks:
+                state = 'find_ebp'
+                vex = block.vex
+                state = 'find_ebp'
+                for s in vex.statements:
+                    if state == 'find_ebp':
+                        if len(s.expressions)==1 and (s.tag=='Ist_Put' or s.tag=='IstStore') and\
+                                s.offset==vex.arch.registers['ebp'][0]:
+                            if hasattr(s.expressions[0],"tmp"):
+                                ebp_tmp = s.expressions[0].tmp
+                                state = 'deref_ebp'
+                    elif state == 'deref_ebp':
+                        if len(s.expressions)==2 and s.tag=='Ist_WrTmp':
+                            if hasattr(s.expressions[1],"tmp"):
+                                if s.expressions[1].tmp == ebp_tmp:
+                                    deref_tmp = s.tmp
+                                    state = 'deref_ebp2'
+                    elif state == 'deref_ebp2':
+                        if len(s.expressions)==3 and s.tag=='Ist_WrTmp' and 4 in [v.value for v in s.constants]:
+                            plus4_tmp = s.tmp
+                            state = 'deref_plus4'
+                    elif state == 'deref_plus4':
+                        if len(s.expressions)==2 and s.tag=='Ist_WrTmp':
+                            if hasattr(s.expressions[1],"tmp"):
+                                if s.expressions[1].tmp == plus4_tmp:
+                                    deref_tmp2 = s.tmp
+                                    state = 'found_access'
+                    elif state == 'found_access':
+                        if len(s.expressions)==2 and s.tag=='Ist_Store':
+                            # print s
+                            if hasattr(s.expressions[1],"tmp"):
+                                if s.expressions[1].tmp == deref_tmp2:
+                                    state = "found"
+                                    break
+                        elif len(s.expressions)==1 and s.tag=='Ist_Put':
+                            #print s
+                            if hasattr(s.expressions[0],"tmp"):
+                                if s.expressions[0].tmp == deref_tmp2:
+                                    state = 'found'
+                                    break
+                else:
+                    continue
+                break #double break
+
+            if state == 'found':
+                l.warning("found saved reg access at %#x",block.addr)
+                blacklist.add(ff.addr)
+                if ff.addr in self.inv_callsites:
+                    blacklist.update(self.inv_callsites[ff.addr])
+                    l.warning("saved reg access callers %s" % map(hex,(self.inv_callsites[ff.addr])))
+                # l.warning("vex code: %s" % "\n".join(map(str,vex.statements)))
+        if len(blacklist) > 0:
+            l.warning("blacklisted functions because of reg access callers %s" % map(hex,blacklist))
+        return blacklist
+
     def get_patches(self):
         common_patches = self.get_common_patches()
 
@@ -374,7 +446,10 @@ class StackRetEncryption(object):
 
         cfg = self.patcher.cfg
         patches = []
+        blacklisted_functions = self.find_savedretaccess_functions(cfg.functions)
         for k,ff in cfg.functions.iteritems():
+            if ff.addr in blacklisted_functions:
+                continue
             start,ends = self.function_to_patch_locations(ff)
             if start!=None and ends !=None:
                 new_patches = self.add_stackretencryption_to_function(start,ends)

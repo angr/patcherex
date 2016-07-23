@@ -27,6 +27,12 @@ class NxStack(object):
                         l.warning("found call to stack at %08x, avoiding nx" % nn.addr)
                         return []
 
+            for block in ff.blocks:
+                for s in block.vex.statements:
+                    if any([0xba2aa000 <= v.value <= 0xbaaab000 for v in s.constants]):
+                        l.warning("found constant that looks stack-related, avoiding nx")
+                        return []
+
         patches = []
         nxsegment_after_stack =(0x1, 0x0, 0xbaaab000, 0xbaaab000, 0x0, 0x1000, 0x6, 0x1000)
         patches.append(AddSegmentHeaderPatch(nxsegment_after_stack, name="nxstack_segment_header"))
