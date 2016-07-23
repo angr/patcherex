@@ -109,6 +109,20 @@ class ASMConverter(object):
             return "(%s, %s)" % (base_reg, index_reg)
 
     @staticmethod
+    def mem_to_att_base_index_scale(base_reg, index_reg, scale, sign):
+        if sign == '-':
+            return "(%s, %s, -%s)" % (base_reg, index_reg, scale)
+        else:
+            return "(%s, %s, %s)" % (base_reg, index_reg, scale)
+
+    @staticmethod
+    def mem_to_att_index_scale_disp(index_reg, scale, disp, sign):
+        if sign == '-':
+            return "%s( , %s, -%s)" % (disp, index_reg, scale)
+        else:
+            return "%s( , %s, %s)" % (disp, index_reg, scale)
+
+    @staticmethod
     def mem_to_att(mem):
         """
         Convert a memory operand string from intel syntax to AT&T syntax
@@ -155,39 +169,67 @@ class ASMConverter(object):
                 else:
                     return "%s(%s, %s)" % (disp, base_reg, index_reg)
 
-            # base + displacement, or base + index
+            # base + displacement, or base + index * scale, or index * scale + displacement
             m = re.match(r"\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)\s*$", mem_ptr)
             if m:
-                base, sign, part = m.group(1), m.group(2), m.group(3)
+                part_0, sign, part_1 = m.group(1), m.group(2), m.group(3)
 
-                base_reg = ASMConverter.reg_to_att(base)
-                if base_reg is None:
-                    # some idiot wrote it in this way: displacement + base
-                    # e.g. {this_is_a_label} + edi
-                    # fuck anyone who wrote assembly like that...
-                    base, part = part, base
+                # see if this is index * scale
+                m0 = re.match(r"^\s*([^\s\*]+)\s*\*\s*(\d+)\s*$", part_0)
+                if m0:
+                    # ouch it's index * scale
+                    index, scale = m0.group(1), m0.group(2)
 
-                base_reg = ASMConverter.reg_to_att(base)
+                    index_reg = ASMConverter.reg_to_att(index)
 
-                if base_reg is None:
-                    raise ValueError('Unsupported input: %s' % mem_ptr)
+                    if part_1[0] == '{' and part_1[-1] == '}':
+                        # disp might be a label. treat it as a displacement
+                        disp = part_1[1:-1]
+                    else:
+                        # if part is a register, it's a "base + index"
+                        part_1_reg = ASMConverter.reg_to_att(part_1)
+                        if part_1_reg is not None:
+                            # oh it is a register!
+                            base_reg = part_1_reg
+                            return ASMConverter.mem_to_att_base_index_scale(base_reg, index_reg, scale, sign)
 
-                # let's decide if the part is an index or a displacement
+                        # otherwise it's a displacement
+                        disp = part_1
 
-                if part[0] == '{' and part[-1] == '}':
-                    # disp might be a label. treat it as a displacement
-                    part = part[1:-1]
+                    return ASMConverter.mem_to_att_index_scale_disp(index_reg, scale, disp, sign)
+
                 else:
-                    # if part is a register, it's a "base + index"
-                    disp_reg = ASMConverter.reg_to_att(part)
-                    if disp_reg is not None:
-                        # oh it is a register!
-                        return ASMConverter.mem_to_att_base_index(base_reg, disp_reg, sign)
+                    # it's base
+                    base = part_0
 
-                # it's a "base + displacement"
-                disp = part
+                    base_reg = ASMConverter.reg_to_att(base)
+                    if base_reg is None:
+                        # some idiot wrote it in this way: displacement + base
+                        # e.g. {this_is_a_label} + edi
+                        # fuck anyone who wrote assembly like that...
+                        base, part_1 = part_1, base
 
-                return ASMConverter.mem_to_att_base_disp(base_reg, disp, sign)
+                    base_reg = ASMConverter.reg_to_att(base)
+
+                    if base_reg is None:
+                        raise ValueError('Unsupported input: %s' % mem_ptr)
+
+                    # let's decide if the part is an index or a displacement
+
+                    if part_1[0] == '{' and part_1[-1] == '}':
+                        # disp might be a label. treat it as a displacement
+                        part_1 = part_1[1:-1]
+                    else:
+                        # if part is a register, it's a "base + index"
+                        disp_reg = ASMConverter.reg_to_att(part_1)
+                        if disp_reg is not None:
+                            # oh it is a register!
+                            return ASMConverter.mem_to_att_base_index(base_reg, disp_reg, sign)
+
+                    # it's a "base + displacement"
+                    disp = part_1
+
+                    return ASMConverter.mem_to_att_base_disp(base_reg, disp, sign)
 
             # base or displacement
             m = re.match(r"\s*([^\s\+\-]+)\s*$", mem_ptr)
