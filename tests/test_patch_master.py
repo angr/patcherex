@@ -31,8 +31,17 @@ from farnsworth.models.job import PatcherexJob
 PATCH_TYPES = [str(p) for p in PatcherexJob.PATCH_TYPES]
 print "PATCH_TYPES:", PATCH_TYPES
 
-PATCH_TYPES_WITH_RULES = ["voidbitflip","medium_detour","medium_reassembler","medium_detour_fidget","medium_reassembler_fidget"]
-PATCH_TYPES_WITH_BACKDOOR = ["medium_detour","medium_reassembler","medium_detour_fidget","medium_reassembler_fidget"]
+PATCH_TYPES_WITH_RULES = ["voidbitflip",
+                   "medium_detour_flip",
+                   "medium_reassembler_flip",
+                   "medium_detour_flip_fidget",
+                   "medium_reassembler_flip_fidget"]
+PATCH_TYPES_WITH_BACKDOOR = ["medium_detour_flip",
+                   "medium_reassembler_flip",
+                   "medium_detour_flip_fidget",
+                   "medium_reassembler_flip_fidget",
+                   "medium_detour",
+                   "medium_reassembler"]
 PATCH_TYPES_AS_ORIGINAL = ["voidbitflip"]
 
 
@@ -77,7 +86,6 @@ def try_one_patch(args):
     else:
         nose.tools.assert_true(len(nrule)==0)
 
-    if patch_type in PATCH_TYPES_WITH_BACKDOOR:
         if "bitflip" in nrule:
             bitflip = True
         else:
@@ -85,7 +93,10 @@ def try_one_patch(args):
         # see: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/5
         pov_tester = CGCPovSimulator(qemu=shellphish_qemu.qemu_path("cgc-nxtracer"))
         res = pov_tester.test_binary_pov(backdoor_pov_location,tmp_fname,bitflip=bitflip)
-        nose.tools.assert_true(res)
+        if patch_type in PATCH_TYPES_WITH_BACKDOOR:
+            nose.tools.assert_true(res)
+        else:
+            nose.tools.assert_equal(res, False)
 
     for stdin in inputs:
         # TODO: test properly multi-cb, right now they are tested as separate binaries
@@ -116,7 +127,6 @@ def try_one_patch(args):
 
 
 def test_cfe_trials():
-    #nose.tools.assert_true(all([p in PATCH_TYPES for p in PATCH_TYPES_WITH_RULES]))
     tfolder = os.path.join(bin_location, "cfe_original")
     tests = utils.find_files(tfolder,"*",only_exec=True)
 
@@ -128,11 +138,19 @@ def test_cfe_trials():
         for test in titerator:
                 for patch_type in PATCH_TYPES:
                     tests.append((test,patch_type,td))
-        pool = multiprocessing.Pool(5)
-        res = pool.map(try_one_patch,tests)
-        for r in res:
-            if r[0] == False:
-                print "ERROR:","while running",res[1]
+
+        if sys.argv[-1] == "--single":
+            res = []
+            for test in tests:
+                print "="*10, "testing",test
+                r = try_one_patch(test)
+                res.append(r)
+        else:
+            pool = multiprocessing.Pool(5)
+            res = pool.map(try_one_patch,tests)
+            for r in res:
+                if r[0] == False:
+                    print "ERROR:","while running",res[1]
 
     generated_patches = [r[2] for r in res if r != None]
     # it is not impossible that two patches are exactly the same, but it is worth investigation

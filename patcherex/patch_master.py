@@ -194,9 +194,9 @@ class PatchMaster():
         fp = open(self.infile)
         content = fp.read()
         fp.close()
-        return (content,nr.get_fullbitflip_void_rule())
+        return (content,nr.get_partialbitflip_null_rule())
 
-    def generate_medium_detour_binary(self):
+    def generate_medium_detour_flip_binary(self):
         nr = NetworkRules()
         backend = DetourBackend(self.infile)
         patches = []
@@ -212,9 +212,9 @@ class PatchMaster():
         patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
 
         backend.apply_patches(patches)
-        return (backend.get_final_content(),nr.get_bitflip_rule())
+        return (backend.get_final_content(),nr.get_partialbitflip_real_rule())
 
-    def generate_medium_reassembler_binary(self):
+    def generate_medium_reassembler_flip_binary(self):
         nr = NetworkRules()
         backend = ReassemblerBackend(self.infile)
         patches = []
@@ -230,9 +230,9 @@ class PatchMaster():
         patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
 
         backend.apply_patches(patches)
-        return (backend.get_final_content(),nr.get_bitflip_rule())
+        return (backend.get_final_content(),nr.get_partialbitflip_real_rule())
 
-    def generate_medium_detour_fidget_binary(self):
+    def generate_medium_detour_flip_fidget_binary(self):
         tmp_file = tempfile.mktemp()
         fidget_it(self.infile, tmp_file)
 
@@ -253,9 +253,9 @@ class PatchMaster():
         backend.apply_patches(patches)
         content = backend.get_final_content()
         os.unlink(tmp_file)
-        return (content,nr.get_bitflip_rule())
+        return (content,nr.get_partialbitflip_real_rule())
 
-    def generate_medium_reassembler_fidget_binary(self):
+    def generate_medium_reassembler_flip_fidget_binary(self):
         tmp_file = tempfile.mktemp()
         fidget_it(self.infile, tmp_file)
 
@@ -276,7 +276,43 @@ class PatchMaster():
         backend.apply_patches(patches)
         content = backend.get_final_content()
         os.unlink(tmp_file)
-        return (content,nr.get_bitflip_rule())
+        return (content,nr.get_partialbitflip_real_rule())
+
+    def generate_medium_detour_binary(self):
+        nr = NetworkRules()
+        backend = DetourBackend(self.infile)
+        patches = []
+
+        patches.extend(IndirectCFI(self.infile,backend).get_patches())
+        patches.extend(TransmitProtection(self.infile,backend).get_patches())
+        patches.extend(ShiftStack(self.infile,backend).get_patches())
+        patches.extend(Adversarial(self.infile,backend).get_patches())
+        patches.extend(Backdoor(self.infile,backend).get_patches())
+        patches.extend(NxStack(self.infile,backend).get_patches())
+        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
+        patches.extend(StackRetEncryption(self.infile,backend).get_patches())
+        patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
+
+        backend.apply_patches(patches)
+        return (backend.get_final_content(),"")
+
+    def generate_medium_reassembler_binary(self):
+        nr = NetworkRules()
+        backend = ReassemblerBackend(self.infile)
+        patches = []
+
+        patches.extend(IndirectCFI(self.infile,backend).get_patches())
+        patches.extend(TransmitProtection(self.infile,backend).get_patches())
+        patches.extend(ShiftStack(self.infile,backend).get_patches())
+        patches.extend(Adversarial(self.infile,backend).get_patches())
+        patches.extend(Backdoor(self.infile,backend).get_patches())
+        patches.extend(NxStack(self.infile,backend).get_patches())
+        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
+        patches.extend(StackRetEncryption(self.infile,backend).get_patches())
+        patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
+
+        backend.apply_patches(patches)
+        return (backend.get_final_content(),"")
 
     ########################
 
