@@ -537,7 +537,7 @@ if __name__ == "__main__":
         elif sys.argv[1] == "multi":
             tasks = [(f,t,out) for f,t in list(itertools.product(files,techniques))]
 
-        print tasks
+        print len(tasks)
         res_dict = {}
 
         inq = multiprocessing.Queue()

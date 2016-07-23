@@ -3,6 +3,7 @@ import angr
 import patcherex.utils as utils
 import patcherex.cfg_utils as cfg_utils
 
+import re
 import capstone
 import logging
 from patcherex.patches import *
@@ -67,10 +68,19 @@ class IndirectCFI(object):
             if "esp" in rvalue:
                 l.warning("found an indirect cj based on esp, it is better not to touch it")
                 return None, None
+
+            additional_patches = []
+            match = re.match(r".*(0x[0-9a-fA-F]{7,8}).*",rvalue)
+            if match != None:
+                offset_str = match.group(1)
+                label_patch_name = "indirectcfi_%#8X" % instruction.address
+                offset_value = int(offset_str,16)
+                rvalue = rvalue.replace(offset_str,"{"+label_patch_name+"}")
+                additional_patches.append(AddLabelPatch(addr=offset_value,name=label_patch_name))
+
             mem_access_str = "mov edx, %s" % rvalue
             l.info("Checking mem access of: %s --> %s" % (str(instruction),mem_access_str))
-            mem_access_code = utils.compile_asm(mem_access_str)
-            return mem_access_code, mem_access_str
+            return mem_access_str, additional_patches
 
         data_patch_name = "saved_first_target_%08x"%instruction.address
         # I cannot check if edx is free since after this instruction there is an indirect call/jump
@@ -86,10 +96,9 @@ class IndirectCFI(object):
         # TODO to protect vtables we can check where the target is coming from (it should be from rodata)
         # however there are two problem: 1) identifying target's origin and 2) are we sure that it is always on rodata? 
         # TODO check more stuff than just no indirect call to pop
-        mem_access_code, mem_access_str = compile_mem_access(instruction)
-        if mem_access_code == None:
+        target_resolver, additional_patches = compile_mem_access(instruction)
+        if target_resolver == None:
             return []
-        target_resolver = utils.bytes_to_asm(mem_access_code, comment=mem_access_str)
 
         if instruction.mnemonic == u"call":
             gadget_protection = '''
@@ -118,7 +127,7 @@ class IndirectCFI(object):
             pop edx
             ''' % (target_resolver,gadget_protection)
             code_patch = InsertCodePatch(int(instruction.address),new_code,name="indirect_cfi_for_%08x"%instruction.address)
-            return [code_patch]
+            return [code_patch]+additional_patches
 
         else:
             # I assume that something that does not jump above 0x43 will never jump below and viceversa
@@ -158,7 +167,7 @@ class IndirectCFI(object):
 
             code_patch = InsertCodePatch(int(instruction.address),new_code,name="indirect_cfi_for_%08x"%instruction.address)
             data_patch = AddRWDataPatch(1,"saved_first_target_%08x"%instruction.address)
-            return [code_patch,data_patch]
+            return [code_patch,data_patch]+additional_patches
 
     def get_patches(self):
         patches = []
