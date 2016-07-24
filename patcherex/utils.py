@@ -135,13 +135,36 @@ class ASMConverter(object):
         if m:
             mem_ptr = m.group(1)
 
-            # TODO: base + index * scale + displacement
-
             # [{this_is_a_label}]
             m = re.match(r"^\s*\{([\S]+)\}\s*$", mem_ptr)
             if m:
                 label = m.group(1)
                 return label
+
+            # base + index * scale + displacement
+            scale_regex = "(0x1|0x2|0x4|0x8|1|2|4|8)"
+            m = re.match(r"\s*([^\s\+\-]+)\s*([\+])\s*([^\s\+\-]+)\s*\*"+ scale_regex + \
+                    r"\s*([\+\-])\s*([^\s\+\-]+)\s*$", mem_ptr)
+            if m:
+                part_0, sign_1, part_1, scale, sign_2, part_2 = m.groups()
+                if all(c in string.digits for c in part_1):
+                    # part_1 is displacement
+                    part_2, part_1 = part_1, part_2
+
+                base_reg = ASMConverter.reg_to_att(part_0)
+                if base_reg is None: raise ValueError('Unsupported base register "%s"' % part_0)
+                index_reg = ASMConverter.reg_to_att(part_1)
+                if index_reg is None: raise ValueError('Unsupported index register "%s"' % part_1)
+                disp = part_2
+
+                if sign_2 == '-':
+                    disp = '-' + disp
+                # negative scale should be invalid:
+                # "error: scale factor in address must be 1, 2, 4 or 8\nmovl    -0x10(%esi, %edi, -1)"
+                scale = str((int(scale)))
+
+                tstr =  "%s(%s, %s, %s)" % (disp, base_reg, index_reg, scale)
+                return tstr
 
             # base + index + displacement
             m = re.match(r"\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)\s*([\+\-])\s*([^\s\+\-]+)\s*$", mem_ptr)
