@@ -51,14 +51,6 @@ l = logging.getLogger("patcherex.PatchMaster")
 TEST_RESULTS = False
 
 
-def get_backdoorpov():
-    self_location_folder = os.path.dirname(os.path.realpath(__file__))
-    backdoorpov_fname = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov.pov")
-    with open(backdoorpov_fname) as fp:
-        content = fp.read()
-    return content
-
-
 def test_bin(original,patched,bitflip=False):
     import shellphish_qemu
     qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
