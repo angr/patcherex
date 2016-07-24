@@ -1,4 +1,5 @@
 
+from collections import defaultdict
 import logging
 
 import topsecret
@@ -113,7 +114,13 @@ class BinaryOptimization(Technique):
                 continue
 
             # for each instruction that uses the copied instruction, replace it with a reference to the original argument
+            replaced_insn_addrs = set()
             for loc in rsv.stack_variable_consuming_locs:  # type: angr.analyses.code_location.CodeLocation
+
+                if loc.ins_addr in replaced_insn_addrs:
+                    continue
+
+                replaced_insn_addrs.add(loc.ins_addr)
 
                 # remove the consuming instruction
                 patch = RemoveInstructionPatch(loc.ins_addr, None)
@@ -137,6 +144,74 @@ class BinaryOptimization(Technique):
 
                 patch = InsertCodePatch(loc.ins_addr, new_consumer_asm)
                 patches.append(patch)
+
+        # register reallocation
+
+        prologue_saves = defaultdict(list)
+        epilogue_restores = defaultdict(list)
+
+        for rr in bo.register_reallocations:  # type: topsecret.binary_optimizer.RegisterReallocation
+            try:
+                patches_ = [ ]
+                # which register to replace?
+                reg_name = self.backend.project.arch.register_names[rr.register_variable.reg]
+
+                # what instructions to replace?
+                # sources first
+                for src in rr.stack_variable_sources:
+                    insn = self.backend.project.factory.block(src.location.ins_addr, num_inst=1).capstone.insns[0]
+                    operands = insn.op_str.split(',')
+                    if not len(operands) == 2:
+                        l.warning('Unsupported instruction %s. Skip.', str(insn))
+                        raise NotImplementedError()
+
+                    # replace the dest
+                    new_insn = "%s\t%s, %s" % (insn.mnemonic, reg_name, operands[1])
+
+                    # patch: remove the old instruction
+                    p0 = RemoveInstructionPatch(insn.address, None)
+                    patches_.append(p0)
+
+                    # patch: add the new instruction
+                    p1 = InsertCodePatch(insn.address, new_insn)
+                    patches_.append(p1)
+
+                # consumers
+                for dst in rr.stack_variable_consumers:
+                    insn = self.backend.project.factory.block(dst.location.ins_addr, num_inst=1).capstone.insns[0]
+                    if len(insn.operands) == 2:
+                        operands = insn.op_str.split(',')
+                        new_insn = "%s\t%s, %s" % (insn.mnemonic, operands[0], reg_name)
+                    else:
+                        # TODO:
+                        raise NotImplementedError()
+
+                    # patch: remove the old instruction
+                    p0 = RemoveInstructionPatch(insn.address, None)
+                    patches_.append(p0)
+
+                    # patch: add the new instruction
+                    p1 = InsertCodePatch(insn.address, new_insn)
+                    patches_.append(p1)
+
+                patches.extend(patches_)
+
+                # save the register after function prologue
+                prologue_saves[rr.prologue_addr + rr.prologue_size].append('push\t%s' % reg_name)
+
+                # pop the register before function epilogue
+                epilogue_restores[rr.epilogue_addr].insert(0, 'pop\t%s' % reg_name)
+
+            except NotImplementedError:
+                continue
+
+        for insertion_addr, insns in prologue_saves.iteritems():
+            p = InsertCodePatch(insertion_addr, "\n".join(insns))
+            patches.append(p)
+
+        for insertion_addr, insns in epilogue_restores.iteritems():
+            p = InsertCodePatch(insertion_addr, "\n".join(insns))
+            patches.append(p)
 
         return patches
 
