@@ -983,6 +983,11 @@ def test_backdoor():
         # deal with endianness craziness
         return "".join(map(chr,[l[3],l[2],l[1],l[0],0,0,0,l[4]]))
 
+
+    backdoor_content = patcherex.patch_master.get_backdoorpov()
+    nose.tools.assert_equal(backdoor_content[:16],"\x7fCGC\x01\x01\x01C\x01Merino\x00")
+    nose.tools.assert_true(backdoor_content > (5*pow(2,19))) # size is bigger than number of challenges times 5 bytes
+
     for bitflip in [False,True]:
         print "======== Bitflip:", bitflip
         from patcherex.techniques.backdoor import Backdoor
