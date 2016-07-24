@@ -249,10 +249,16 @@ class ASMConverter(object):
                             # oh it is a register!
                             return ASMConverter.mem_to_att_base_index(base_reg, disp_reg, sign)
 
-                    # it's a "base + displacement"
-                    disp = part_1
-
-                    return ASMConverter.mem_to_att_base_disp(base_reg, disp, sign)
+                    m1 = re.match(r"^\s*([^\s\*]+)\s*\*\s*(\d+)\s*$", part_1)
+                    if m1:
+                        # it's a base + index * scale
+                        index, scale = m1.group(1), m1.group(2)
+                        index_reg = ASMConverter.reg_to_att(index)
+                        return ASMConverter.mem_to_att_base_index_scale(base_reg, index_reg, scale, sign)
+                    else:
+                        # it's a "base + displacement"
+                        disp = part_1
+                        return ASMConverter.mem_to_att_base_disp(base_reg, disp, sign)
 
             # base or displacement
             m = re.match(r"\s*([^\s\+\-]+)\s*$", mem_ptr)
