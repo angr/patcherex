@@ -459,6 +459,11 @@ class DetourBackend(Backend):
                     highest_priority_at_addr.asm_code += "\n"+sp.asm_code+"\n"
                     patches.remove(sp)
 
+        #deal with AddLabel patches
+        lpatches = [p for p in patches if (isinstance(p, AddLabelPatch))]
+        for p in lpatches:
+            self.name_map[p.name] = p.addr
+
         # check for duplicate labels, it is not very necessary for this backend
         # but it is better to behave in the same way of the reassembler backend
         relevant_patches = [p for p in patches if (isinstance(p, AddCodePatch) or \

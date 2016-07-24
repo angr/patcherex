@@ -50,6 +50,15 @@ class AddRWInitDataPatch(Patch):
         return "AddRWInitDataPatch [%s] (%d)" % (self.name,len(self.data))
 
 
+class AddLabelPatch(Patch):
+    def __init__(self, addr, name=None):
+        super(AddLabelPatch, self).__init__(name)
+        self.addr = addr
+
+    def __repr__(self):
+        return "AddLabelPatch [%s] (%#8x)" % (self.name,self.addr)
+
+
 class CodePatch(Patch):
     """
     Base class for all code patches
