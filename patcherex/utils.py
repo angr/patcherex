@@ -82,7 +82,9 @@ class ASMConverter(object):
         reg = reg.lower()
         is_reg = False
 
-        if len(reg) == 3 and reg.startswith('e') and reg[-1] in ('x', 'i', 'p'):
+        if len(reg) == 4 and reg.startswith('xmm'):
+            is_reg = True
+        elif len(reg) == 3 and reg.startswith('e') and reg[-1] in ('x', 'i', 'p'):
             is_reg = True
         elif len(reg) == 2:
             if reg.endswith('h') or reg.endswith('l') or reg[-1] in ('x', 'i', 'p'):
@@ -340,7 +342,10 @@ class ASMConverter(object):
     @staticmethod
     def mnemonic_to_att(m, size, op_sort=None):
 
-        if m in ('int', 'pushfd', 'popfd', 'nop', 'call', ):
+        if m in ('int', 'pushfd', 'popfd', 'nop', 'call',
+                 # floating point instructions
+                 'addss',
+                 ):
             return m
         if m.startswith('j'):
             # jumps
