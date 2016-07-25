@@ -155,6 +155,10 @@ class StackRetEncryption(object):
         for r in relavent_regs:
             if self.is_reg_free(addr, r, is_tail):
                 inserted_code = self.make_inline_encrypt(r)
+                if not is_tail:
+                    # we add a nop so that indirectcfi will not see a pop at the beginning of a function
+                    # this is a problem because indirectcfi does not like indirect calls to pop
+                    inserted_code = "nop\n"+inserted_code
                 return inserted_code
         self.need_safe_encrypt = True
         return self.safe_inline_encrypt
