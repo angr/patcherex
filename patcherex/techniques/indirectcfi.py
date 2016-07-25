@@ -39,6 +39,10 @@ class IndirectCFI(object):
         # TODO it seems that it is not really possible that all the call targets are resolved 
         # for instance in original/NRFIN_00008 we have:
         # <BlockNode at 0x804974f (size 19)> ['0x8049762', '0x9000020']
+
+        # TODO: we decided that we hope that any indirect call always goes to the main bin!
+        return True
+
         baddr = self.patcher.cfg.get_any_node(addr,anyaddr=True).addr
         if baddr == None:
             return False
@@ -102,6 +106,7 @@ class IndirectCFI(object):
 
         if instruction.mnemonic == u"call":
             gadget_protection = '''
+            ; prevet call to pop
             cmp dl,0x58
             jb _gadget_exit_%d
             cmp dl,0x5f
@@ -119,11 +124,8 @@ class IndirectCFI(object):
             %s
             mov dl, BYTE [edx] ;less significant byte of target in dl (and check access)
             %s
-            shr edx,24 ;most significant byte of target in dl
-            cmp dl,0x09
-            ja  0x8047333
-            cmp dl,0x08
-            jb  0x8047333
+            cmp edx 0x4347c000
+            jae  0x8047333
             pop edx
             ''' % (target_resolver,gadget_protection)
             code_patch = InsertCodePatch(int(instruction.address),new_code,name="indirect_cfi_for_%08x"%instruction.address)
