@@ -246,7 +246,7 @@ class PatchMaster():
         patches.extend(TransmitProtection(tmp_file,backend).get_patches())
         patches.extend(ShiftStack(tmp_file,backend).get_patches())
         patches.extend(Adversarial(tmp_file,backend).get_patches())
-        patches.extend(Backdoor(tmp_file,backend,enable_bitflip=True).get_patches())
+        patches.extend(Backdoor(tmp_file,backend).get_patches())
         patches.extend(NxStack(tmp_file,backend).get_patches())
         patches.extend(MallocExtPatcher(tmp_file,backend).get_patches())
         patches.extend(StackRetEncryption(tmp_file,backend).get_patches())
