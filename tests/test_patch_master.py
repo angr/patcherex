@@ -29,23 +29,15 @@ os.environ["POSTGRES_MASTER_SERVICE_HOST"] = "dummy"
 os.environ["POSTGRES_MASTER_SERVICE_PORT"] = "dummy"
 os.environ["POSTGRES_DATABASE_PASSWORD"] = "dummy"
 from farnsworth.models.job import PatcherexJob
-PATCH_TYPES = [str(p) for p in PatcherexJob.PATCH_TYPES]
-print "PATCH_TYPES:", PATCH_TYPES
 
-PATCH_TYPES_WITH_RULES = ["voidbitflip",
-                   "medium_detour_flip",
-                   "medium_reassembler_flip",
-                   "medium_detour_flip_fidget",
-                   "medium_reassembler_flip_fidget"]
-PATCH_TYPES_WITH_BACKDOOR = ["medium_detour_flip",
-                   "medium_reassembler_flip",
-                   "medium_detour_flip_fidget",
-                   "medium_reassembler_flip_fidget",
-                   "medium_detour",
-                   "medium_reassembler",
-                   "light_detour",
-                   "light_reassembler"]
-PATCH_TYPES_AS_ORIGINAL = ["voidbitflip"]
+PATCH_TYPES_WITH_RULES = ["voidpartialbitflip"]
+PATCH_TYPES_WITH_BACKDOOR = ["medium_reassembler_fidget",
+                    "medium_detour_fidget",
+                    "medium_reassembler",
+                    "medium_detour",
+                    "light_detour",
+                    "light_reassembler"]
+PATCH_TYPES_AS_ORIGINAL = ["voidpartialbitflip"]
 
 
 def save_patch(fname,patch_content):
@@ -130,6 +122,12 @@ def try_one_patch(args):
 
 
 def test_cfe_trials():
+    PATCH_TYPES = [str(p) for p in PatcherexJob.PATCH_TYPES]
+    print "PATCH_TYPES:", PATCH_TYPES
+    nose.tools.assert_equal(len(PATCH_TYPES),len(set(PATCH_TYPES)))
+    all_named_types = set(PATCH_TYPES_AS_ORIGINAL + PATCH_TYPES_WITH_BACKDOOR + PATCH_TYPES_WITH_RULES)
+    nose.tools.assert_equal(len(all_named_types - set(PATCH_TYPES)),0)
+
     tfolder = os.path.join(bin_location, "cfe_original")
     tests = utils.find_files(tfolder,"*",only_exec=True)
 
