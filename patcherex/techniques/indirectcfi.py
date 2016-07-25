@@ -124,7 +124,7 @@ class IndirectCFI(object):
             %s
             mov dl, BYTE [edx] ;less significant byte of target in dl (and check access)
             %s
-            cmp edx 0x4347c000
+            cmp edx, 0x4347c000
             jae  0x8047333
             pop edx
             ''' % (target_resolver,gadget_protection)
