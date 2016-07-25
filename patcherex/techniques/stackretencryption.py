@@ -269,7 +269,7 @@ class StackRetEncryption(object):
         for n in self.patcher.cfg.nodes():
             try:
                 bl = self.patcher.project.factory.block(n.addr)
-            except AngrMemoryError:
+            except angr.AngrMemoryError:
                 bl = None
 
             # no weird or duplicate nodes
