@@ -400,6 +400,33 @@ class ASMConverter(object):
                     converted.append(s)
                 continue
 
+            # three operands
+            m = re.match(r"(\s*)([\S]+)\s+([^,]+),\s*([^,]+),\s*([^,]+)\s*$", l)
+            if m:
+                mnemonic, op1, op2, op3 = m.group(2), m.group(3), m.group(4), m.group(5)
+                spaces = m.group(1)
+
+                # swap operands
+                size = ASMConverter.get_size(op1)
+                if size is None:
+                    size = ASMConverter.get_size(op2)
+                if size is None:
+                    size = ASMConverter.get_size(op3)
+                if size is None:
+                    raise NotImplementedError('Cannot determine operand size from any operand in instruction "%s"' % l)
+
+                op1, op2, op3 = op3, op2, op1
+                op1 = ASMConverter.to_att(op1, mnemonic=mnemonic)[1]
+                op2 = ASMConverter.to_att(op2, mnemonic=mnemonic)[1]
+                op3 = ASMConverter.to_att(op3, mnemonic=mnemonic)[1]
+
+                mnemonic = ASMConverter.mnemonic_to_att(mnemonic, size)
+
+                s = "%s%s\t%s, %s, %s%s" % (spaces, mnemonic, op1, op2, op3, inline_comments)
+                converted.append(s)
+
+                continue
+
             # two operands
             m = re.match(r"(\s*)([\S]+)\s+([^,]+),\s*([^,]+)\s*$", l)
             if m:
