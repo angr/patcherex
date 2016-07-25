@@ -2,6 +2,7 @@
 import os
 from collections import defaultdict
 import logging
+import tempfile
 
 import topsecret
 from angr import KnowledgeBase
@@ -368,7 +369,7 @@ def optimize_it(input_filepath, output_filepath):
     """
 
     target_filepath = output_filepath
-    rr_filepath = target_filepath + ".rr"
+    rr_filepath = tempfile.mktemp()
 
     # register reallocation first
     b1 = ReassemblerBackend(input_filepath, debugging=True)
@@ -389,3 +390,4 @@ def optimize_it(input_filepath, output_filepath):
 
     if not r:
         raise Exception('Optimization fails stage 2.')
+    os.unlink(rr_filepath)

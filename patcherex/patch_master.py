@@ -202,17 +202,18 @@ class PatchMaster():
         backend.apply_patches(patches1)
         return (backend.get_final_content(),nr.get_bitflip_rule())
 
-    def generate_optimized_binary(self):
-
-        intermediate = self.infile + ".optimized"
-        optimize_it(self.infile, intermediate)
-
-        # load it up with the reassembler again
-        backend = ReassemblerBackend(intermediate)
-
-        return backend.get_final_content()
 
     ##################
+
+    def generate_optimized_binary(self):
+        intermediate = tempfile.mktemp()
+        optimize_it(self.infile, intermediate)
+        # load it up with the reassembler again
+        backend = ReassemblerBackend(intermediate)
+        content = backend.get_final_content()
+        os.unlink(intermediate)
+
+        return (content,"")
 
     def generate_voidpartialbitflip_binary(self):
         nr = NetworkRules()
