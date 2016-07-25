@@ -1,4 +1,5 @@
 
+import os
 from collections import defaultdict
 import logging
 
@@ -11,18 +12,25 @@ from ..technique import Technique
 
 l = logging.getLogger('techniques.binary_optimization')
 
+
 class BinaryOptimization(Technique):
-    def __init__(self, filename, backend):
+    def __init__(self, filename, backend, techniques=None):
         super(BinaryOptimization, self).__init__(filename, backend)
+
+        self._techniques = techniques
 
         # counters
         self.constant_propagations = 0
         self.redundant_stack_variable_removals = 0
+        self.register_reallocations = 0
+        self.dead_assignment_eliminations = 0
 
         self._patches = self._generate_patches()
 
         l.debug('Constant propagation occurred %d times', self.constant_propagations)
         l.debug('Redundant stack variable removal occurred %d times', self.redundant_stack_variable_removals)
+        l.debug('Register reallocation replaced %d stack variables', self.register_reallocations)
+        l.debug('Eliminated %d dead assignments.', self.dead_assignment_eliminations)
 
     def _generate_patches(self):
         """
@@ -33,9 +41,25 @@ class BinaryOptimization(Technique):
         patches = [ ]
 
         cfg = self.backend.cfg
-        bo = self.backend.project.analyses.BinaryOptimizer(cfg)
+        bo = self.backend.project.analyses.BinaryOptimizer(cfg, self._techniques)
 
-        # constant propagation
+        patches.extend(self._patches_constant_propagation(bo))
+        patches.extend(self._patches_redundant_stack_variables_removal(bo))
+        patches.extend(self._patches_register_reallocation(bo))
+        patches.extend(self._patches_dead_assignment_elimination(bo))
+
+        return patches
+
+    def _patches_constant_propagation(self, bo):
+        """
+        Generate patches out of constant propagation optimization.
+
+        :param bo: The binary optimization analysis.
+        :return: A list of patches.
+        :rtype: list
+        """
+
+        patches = [ ]
 
         for cp in bo.constant_propagations:  # type: topsecret.binary_optimizer.ConstantPropagation
             # remove the assignment site
@@ -58,7 +82,7 @@ class BinaryOptimization(Technique):
                 symbol_manager = self.backend._binary.symbol_manager  # type: topsecret.binary.SymbolManager
                 if cp.constant in symbol_manager.addr_to_label:
                     # it's a label... use its label name
-                    operands[1] = "{" + symbol_manager.addr_to_label[cp.constant].name + "}"
+                    operands[1] = "{" + symbol_manager.addr_to_label[cp.constant][0].name + "}"
 
             if isinstance(operands[1], (int, long)):
                 new_op_str = "%s, %#x" % (operands[0], operands[1])
@@ -72,8 +96,18 @@ class BinaryOptimization(Technique):
 
             self.constant_propagations += 1
 
+        return patches
 
-        # redundant stack variable removal
+    def _patches_redundant_stack_variables_removal(self, bo):
+        """
+        Generate patches out of redundant stack variables removal.
+
+        :param bo: The binary optimization analysis.
+        :return: A list of patches.
+        :rtype: list
+        """
+
+        patches = [ ]
 
         for rsv in bo.redundant_stack_variables:  # type: topsecret.binary_optimizer.RedundantStackVariable
 
@@ -133,19 +167,32 @@ class BinaryOptimization(Technique):
                 operands = old_consumer.capstone.insns[0].op_str.split(",")
                 if 'ptr' in operands[0]:
                     operands[0] = argument_asm
-                elif 'ptr' in operands[1]:
+                elif len(operands) > 1 and 'ptr' in operands[1]:
                     operands[1] = argument_asm
+                elif len(operands) > 2 and 'ptr' in operands[2]:
+                    operands[2] = argument_asm
                 else:
                     raise Exception('WTF')
 
-                new_op_str = "%s, %s" % (operands[0], operands[1])
+                new_op_str = ", ".join(operands)
 
                 new_consumer_asm = "%s\t%s" % (old_consumer.capstone.insns[0].mnemonic, new_op_str)
 
                 patch = InsertCodePatch(loc.ins_addr, new_consumer_asm)
                 patches.append(patch)
 
-        # register reallocation
+        return patches
+
+    def _patches_register_reallocation(self, bo):
+        """
+        Generate patches out of register reallocation.
+
+        :param bo: The binary optimization analysis.
+        :return: A list of patches.
+        :rtype: list
+        """
+
+        patches = [ ]
 
         prologue_saves = defaultdict(list)
         epilogue_restores = defaultdict(list)
@@ -158,7 +205,13 @@ class BinaryOptimization(Technique):
 
                 # what instructions to replace?
                 # sources first
+                replaced_source_insn_addrs = set()
                 for src in rr.stack_variable_sources:
+
+                    if src.location.ins_addr in replaced_source_insn_addrs:
+                        continue
+                    replaced_source_insn_addrs.add(src.location.ins_addr)
+
                     insn = self.backend.project.factory.block(src.location.ins_addr, num_inst=1).capstone.insns[0]
                     operands = insn.op_str.split(',')
                     if not len(operands) == 2:
@@ -177,11 +230,40 @@ class BinaryOptimization(Technique):
                     patches_.append(p1)
 
                 # consumers
+                replaced_consumer_insn_addrs = set()
                 for dst in rr.stack_variable_consumers:
+
+                    if dst.location.ins_addr in replaced_consumer_insn_addrs:
+                        continue
+                    replaced_consumer_insn_addrs.add(dst.location.ins_addr)
+
                     insn = self.backend.project.factory.block(dst.location.ins_addr, num_inst=1).capstone.insns[0]
                     if len(insn.operands) == 2:
                         operands = insn.op_str.split(',')
-                        new_insn = "%s\t%s, %s" % (insn.mnemonic, operands[0], reg_name)
+                        if 'ptr' in operands[0]:
+                            operands[0] = reg_name
+                        elif 'ptr' in operands[1]:
+                            operands[1] = reg_name
+                        else:
+                            raise NotImplementedError('Unexpected operands found in instruction %s. '
+                                                      'Please bug Fish hard.' % insn)
+
+                        new_insn = "%s\t%s, %s" % (insn.mnemonic, operands[0], operands[1])
+
+                    elif len(insn.operands) == 3:
+                        operands = insn.op_str.split(',')
+                        if 'ptr' in operands[0]:
+                            operands[0] = reg_name
+                        elif 'ptr' in operands[1]:
+                            operands[1] = reg_name
+                        elif 'ptr' in operands[2]:
+                            operands[2] = reg_name
+                        else:
+                            raise NotImplementedError('Unexpected operands found in instruction %s. '
+                                                      'Please bug Fish hard.' % insn)
+
+                        new_insn = "%s\t%s, %s, %s" % (insn.mnemonic, operands[0], operands[1], operands[2])
+
                     else:
                         # TODO:
                         raise NotImplementedError()
@@ -202,16 +284,58 @@ class BinaryOptimization(Technique):
                 # pop the register before function epilogue
                 epilogue_restores[rr.epilogue_addr].insert(0, 'pop\t%s' % reg_name)
 
+                self.register_reallocations += 1
+
             except NotImplementedError:
+                raise
                 continue
 
         for insertion_addr, insns in prologue_saves.iteritems():
             p = InsertCodePatch(insertion_addr, "\n".join(insns))
-            patches.append(p)
+            # those patches must go in the front of those replaced instructions
+            # for example, we would expect
+            #   push esi
+            #   mov esi, 0
+            # instead of
+            #   mov esi, 0
+            #   push esi  <- the order is wrong
+            patches.insert(0, p)
 
         for insertion_addr, insns in epilogue_restores.iteritems():
             p = InsertCodePatch(insertion_addr, "\n".join(insns))
-            patches.append(p)
+            # those patches must go in the front of those replaced instructions
+            patches.insert(0, p)
+
+        return patches
+
+    def _patches_dead_assignment_elimination(self, bo):
+        """
+        Generate patches for dead assignment elimination.
+
+        :param bo: The binary optimization result.
+        :return: A list of patches.
+        :rtype: list
+        """
+
+        patches = [ ]
+
+        register_names = self.backend.project.arch.register_names
+
+        for dead_assignment in bo.dead_assignments:  # type: topsecret.binary_optimizer.DeadAssignment
+            ins_addr = dead_assignment.pv.location.ins_addr
+            dead_reg = dead_assignment.pv.variable.reg
+
+            ins = self.backend.project.factory.block(ins_addr).capstone.insns[0]
+            op_str = ins.op_str
+            operands = op_str.split(',')
+            dst_op = operands[0].strip()
+            if dead_reg in register_names and dst_op == register_names[dead_reg]:
+                l.debug("Eliminating %#x, register %s.", ins_addr, dst_op)
+
+                p = RemoveInstructionPatch(ins_addr, None)
+                patches.append(p)
+
+                self.dead_assignment_eliminations += 1
 
         return patches
 
@@ -222,3 +346,36 @@ class BinaryOptimization(Technique):
         """
 
         return self._patches
+
+def optimize_it(input_filepath, output_filepath):
+    """
+    Take a binary as an input, apply optimization techniques, and output to the specified path. An exception is raised
+    if optimization fails.
+
+    :param str input_filepath: The binary to work on.
+    :param str output_filepath: The binary to output to.
+    :return: None
+    """
+
+    target_filepath = output_filepath
+    rr_filepath = target_filepath + ".rr"
+
+    # register reallocation first
+    b1 = ReassemblerBackend(input_filepath, debugging=True)
+    cp = BinaryOptimization(input_filepath, b1, {'register_reallocation'})
+    patches = cp.get_patches()
+    b1.apply_patches(patches)
+    r = b1.save(rr_filepath)
+
+    if not r:
+        raise Exception('Optimization fails stage 1.')
+
+    # other optimization techniques
+    b2 = ReassemblerBackend(rr_filepath, debugging=True)
+    cp = BinaryOptimization(rr_filepath, b2, {'constant_propagation'})
+    patches = cp.get_patches()
+    b2.apply_patches(patches)
+    r = b2.save(target_filepath)
+
+    if not r:
+        raise Exception('Optimization fails stage 2.')
