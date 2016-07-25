@@ -43,12 +43,18 @@ class StackRetEncryption(object):
         '''
 
         self.safe_inline_encrypt = '''
-            push ecx
-            mov ecx, DWORD [esp+4]
-            xor ecx, DWORD [{rnd_xor_key}]
-            mov DWORD [esp+4], ecx
-            pop ecx
+            call {safe_encrypt}
         '''
+
+        self.safe_encrypt = '''
+            push ecx
+            mov ecx, DWORD [esp+8]
+            xor ecx, DWORD [{rnd_xor_key}]
+            mov DWORD [esp+8], ecx
+            pop ecx
+            ret
+        '''
+        self.need_safe_encrypt = False
 
         self.inv_callsites = self.map_callsites()
         self.terminate_function = None
@@ -141,7 +147,6 @@ class StackRetEncryption(object):
         return chain
 
     def add_patch_at_bb(self,addr,is_tail=False):
-
         if is_tail:
             relavent_regs = ["ecx", "edx"]
         else:
@@ -151,6 +156,7 @@ class StackRetEncryption(object):
             if self.is_reg_free(addr, r, is_tail):
                 inserted_code = self.make_inline_encrypt(r)
                 return inserted_code
+        self.need_safe_encrypt = True
         return self.safe_inline_encrypt
 
     # TODO check if it is possible to do insane trick to always overwrite the same stuff and merge things
@@ -465,5 +471,8 @@ class StackRetEncryption(object):
             # we are jumping either after setjmp or to a function
             p1 = InsertCodePatch(self.found_longjmp+10,code_longjmp,name="longjmp_protection",priority=200)
             patches.append(p1)
+
+        if self.need_safe_encrypt:
+            common_patches.append(AddCodePatch(self.safe_encrypt,name="safe_encrypt"))
 
         return common_patches + patches
