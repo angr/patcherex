@@ -223,28 +223,62 @@ def disabled_adversarial():
 def run_optimization(filename):
     filepath = os.path.join(bin_location, filename)
 
-    p = ReassemblerBackend(filepath, debugging=True)
+    target_filepath = os.path.join('/', 'tmp', 'optimized_binaries', os.path.basename(filename))
+    rr_filepath = target_filepath + ".rr"
+    cp_filepath = target_filepath + ".cp"
 
-    cp = BinaryOptimization(filepath, p)
+    # register reallocation first
+    b1 = ReassemblerBackend(filepath, debugging=True)
+    cp = BinaryOptimization(filepath, b1, {'register_reallocation'})
+    #cp = BinaryOptimization(filepath, b1, {'redundant_stack_variable_removal'})
     patches = cp.get_patches()
-
-    p.apply_patches(patches)
-
-    r = p.save(os.path.join('/', 'tmp', os.path.basename(filename)))
+    b1.apply_patches(patches)
+    r = b1.save(rr_filepath)
 
     if not r:
         print "Compiler says:"
-        print p._compiler_stdout
-        print p._compiler_stderr
+        print b1._compiler_stdout
+        print b1._compiler_stderr
 
-    nose.tools.assert_true(r, 'Shadowstack patching with reassembler fails on binary %s' % filename)
+    # other optimization techniques
+    b2 = ReassemblerBackend(rr_filepath, debugging=True)
+    #cp = BinaryOptimization(rr_filepath, b2, {'constant_propagation', 'redundant_stack_variable_removal'})
+    cp = BinaryOptimization(rr_filepath, b2, {'constant_propagation'})
+    patches = cp.get_patches()
+    b2.apply_patches(patches)
+    r = b2.save(target_filepath)
+
+    if not r:
+        print "Compiler says:"
+        print b2._compiler_stdout
+        print b2._compiler_stderr
+
+    nose.tools.assert_true(r, 'Optimization fails on binary %s' % filename)
 
 def test_optimization():
     binaries = [
         #os.path.join('cgc_trials', 'CADET_00003'),
         #os.path.join('cgc_trials', 'CROMU_00070'),
-        os.path.join('cgc_trials', 'CROMU_00071'),
+        #os.path.join('cgc_trials', 'CROMU_00071'),
         #os.path.join('cgc_trials', 'EAGLE_00005'),
+
+        #os.path.join('cgc_samples_multiflags', 'CADET_00001', 'original', 'CADET_00001'),
+        #os.path.join('cgc_samples_multiflags', 'CROMU_00001', 'original', 'CROMU_00001'),
+        os.path.join('cgc_samples_multiflags', 'CROMU_00002', 'original', 'CROMU_00002'),
+        #os.path.join('cgc_samples_multiflags', 'CROMU_00007', 'original', 'CROMU_00007'),
+        #os.path.join('cgc_samples_multiflags', 'CROMU_00008', 'original', 'CROMU_00008'),
+        #os.path.join('cgc_samples_multiflags', 'CROMU_00070', 'original', 'CROMU_00070'),
+        #os.path.join('cgc_samples_multiflags', 'CROMU_00071', 'original', 'CROMU_00071'),
+        #os.path.join('cgc_samples_multiflags', 'EAGLE_00004', 'original', 'EAGLE_00004_1'),
+        #os.path.join('cgc_samples_multiflags', 'EAGLE_00004', 'original', 'EAGLE_00004_2'),
+        #os.path.join('cgc_samples_multiflags', 'EAGLE_00004', 'original', 'EAGLE_00004_3'),
+        #os.path.join('cgc_samples_multiflags', 'EAGLE_00005', 'original', 'EAGLE_00005'),
+
+        #os.path.join('cgc_samples_multiflags', 'KPRCA_00001', 'original', 'KPRCA_00001'),
+        #os.path.join('cgc_samples_multiflags', 'KPRCA_00015', 'original', 'KPRCA_00015'),
+        #os.path.join('cgc_samples_multiflags', 'KPRCA_00055', 'original', 'KPRCA_00055'),
+        #os.path.join('cgc_samples_multiflags', 'KPRCA_00056', 'original', 'KPRCA_00056'),
+        #os.path.join('cgc_samples_multiflags', 'KPRCA_00057', 'original', 'KPRCA_00057'),
     ]
 
     for b in binaries:
