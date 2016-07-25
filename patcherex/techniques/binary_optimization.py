@@ -238,7 +238,17 @@ class BinaryOptimization(Technique):
                     replaced_consumer_insn_addrs.add(dst.location.ins_addr)
 
                     insn = self.backend.project.factory.block(dst.location.ins_addr, num_inst=1).capstone.insns[0]
-                    if len(insn.operands) == 2:
+                    if len(insn.operands) == 1:
+                        operand = insn.op_str
+                        if 'ptr' in operand:
+                            operand = reg_name
+                        else:
+                            raise NotImplementedError('Unexpected operand found in instruction %s.'
+                                                      'Please bug Fish hard.' % insn)
+
+                        new_insn = "%s\t%s" % (insn.mnemonic, operand)
+
+                    elif len(insn.operands) == 2:
                         operands = insn.op_str.split(',')
                         if 'ptr' in operands[0]:
                             operands[0] = reg_name
