@@ -161,7 +161,7 @@ class ASMConverter(object):
                     disp = '-' + disp
                 # negative scale should be invalid:
                 # "error: scale factor in address must be 1, 2, 4 or 8\nmovl    -0x10(%esi, %edi, -1)"
-                scale = str((int(scale)))
+                scale = str((int(scale,base=0)))
 
                 tstr =  "%s(%s, %s, %s)" % (disp, base_reg, index_reg, scale)
                 return tstr
@@ -175,14 +175,15 @@ class ASMConverter(object):
                     # part_1 is displacement
                     part_2, part_1 = part_1, part_2
 
-                if not all(c in string.digits for c in part_2):
+                if not all(c in string.digits+"xX" for c in part_2):
                     raise ValueError('Unsupported displacement string "%s"' % part_2)
 
                 base_reg = ASMConverter.reg_to_att(part_0)
                 if base_reg is None: raise ValueError('Unsupported base register "%s"' % part_0)
                 index_reg = ASMConverter.reg_to_att(part_1)
                 if index_reg is None: raise ValueError('Unsupported index register "%s"' % part_1)
-                disp = part_2
+                
+                disp = str((int(part_2,base=0)))
 
                 if sign_2 == '-':
                     disp = '-' + disp
