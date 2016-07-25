@@ -5,6 +5,7 @@ import patcherex.cfg_utils as cfg_utils
 
 import re
 import capstone
+import networkx
 import logging
 from patcherex.patches import *
 
@@ -21,6 +22,7 @@ class IndirectCFI(object):
     def __init__(self,binary_fname,backend,allow_reg_reuse=True):
         self.binary_fname = binary_fname
         self.patcher = backend
+        self.safe_addrs = set()
 
     def get_common_patches(self):
         # nothing for now, may need 4 RW bytes if we stop using push/pop method to save/restore used reg
@@ -53,7 +55,7 @@ class IndirectCFI(object):
                 # print nn, map(hex,[n.addr for n in nn.successors()])
                 if all([0x8048000 <=  n.addr < 0x9000000 for n in nn.successors()]):
                     l.info("Found indirect call always targeting the main bin at: %#8x: %s" % \
-                            (instruction.address, map(hex([n.addr for n in nn.successors()]))))
+                            (addr, map(hex([n.addr for n in nn.successors()]))))
                     return True
         return False
 
@@ -171,10 +173,21 @@ class IndirectCFI(object):
             data_patch = AddRWDataPatch(1,"saved_first_target_%08x"%instruction.address)
             return [code_patch,data_patch]+additional_patches
 
+    def get_safe_functions(self):
+        # for now we consider functions called by printf or malloc to be safe
+        ident_safe = cfg_utils._get_funcs_called_by_printf(self.patcher.project,
+                                                           self.patcher.cfg, self.patcher.identifier)
+        ident_safe |= cfg_utils._get_funcs_called_by_malloc(self.patcher.project,
+                                                           self.patcher.cfg, self.patcher.identifier)
+
+        return ident_safe
+
     def get_patches(self):
         patches = []
         patches.extend(self.get_common_patches())
         cfg = self.patcher.cfg
+
+        self.safe_addrs = self.get_safe_functions()
 
         # the overlapping instruction issue seems to be fixed, at least partially
         # I am still using a dict and raising warnings in case of problems.
@@ -182,7 +195,8 @@ class IndirectCFI(object):
         for ff in cfg.functions.values():
             if not ff.is_syscall and ff.startpoint != None and ff.endpoints != None and \
                     cfg_utils.detect_syscall_wrapper(self.patcher,ff) == None and \
-                    not cfg_utils.is_floatingpoint_function(self.patcher,ff):
+                    not cfg_utils.is_floatingpoint_function(self.patcher,ff)\
+                    and ff.addr not in self.safe_addrs:
                 for bb in ff.blocks:
                     for ci in bb.capstone.insns:
                         if ci.group(capstone.x86_const.X86_GRP_CALL) or ci.group(capstone.x86_const.X86_GRP_JUMP):
