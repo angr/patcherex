@@ -48,7 +48,6 @@ class StackRetEncryption(object):
             xor ecx, DWORD [{rnd_xor_key}]
             mov DWORD [esp+4], ecx
             pop ecx
-            ret
         '''
 
         self.inv_callsites = self.map_callsites()
