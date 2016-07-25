@@ -2,6 +2,7 @@
 import logging
 
 import angr
+import identifier
 
 l = logging.getLogger('patcherex.backend')
 
@@ -22,6 +23,7 @@ class Backend(object):
         self.try_pdf_removal = try_pdf_removal
         self.pdf_removed = False # has the pdf actually been removed?
         self.project = angr.Project(filename)
+        self._identifer = None
         with open(filename, "rb") as f:
             self.ocontent = f.read()
 
@@ -58,6 +60,14 @@ class Backend(object):
         """
 
         raise NotImplementedError()
+
+    @property
+    def identifier(self):
+        if self._identifer is None:
+            self._identifer = identifier.Identifier(self.project, self.cfg, require_predecessors=False)
+            list(self._identifer.run(only_find={"malloc"}))
+        return self._identifer
+
 
     #
     # Private methods
