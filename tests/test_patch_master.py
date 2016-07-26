@@ -36,7 +36,8 @@ PATCH_TYPES_WITH_BACKDOOR = ["medium_reassembler_fidget",
                     "medium_reassembler",
                     "medium_detour",
                     "light_detour",
-                    "light_reassembler"]
+                    "light_reassembler",
+                    "optimized"]
 PATCH_TYPES_AS_ORIGINAL = ["voidpartialbitflip"]
 
 

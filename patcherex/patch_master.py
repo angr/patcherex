@@ -206,14 +206,27 @@ class PatchMaster():
     ##################
 
     def generate_optimized_binary(self):
+        # the correct name of this would be medium_reassembler_optimized
         intermediate = tempfile.mktemp()
         optimize_it(self.infile, intermediate)
-        # load it up with the reassembler again
-        backend = ReassemblerBackend(intermediate)
-        content = backend.get_final_content()
-        os.unlink(intermediate)
 
-        return (content,"")
+        # load it up with the reassembler again
+        nr = NetworkRules()
+        backend = ReassemblerBackend(intermediate)
+        patches = []
+
+        patches.extend(IndirectCFI(intermediate,backend).get_patches())
+        patches.extend(TransmitProtection(intermediate,backend).get_patches())
+        patches.extend(ShiftStack(intermediate,backend).get_patches())
+        patches.extend(Adversarial(intermediate,backend).get_patches())
+        patches.extend(Backdoor(intermediate,backend).get_patches())
+        # patches.extend(NxStack(intermediate,backend).get_patches())
+        patches.extend(MallocExtPatcher(intermediate,backend).get_patches())
+        patches.extend(StackRetEncryption(intermediate,backend).get_patches())
+        patches.extend(UninitializedPatcher(intermediate,backend).get_patches())
+
+        backend.apply_patches(patches)
+        return (backend.get_final_content(),"")
 
     def generate_voidpartialbitflip_binary(self):
         nr = NetworkRules()
