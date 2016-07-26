@@ -890,7 +890,7 @@ def test_nxstack():
             if stack_randomization:
                 cp =  ShiftStack(filepath, backend)
                 patches += cp.get_patches()
-            backend.apply_patches(patches+[InsertCodePatch(0x804db6b,"jmp 0x11223344")])
+            backend.apply_patches(patches+[InsertCodePatch(0x80487d0,"jmp 0x11223344")])
             backend.save(tmp_file)
             res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
             nesp = res.reg_vals['esp']
@@ -908,7 +908,7 @@ def test_nxstack():
                 push 0xabb0c031
                 jmp esp
             '''
-            backend.apply_patches(patches+[InsertCodePatch(0x804db6b,code)])
+            backend.apply_patches(patches+[InsertCodePatch(0x80487d0,code)])
             backend.save(tmp_file)
             # backend.save("/tmp/aaa")
             # see: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/5
@@ -933,7 +933,7 @@ def test_nxstack():
                 push 0xabb0c031
                 jmp esp
             '''
-            backend.apply_patches(patches+[InsertCodePatch(0x804db6b,code)])
+            backend.apply_patches(patches+[InsertCodePatch(0x80487d0,code)])
             backend.save(tmp_file)
             # backend.save("/tmp/aaa")
             res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
@@ -949,7 +949,7 @@ def test_nxstack():
                 patches += cp.get_patches()
             npushpop = 0x200000 + 1 # 8MB + 4: we do not overflow since we added one page
             code = "push edx\n" * npushpop + "pop edx\n" * npushpop
-            patches += [InsertCodePatch(0x804db6b,code)]
+            patches += [InsertCodePatch(0x80487d0,code)]
             backend.apply_patches(patches)
             backend.save(tmp_file)
             # backend.save("/tmp/aaa")
