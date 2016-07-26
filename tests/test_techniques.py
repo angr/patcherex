@@ -825,7 +825,7 @@ def test_shiftstack():
 
         backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         backend._debugging = True
-        backend.apply_patches([InsertCodePatch(0x804db6b,"jmp 0x11223344")])
+        backend.apply_patches([InsertCodePatch(0x80487d0,"jmp 0x11223344")])
         backend.save(tmp_file)
         #backend.save("/tmp/aaa")
         res = Runner(tmp_file,tinput,record_stdout=True)
@@ -837,7 +837,7 @@ def test_shiftstack():
             backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             cp = ShiftStack(filepath, backend)
             patches = cp.get_patches()
-            backend.apply_patches(patches+[InsertCodePatch(0x804db6b,"jmp 0x11223344")])
+            backend.apply_patches(patches+[InsertCodePatch(0x80487d0,"jmp 0x11223344")])
             backend.save(tmp_file)
             res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
             oesp = original_reg_value['esp']
