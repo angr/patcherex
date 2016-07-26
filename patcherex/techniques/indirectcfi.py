@@ -1,5 +1,6 @@
 import patcherex
 import angr
+from patcherex.patches import *
 import patcherex.utils as utils
 import patcherex.cfg_utils as cfg_utils
 
@@ -7,7 +8,7 @@ import re
 import capstone
 import networkx
 import logging
-from patcherex.patches import *
+from collections import defaultdict
 
 l = logging.getLogger("patcherex.techniques.IndirectCFI")
 
@@ -23,6 +24,8 @@ class IndirectCFI(object):
         self.binary_fname = binary_fname
         self.patcher = backend
         self.safe_addrs = set()
+        self.inv_callsites = self.map_callsites()
+        self.allocate_executable = False
 
     def get_common_patches(self):
         # nothing for now, may need 4 RW bytes if we stop using push/pop method to save/restore used reg
@@ -120,16 +123,23 @@ class IndirectCFI(object):
 
         IndirectCFI.global_counter+=1
 
+        if not self.allocate_executable:
+            target_region_protection = '''
+                cmp edx, 0x4347c000
+                jae  0x8047333
+            '''
+        else:
+            target_region_protection = ""
+
         if self.is_mainbin_call(instruction.address,ff):
             new_code = '''
             push edx
             %s
             mov dl, BYTE [edx] ;less significant byte of target in dl (and check access)
             %s
-            cmp edx, 0x4347c000
-            jae  0x8047333
+            %s
             pop edx
-            ''' % (target_resolver,gadget_protection)
+            ''' % (target_resolver,gadget_protection,target_region_protection)
             code_patch = InsertCodePatch(int(instruction.address),new_code,name="indirect_cfi_for_%08x"%instruction.address)
             return [code_patch]+additional_patches
 
@@ -182,10 +192,54 @@ class IndirectCFI(object):
 
         return ident_safe
 
+    def contains_executable_allocation(self,cfg):
+        allocate_wrapper_addr = None
+        for ff in cfg.functions.values():
+            if cfg_utils.detect_syscall_wrapper(self.patcher,ff) == 5:
+                allocate_wrapper_addr = ff.addr
+                break
+        if allocate_wrapper_addr == None:
+            return False
+
+        allocate_callers = self.inv_callsites[allocate_wrapper_addr]
+        for bb_addr in allocate_callers:
+            path = self.patcher.project.factory.path(mode="fastpath",addr=bb_addr)
+            path.step()
+            all_succ = (path.successors+path.unconstrained_successors)
+            if len(all_succ) != 1:
+                continue
+            succ = all_succ[0]
+            isx_flag = succ.state.mem[succ.state.regs.esp+8].dword.resolved
+            if not isx_flag.symbolic:
+                if succ.state.se.any_int(isx_flag) == 1:
+                    l.warning("found executable allocation, at %#8x" % bb_addr)
+                    return True
+        return False
+
+    def map_callsites(self):
+        callsites = dict()
+        for f in self.patcher.cfg.functions.values():
+            for callsite in f.get_call_sites():
+                if f.get_call_target(callsite) is None:
+                    continue
+                callsites[callsite] = f.get_call_target(callsite)
+
+        # create inverse callsite map
+        inv_callsites = defaultdict(set)
+        for c, f in callsites.iteritems():
+            inv_callsites[f].add(c)
+        return inv_callsites
+
     def get_patches(self):
         patches = []
         patches.extend(self.get_common_patches())
         cfg = self.patcher.cfg
+
+        if self.contains_executable_allocation(cfg):
+            l.warning("found executable allocation, I will not apply indirect CFI")
+            self.allocate_executable = True
+        else:
+            self.allocate_executable = False
 
         self.safe_addrs = self.get_safe_functions()
 

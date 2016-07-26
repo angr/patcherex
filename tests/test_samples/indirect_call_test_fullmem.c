@@ -17,6 +17,7 @@ uint32_t gdummy;
 
 uint8_t shellcode[100] = {0x60, 0xB9, 0x01, 0x80, 0x04, 0x08, 0xBA, 0x03, 0x00, 0x00, 0x00, 0xB8, 0x02, 0x00, 0x00, 0x00, 0xBB, 0x01, 0x00, 0x00, 0x00, 0xBE, 0x00, 0x00, 0x00, 0x00, 0xCD, 0x80, 0x61, 0xC3};
 char* cstr = (char*)"CGC";
+uint8_t is_x;
 
 void *memcpy(void *dst, const void *src, size_t n) {
    char *d = (char*)dst;
@@ -209,7 +210,7 @@ void stable(){
 void setup(heap_size){
   int i;
   for(i=0;i<(heap_size/0x1000000);i++){
-    allocate(0x1000000, 1,(void**) &working_code_on_heap); //the last is 0x78000000
+    allocate(0x1000000, is_x,(void**) &working_code_on_heap); //the last is 0x78000000
   }
   working_code_on_stack = (uint8_t*) 0xbaaaa000;
 
@@ -226,6 +227,8 @@ int main() {
   uint32_t option;
   unsigned char tmp[9];
   uint8_t bb[0x7ff000]; //make the stack reaching 8MB
+  is_x = shellcode[2]; //avoid indirectcfi detection
+
   int i;
   for(i=0;i<0x7ff000;i++){
     bb[i]=0x11;

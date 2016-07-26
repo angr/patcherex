@@ -483,6 +483,7 @@ def test_indirectcfi():
             res = Runner(vulnerable_fname1,"00000004\n63456789\n",record_stdout=True)
             nose.tools.assert_equal(res.reg_vals['eip'],0x63456789)
 
+            '''
             res = Runner(vulnerable_fname1,"00000001\n08048640\n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
             nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
@@ -499,6 +500,7 @@ def test_indirectcfi():
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
             nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
             nose.tools.assert_equal(res.reg_vals['eip'],0x30303030)
+            '''
 
             res = Runner(vulnerable_fname1,"00000001\n"+addr_str+"\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
@@ -566,13 +568,8 @@ def test_indirectcfi():
             print hex(res.reg_vals['eip'])
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             #main -> main
-            if global_BackendClass != ReassemblerBackend:
-                res = Runner(patched_fname1,"00000001\n08048620\n",record_stdout=True)
-                nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-                nose.tools.assert_true(res.reg_vals == None)
-            else:
-                res = Runner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
-                nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
+            res = Runner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
+            nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
 
             #stack -> main
             '''
@@ -615,13 +612,8 @@ def test_indirectcfi():
             '''
 
             #unknown -> main
-            res = Runner(patched_fname1,"00000004\n08048620\n",record_stdout=True)
-            if global_BackendClass != ReassemblerBackend:
-                nose.tools.assert_equal(res.stdout,"hello\nCGC")
-                nose.tools.assert_true(res.reg_vals == None)
-            else:
-                res = Runner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
-                nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
+            res = Runner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
+            nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
 
             '''
             #unknown -> stack
@@ -638,14 +630,29 @@ def test_indirectcfi():
 
             # call gadget
             if i == 0 and global_BackendClass != ReassemblerBackend:
-                res = Runner(patched_fname1,"00000001\n08048640\n",record_stdout=True)
+                gadget_addr = "08048971"
+                res = Runner(patched_fname1,"00000001\n"+gadget_addr+"\n",record_stdout=True)
                 nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
                 # res = Runner(patched_fname1,"00000002\n08048640\n",record_stdout=True)
                 # nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
                 # res = Runner(patched_fname1,"00000003\n08048640\n",record_stdout=True)
                 # nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
-                res = Runner(patched_fname1,"00000004\n08048640\n",record_stdout=True)
+                res = Runner(patched_fname1,"00000004\n"+gadget_addr+"\n",record_stdout=True)
                 nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
+
+                patched_fname2 = os.path.join(td, "patched2")
+                backend = global_BackendClass(vulnerable_fname1+"_exec_allocate",global_data_fallback,\
+                        try_pdf_removal=global_try_pdf_removal)
+                cp = IndirectCFI(vulnerable_fname1+"_exec_allocate", backend)
+                patches = cp.get_patches()
+                backend.apply_patches(patches)
+                backend.save(patched_fname2)
+                # backend.save("/tmp/aaa")
+
+                res = Runner(patched_fname1,"00000001\n"+"b7fff000"+"\n",record_stdout=True)
+                nose.tools.assert_true(res.reg_vals['eip'] != 0xb7fff000)
+                res = Runner(patched_fname2,"00000001\n"+"b7fff000"+"\n",record_stdout=True)
+                nose.tools.assert_true(res.reg_vals['eip'] == 0xb7fff000) #because we detect executable allocate memory
 
 
 def test_freeregs():
@@ -991,10 +998,11 @@ def test_backdoor():
         # deal with endianness craziness
         return "".join(map(chr,[l[3],l[2],l[1],l[0],0,0,0,l[4]]))
 
+
     import patcherex
     backdoor_content = patcherex.get_backdoorpov()
-    nose.tools.assert_equal(backdoor_content[:16], "\x7fCGC\x01\x01\x01C\x01Merino\x00")
-    nose.tools.assert_true(backdoor_content > (5 * pow(2, 19)))  # size is bigger than number of challenges times 5 bytes
+    nose.tools.assert_equal(backdoor_content[:16],"\x7fCGC\x01\x01\x01C\x01Merino\x00")
+    nose.tools.assert_true(backdoor_content > (5*pow(2,19))) # size is bigger than number of challenges times 5 bytes
 
     backdoor_content = patcherex.patch_master.get_backdoorpov()
     nose.tools.assert_equal(backdoor_content[:16],"\x7fCGC\x01\x01\x01C\x01Merino\x00")
