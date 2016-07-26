@@ -20,7 +20,7 @@ def run_functionality(filename, save_as=None):
 
     filepath = os.path.join(bin_location, filename)
     if save_as is None:
-        save_as = os.path.join('/', 'tmp', os.path.basename(filename))
+        save_as = os.path.join('/', 'tmp', 'functionality', os.path.basename(filename))
 
     p = ReassemblerBackend(filepath, debugging=True)
     r = p.save(save_as)
@@ -115,7 +115,7 @@ def run_shadowstack(filename):
 
     p.apply_patches(patches)
 
-    r = p.save(os.path.join('/', 'tmp', os.path.basename(filename)))
+    r = p.save(os.path.join('/', 'tmp', 'shadowstack', os.path.basename(filename)))
 
     if not r:
         print "Compiler says:"
@@ -145,7 +145,7 @@ def run_simple_pointer_encryption(filename):
 
     p.apply_patches(patches)
 
-    r = p.save(os.path.join('/', 'tmp', os.path.basename(filename)))
+    r = p.save(os.path.join('/', 'tmp', 'simple_pointer_encryption', os.path.basename(filename)))
 
     if not r:
         print "Compiler says:"
@@ -176,7 +176,7 @@ def run_shiftstack(filename):
 
     p.apply_patches(patches)
 
-    r = p.save(os.path.join('/', 'tmp', os.path.basename(filename)))
+    r = p.save(os.path.join('/', 'tmp', 'shiftstack', os.path.basename(filename)))
 
     if not r:
         print "Compiler says:"
@@ -203,7 +203,7 @@ def run_adversarial(filename):
 
     p.apply_patches(patches)
 
-    r = p.save(os.path.join('/', 'tmp', os.path.basename(filename)))
+    r = p.save(os.path.join('/', 'tmp', 'adversarial', os.path.basename(filename)))
 
     if not r:
         print "Compiler says:"
