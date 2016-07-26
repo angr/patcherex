@@ -11,8 +11,8 @@ def is_sane_function(ff):
     # TODO len(ff.jumpout_sites) == 0 is a very lazy fix for the jumpout fix
     # ideally we should handle those but considering them similarly to RETs
     # for now, I have never found one of those that it is not in the floating point area
-    if not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and \
-            not ff.has_unresolved_jumps and ff.startpoint != None and ff.endpoints != None\
+    if not ff.is_syscall and ff.returning and \
+            not ff.has_unresolved_jumps and ff.startpoint != None and ff.endpoints != None \
             and len(ff.jumpout_sites) == 0:
 
         if len(ff.ret_sites)>0:
