@@ -1,5 +1,6 @@
-
+import angr
 import capstone
+import networkx
 
 
 def get_function_size(ff):
@@ -127,4 +128,75 @@ def is_longjmp(backend, ff):
         return False
 
 
+def _get_funcs_called_by_printf(project, cfg, ident):
+    printfs = []
+    for f in cfg.functions.values():
+        if f in ident.func_info and ident.func_info[f].var_args:
+            printfs.append(f)
 
+    addrs = [f.addr for f in printfs]
+    safe_addrs = set(addrs)
+    while addrs:
+        addr = addrs.pop()
+        try:
+            for x in cfg.functions.callgraph.successors(addr):
+                if x not in safe_addrs:
+                    safe_addrs.add(x)
+                    addrs.append(x)
+        except networkx.NetworkXError:
+            pass
+
+        if len(addrs) == 0:
+            for f in cfg.functions.values():
+                if f.addr in safe_addrs:
+                    continue
+                if check_function_pointer(project, cfg, f.addr, safe_addrs):
+                    safe_addrs.add(f.addr)
+                    addrs.append(f.addr)
+
+    return safe_addrs
+
+
+def _get_funcs_called_by_malloc(project, cfg, ident):
+    mallocs = []
+    for f, (match_name, _) in ident.matches.items():
+        if match_name == "malloc" or match_name == "free":
+            mallocs.append(f)
+
+    addrs = [f.addr for f in mallocs]
+    safe_addrs = set(addrs)
+    while addrs:
+        addr = addrs.pop()
+        try:
+            for x in cfg.functions.callgraph.successors(addr):
+                if x not in safe_addrs:
+                    safe_addrs.add(x)
+                    addrs.append(x)
+        except networkx.NetworkXError:
+            pass
+
+        if len(addrs) == 0:
+            for f in cfg.functions.values():
+                if f.addr in safe_addrs:
+                    continue
+                if check_function_pointer(project, cfg, f.addr, safe_addrs):
+                    safe_addrs.add(f.addr)
+                    addrs.append(f.addr)
+
+    return safe_addrs
+
+
+def check_function_pointer(project, cfg, addr, addr_set):
+    if addr not in cfg._memory_data:
+        return None
+    data = cfg._memory_data[addr]
+    if data.sort == 'code reference':
+        irsb_addr = data.irsb_addr
+        try:
+            bl = project.factory.block(irsb_addr)
+        except angr.AngrMemoryError:
+            return None
+        for i in bl.instruction_addrs:
+            if i in addr_set:
+                return True
+    return False

@@ -1,5 +1,4 @@
 import patcherex
-import identifier
 import angr
 import logging
 from collections import defaultdict
@@ -24,7 +23,7 @@ class MallocExtPatcher(object):
         self.binary_fname = binary_fname
         self.patcher = backend
         self.npatch = 0
-        self.ident = identifier.Identifier(self.patcher.project, self.patcher.cfg)
+        self.ident = self.patcher.identifier
         self.cfg_exploration_depth = 8
         self.max_cfg_steps = 2000
         self.relevant_registers = {"eax","ebx","ecx","edx","esi","edi"}
@@ -196,11 +195,11 @@ class MallocExtPatcher(object):
 
     def get_patches(self):
 
-        matches = list(self.ident.run(only_find={"malloc"}))
+        matches = self.ident.matches
         malloc_addr = None
-        for addr, name in matches:
+        for f, (name, _) in matches.items():
             if name == "malloc":
-                malloc_addr = addr
+                malloc_addr = f.addr
                 break
 
         if malloc_addr is None:
@@ -246,8 +245,8 @@ class MallocExtPatcher(object):
 
         added_code = """add DWORD [{malloc_pseudorand}], 13;
 mov %s, DWORD [{malloc_pseudorand}];
-and %s, 0x3c;
-add %s, 0x4;
+and %s, 0x8;
+add %s, 0x8;
 add DWORD [esp+%d], %s;
         """ % (use_reg, use_reg, use_reg, sp_off, use_reg)
 
