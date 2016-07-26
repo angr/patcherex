@@ -82,7 +82,9 @@ class ASMConverter(object):
         reg = reg.lower()
         is_reg = False
 
-        if len(reg) == 3 and reg.startswith('e') and reg[-1] in ('x', 'i', 'p'):
+        if len(reg) == 4 and reg.startswith('xmm'):
+            is_reg = True
+        elif len(reg) == 3 and reg.startswith('e') and reg[-1] in ('x', 'i', 'p'):
             is_reg = True
         elif len(reg) == 2:
             if reg.endswith('h') or reg.endswith('l') or reg[-1] in ('x', 'i', 'p'):
@@ -161,7 +163,7 @@ class ASMConverter(object):
                     disp = '-' + disp
                 # negative scale should be invalid:
                 # "error: scale factor in address must be 1, 2, 4 or 8\nmovl    -0x10(%esi, %edi, -1)"
-                scale = str((int(scale)))
+                scale = str((int(scale,base=0)))
 
                 tstr =  "%s(%s, %s, %s)" % (disp, base_reg, index_reg, scale)
                 return tstr
@@ -175,14 +177,15 @@ class ASMConverter(object):
                     # part_1 is displacement
                     part_2, part_1 = part_1, part_2
 
-                if not all(c in string.digits for c in part_2):
+                if not all(c in string.digits+"xX" for c in part_2):
                     raise ValueError('Unsupported displacement string "%s"' % part_2)
 
                 base_reg = ASMConverter.reg_to_att(part_0)
                 if base_reg is None: raise ValueError('Unsupported base register "%s"' % part_0)
                 index_reg = ASMConverter.reg_to_att(part_1)
                 if index_reg is None: raise ValueError('Unsupported index register "%s"' % part_1)
-                disp = part_2
+                
+                disp = str((int(part_2,base=0)))
 
                 if sign_2 == '-':
                     disp = '-' + disp
@@ -339,7 +342,10 @@ class ASMConverter(object):
     @staticmethod
     def mnemonic_to_att(m, size, op_sort=None):
 
-        if m in ('int', 'pushfd', 'popfd', 'nop', 'call', ):
+        if m in ('int', 'pushfd', 'popfd', 'nop', 'call',
+                 # floating point instructions
+                 'addss',
+                 ):
             return m
         if m.startswith('j'):
             # jumps
@@ -348,6 +354,12 @@ class ASMConverter(object):
             # floating point instructions
             return m
         if op_sort not in ('reg', 'mem') and m.startswith('j'):
+            return m
+
+        # special case for some mnemonics
+        if m == 'movsx':
+            size_suffix = ASMConverter.size_suffix[size]
+            m = 'movs' + size_suffix + 'l'
             return m
 
         m += ASMConverter.size_suffix[size]
@@ -386,6 +398,33 @@ class ASMConverter(object):
                     hex_byte = hex_byte.strip()
                     s = "\t.byte\t%s" % hex_byte
                     converted.append(s)
+                continue
+
+            # three operands
+            m = re.match(r"(\s*)([\S]+)\s+([^,]+),\s*([^,]+),\s*([^,]+)\s*$", l)
+            if m:
+                mnemonic, op1, op2, op3 = m.group(2), m.group(3), m.group(4), m.group(5)
+                spaces = m.group(1)
+
+                # swap operands
+                size = ASMConverter.get_size(op1)
+                if size is None:
+                    size = ASMConverter.get_size(op2)
+                if size is None:
+                    size = ASMConverter.get_size(op3)
+                if size is None:
+                    raise NotImplementedError('Cannot determine operand size from any operand in instruction "%s"' % l)
+
+                op1, op2, op3 = op3, op2, op1
+                op1 = ASMConverter.to_att(op1, mnemonic=mnemonic)[1]
+                op2 = ASMConverter.to_att(op2, mnemonic=mnemonic)[1]
+                op3 = ASMConverter.to_att(op3, mnemonic=mnemonic)[1]
+
+                mnemonic = ASMConverter.mnemonic_to_att(mnemonic, size)
+
+                s = "%s%s\t%s, %s, %s%s" % (spaces, mnemonic, op1, op2, op3, inline_comments)
+                converted.append(s)
+
                 continue
 
             # two operands

@@ -1,14 +1,13 @@
 import patcherex
-import identifier
 import angr
 import logging
+import networkx
 from collections import defaultdict
 
 import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
 
 l = logging.getLogger("patcherex.techniques.StackRetEncryption")
-
 
 class CfgError(Exception):
     pass
@@ -37,21 +36,17 @@ class StackRetEncryption(object):
         self.relevant_registers = set(["eax","ebx","ecx","edx","esi","edi"])
         self.reg_free_map, self.reg_not_free_map = self.get_reg_free_map()
 
-        added_code = '''
-            mov ecx, DWORD [esp+4]
-            xor ecx, DWORD [{rnd_xor_key}]
-            mov DWORD [esp+4], ecx
-            ret
+        self.inline_encrypt = '''
+            pop %s;
+            xor %s, DWORD [{rnd_xor_key}];
+            push %s;
         '''
-        self.encrypt_using_ecx_patch = AddCodePatch(added_code,name="encrypt_using_ecx")
-        added_code = '''
-            mov edx, DWORD [esp+4]
-            xor edx, DWORD [{rnd_xor_key}]
-            mov DWORD [esp+4], edx
-            ret
+
+        self.safe_inline_encrypt = '''
+            call {safe_encrypt}
         '''
-        self.encrypt_using_edx_patch = AddCodePatch(added_code,name="encrypt_using_edx")
-        added_code = '''
+
+        self.safe_encrypt = '''
             push ecx
             mov ecx, DWORD [esp+8]
             xor ecx, DWORD [{rnd_xor_key}]
@@ -59,11 +54,8 @@ class StackRetEncryption(object):
             pop ecx
             ret
         '''
-        self.safe_encrypt_patch = AddCodePatch(added_code,name="safe_encrypt")
+        self.need_safe_encrypt = False
 
-        self.used_ecx_patch = False
-        self.used_edx_patch = False
-        self.used_safe_patch = False
         self.inv_callsites = self.map_callsites()
         self.terminate_function = None
 
@@ -155,19 +147,21 @@ class StackRetEncryption(object):
         return chain
 
     def add_patch_at_bb(self,addr,is_tail=False):
-        if self.is_reg_free(addr,"ecx",is_tail) and self.allow_reg_reuse:
-            l.debug("using encrypt_using_ecx method for bb at %s" % hex(int(addr)))
-            self.used_ecx_patch = True
-            inserted_code = "call {encrypt_using_ecx}"
-        elif self.is_reg_free(addr,"edx",is_tail) and self.allow_reg_reuse:
-            l.debug("using encrypt_using_edx method for bb at %s" % hex(int(addr)))
-            self.used_edx_patch = True
-            inserted_code = "call {encrypt_using_edx}"
+        if is_tail:
+            relavent_regs = ["ecx", "edx"]
         else:
-            l.debug("using safe_encrypt method for bb at %s" % hex(int(addr)))
-            self.used_safe_patch = True
-            inserted_code = "call {safe_encrypt}"
-        return inserted_code
+            relavent_regs = ["eax", "ecx", "edx"]
+
+        for r in relavent_regs:
+            if self.is_reg_free(addr, r, is_tail):
+                inserted_code = self.make_inline_encrypt(r)
+                if not is_tail:
+                    # we add a nop so that indirectcfi will not see a pop at the beginning of a function
+                    # this is a problem because indirectcfi does not like indirect calls to pop
+                    inserted_code = "nop\n"+inserted_code
+                return inserted_code
+        self.need_safe_encrypt = True
+        return self.safe_inline_encrypt
 
     # TODO check if it is possible to do insane trick to always overwrite the same stuff and merge things
     def add_stackretencryption_to_function(self,start,ends):
@@ -346,6 +340,10 @@ class StackRetEncryption(object):
         is_safe = True
         for v in func_info.buffers:
             if v in func_info.stack_var_accesses:
+                # if it wasn't a load it's definitely not safe
+                if not any(kind == "load" for _, kind in func_info.stack_var_accesses[v]):
+                    is_safe = False
+                # if it was a load form a safe syscall it's safe
                 for addr, kind in func_info.stack_var_accesses[v]:
                     if kind == "load":
                         bbl = self.patcher.project.factory.block(addr)
@@ -354,18 +352,27 @@ class StackRetEncryption(object):
         return is_safe
 
     def get_safe_functions(self):
-        ident = identifier.Identifier(self.patcher.project, self.patcher.cfg)
+        ident = self.patcher.identifier
+
+        # for now we consider functions called by printf or malloc to be safe
+        ident_safe = cfg_utils._get_funcs_called_by_printf(self.patcher.project,
+                                                           self.patcher.cfg, self.patcher.identifier)
+        ident_safe |= cfg_utils._get_funcs_called_by_malloc(self.patcher.project,
+                                                           self.patcher.cfg, self.patcher.identifier)
 
         safe_func_addrs = set()
         unsafe_func_addrs = set()
         for f in self.patcher.cfg.functions.values():
-            if self._func_is_safe(ident, f):
+            if f.addr in ident_safe or self._func_is_safe(ident, f):
                 l.debug("%#x is safe", f.addr)
                 safe_func_addrs.add(f.addr)
             else:
                 l.debug("%#x is unsafe", f.addr)
                 unsafe_func_addrs.add(f.addr)
         return safe_func_addrs
+
+    def make_inline_encrypt(self, reg):
+        return self.inline_encrypt % (reg, reg, reg)
 
     def find_savedretaccess_functions(self,functions):
         def is_ebp_based_function(ff):
@@ -469,11 +476,7 @@ class StackRetEncryption(object):
             p1 = InsertCodePatch(self.found_longjmp+10,code_longjmp,name="longjmp_protection",priority=200)
             patches.append(p1)
 
+        if self.need_safe_encrypt:
+            common_patches.append(AddCodePatch(self.safe_encrypt,name="safe_encrypt"))
 
-        if self.used_safe_patch:
-            patches.append(self.safe_encrypt_patch)
-        if self.used_ecx_patch:
-            patches.append(self.encrypt_using_ecx_patch)
-        if self.used_edx_patch:
-            patches.append(self.encrypt_using_edx_patch)
         return common_patches + patches

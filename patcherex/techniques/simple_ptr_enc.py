@@ -1211,6 +1211,42 @@ class SimplePointerEncryption(Technique):
                 patch = InsertCodePatch(last_instr_addr + 2, asm, "syscall_encrypt_%#x" % last_instr_addr)  # len(int 80h) == 2
                 patches.append(patch)
 
+            if syscall_name == 'transmit':
+                # Address of the flag page 0x4347c000 is encrypted. In rare cases where the flag page number is used as
+                # constants and sent to users, we would like to find it out before transmission and decrypt it.
+                # TODO: make it more flexible
+                asm = """
+                    push edx
+                    push ecx
+                    push eax
+                    jmp foss_begin
+
+                foss_loop:
+                    mov eax, dword ptr [ecx]
+                    sub eax, [_POINTER_KEY]
+                    cmp eax, 0x4347d000
+                    ja foss_next
+                    cmp eax, 0x4347c000
+                    jb foss_next
+                    mov dword ptr [ecx], eax
+
+                foss_next:
+                    inc ecx
+                    dec edx
+
+                foss_begin:
+                    cmp edx, 4
+                    jl foss_done
+                    jmp foss_loop
+
+                foss_done:
+                    pop eax
+                    pop ecx
+                    pop edx
+                """
+                patch = InsertCodePatch(last_instr_addr, asm)
+                patches.append(patch)
+
         return patches
 
     def _memory_deref_instructions(self, cfg):

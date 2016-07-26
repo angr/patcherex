@@ -35,6 +35,7 @@ from patcherex.techniques.adversarial import Adversarial
 from patcherex.techniques.backdoor import Backdoor
 from patcherex.techniques.bitflip import Bitflip
 from patcherex.techniques.fidgetpatches import fidget_it
+from patcherex.techniques.binary_optimization import optimize_it
 from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
 from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
 
@@ -203,6 +204,16 @@ class PatchMaster():
 
 
     ##################
+
+    def generate_optimized_binary(self):
+        intermediate = tempfile.mktemp()
+        optimize_it(self.infile, intermediate)
+        # load it up with the reassembler again
+        backend = ReassemblerBackend(intermediate)
+        content = backend.get_final_content()
+        os.unlink(intermediate)
+
+        return (content,"")
 
     def generate_voidpartialbitflip_binary(self):
         nr = NetworkRules()

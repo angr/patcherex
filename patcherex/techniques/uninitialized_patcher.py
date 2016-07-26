@@ -1,7 +1,7 @@
 import patcherex
-import identifier
 import angr
 import logging
+import networkx
 from collections import defaultdict
 from angr.lifter import AngrMemoryError,AngrTranslationError
 
@@ -25,7 +25,7 @@ class UninitializedPatcher(object):
         self.binary_fname = binary_fname
         self.patcher = backend
         self.npatch = 0
-        self.ident = identifier.Identifier(self.patcher.project, self.patcher.cfg)
+        self.ident = self.patcher.identifier
         self.cfg_exploration_depth = 8
         self.max_cfg_steps = 2000
         self.relevant_registers = {"eax","ebx","ecx","edx","esi","edi"}
@@ -416,13 +416,25 @@ class UninitializedPatcher(object):
         l.debug("adding:\n%s", code)
         self.patches.append(InsertCodePatch(ff.addr, code, patch_name, stackable=True))
 
+    def get_safe_functions(self):
+        # for now we consider functions called by printf or malloc to be safe
+        ident_safe = cfg_utils._get_funcs_called_by_printf(self.patcher.project,
+                                                           self.patcher.cfg, self.patcher.identifier)
+        ident_safe |= cfg_utils._get_funcs_called_by_malloc(self.patcher.project,
+                                                           self.patcher.cfg, self.patcher.identifier)
+        return ident_safe
+
 
     def get_patches(self):
 
         cfg = self.patcher.cfg
 
+        self.safe_addrs = self.get_safe_functions()
+
         self.patches = []
         for k, ff in cfg.functions.iteritems():
+            if k in self.safe_addrs:
+                continue
             self._handle_func(ff)
 
         return list(self.patches)
