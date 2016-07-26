@@ -124,7 +124,7 @@ class TransmitProtection(Technique):
         jmp 0x8047ffb
         _exit_tp:
         ''' % utils.get_nasm_c_wrapper_code("transmit_protection_array_handler",get_return=True,debug=False)
-        patches.append(InsertCodePatch(victim_addr,code,name="transmit_protection",priority=200))
+        patches.append(InsertCodePatch(victim_addr,code,name="transmit_protection",priority=300))
         patches.append(AddRWDataPatch(self.nslot+1,name="last_transmit_array"))
         return patches + [self.get_c_patch()]
 

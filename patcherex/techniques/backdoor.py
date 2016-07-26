@@ -357,7 +357,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
 
             _exit_backdoor:
         '''
-        patches.append(InsertCodePatch(victim_addr,code,name="backdoor_receive_checker",priority=200))
+        patches.append(InsertCodePatch(victim_addr,code,name="backdoor_receive_checker",priority=300))
         return patches
 
 

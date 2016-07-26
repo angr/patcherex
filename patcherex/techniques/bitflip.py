@@ -64,7 +64,7 @@ class Bitflip(object):
             mov esi, {prereceive_bitflip_nbytes}
             _exit_prereceive:
         '''
-        p1 = InsertCodePatch(syscall_addr,code,"prereceive_bitflip_patch",priority=300)
+        p1 = InsertCodePatch(syscall_addr,code,"prereceive_bitflip_patch",priority=900)
         p2 = AddRWDataPatch(4,"prereceive_bitflip_nbytes")
         return [p1,p2]
 
@@ -104,5 +104,5 @@ class Bitflip(object):
             _exit_bitflip:
         ''' % (Bitflip.get_bitflip_code())
 
-        patches.append(InsertCodePatch(victim_addr,code,"postreceive_bitflip_patch",priority=300))
+        patches.append(InsertCodePatch(victim_addr,code,"postreceive_bitflip_patch",priority=900))
         return patches
