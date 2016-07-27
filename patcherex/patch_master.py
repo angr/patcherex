@@ -205,8 +205,7 @@ class PatchMaster():
 
     ##################
 
-    def generate_optimized_binary(self):
-        # the correct name of this would be medium_reassembler_optimized
+    def generate_medium_reassembler_optimized_binary(self):
         intermediate = tempfile.mktemp()
         optimize_it(self.infile, intermediate)
 
@@ -224,77 +223,6 @@ class PatchMaster():
         patches.extend(MallocExtPatcher(intermediate,backend).get_patches())
         patches.extend(StackRetEncryption(intermediate,backend).get_patches())
         patches.extend(UninitializedPatcher(intermediate,backend).get_patches())
-
-        backend.apply_patches(patches)
-        return (backend.get_final_content(),"")
-
-    def generate_voidpartialbitflip_binary(self):
-        nr = NetworkRules()
-        fp = open(self.infile)
-        content = fp.read()
-        fp.close()
-        return (content,nr.get_partialbitflip_null_rule())
-
-    def generate_medium_detour_fidget_binary(self):
-        tmp_file = tempfile.mktemp()
-        fidget_it(self.infile, tmp_file)
-
-        nr = NetworkRules()
-        backend = DetourBackend(tmp_file)
-        patches = []
-
-        patches.extend(IndirectCFI(tmp_file,backend).get_patches())
-        patches.extend(TransmitProtection(tmp_file,backend).get_patches())
-        patches.extend(ShiftStack(tmp_file,backend).get_patches())
-        patches.extend(Adversarial(tmp_file,backend).get_patches())
-        patches.extend(Backdoor(tmp_file,backend).get_patches())
-        # patches.extend(NxStack(tmp_file,backend).get_patches())
-        patches.extend(MallocExtPatcher(tmp_file,backend).get_patches())
-        patches.extend(StackRetEncryption(tmp_file,backend).get_patches())
-        patches.extend(UninitializedPatcher(tmp_file,backend).get_patches())
-
-        backend.apply_patches(patches)
-        content = backend.get_final_content()
-        os.unlink(tmp_file)
-        return (content,"")
-
-    def generate_medium_reassembler_fidget_binary(self):
-        tmp_file = tempfile.mktemp()
-        fidget_it(self.infile, tmp_file)
-
-        nr = NetworkRules()
-        backend = ReassemblerBackend(tmp_file)
-        patches = []
-
-        patches.extend(IndirectCFI(tmp_file,backend).get_patches())
-        patches.extend(TransmitProtection(tmp_file,backend).get_patches())
-        patches.extend(ShiftStack(tmp_file,backend).get_patches())
-        patches.extend(Adversarial(tmp_file,backend).get_patches())
-        patches.extend(Backdoor(tmp_file,backend).get_patches())
-        # patches.extend(NxStack(tmp_file,backend).get_patches())
-        patches.extend(MallocExtPatcher(tmp_file,backend).get_patches())
-        patches.extend(StackRetEncryption(tmp_file,backend).get_patches())
-        patches.extend(UninitializedPatcher(tmp_file,backend).get_patches())
-
-        backend.apply_patches(patches)
-        content = backend.get_final_content()
-        os.unlink(tmp_file)
-        return (content,"")
-
-    def generate_medium_detour_binary(self):
-        nr = NetworkRules()
-        backend = DetourBackend(self.infile)
-        patches = []
-
-        patches.extend(IndirectCFI(self.infile,backend).get_patches())
-        patches.extend(TransmitProtection(self.infile,backend).get_patches())
-        patches.extend(ShiftStack(self.infile,backend).get_patches())
-        patches.extend(Adversarial(self.infile,backend).get_patches())
-        patches.extend(Backdoor(self.infile,backend).get_patches())
-        # patches.extend(NxStack(self.infile,backend).get_patches())
-        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
-        patches.extend(StackRetEncryption(self.infile,backend).get_patches())
-        patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
 
         backend.apply_patches(patches)
         return (backend.get_final_content(),"")
@@ -317,7 +245,7 @@ class PatchMaster():
         backend.apply_patches(patches)
         return (backend.get_final_content(),"")
 
-    def generate_light_detour_binary(self):
+    def generate_medium_detour_binary(self):
         nr = NetworkRules()
         backend = DetourBackend(self.infile)
         patches = []
@@ -329,52 +257,13 @@ class PatchMaster():
         patches.extend(Backdoor(self.infile,backend).get_patches())
         # patches.extend(NxStack(self.infile,backend).get_patches())
         patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
-        patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
-
-        backend.apply_patches(patches)
-        return (backend.get_final_content(),"")
-
-    def generate_light_reassembler_binary(self):
-        nr = NetworkRules()
-        backend = ReassemblerBackend(self.infile)
-        patches = []
-
-        patches.extend(IndirectCFI(self.infile,backend).get_patches())
-        patches.extend(TransmitProtection(self.infile,backend).get_patches())
-        patches.extend(ShiftStack(self.infile,backend).get_patches())
-        patches.extend(Adversarial(self.infile,backend).get_patches())
-        patches.extend(Backdoor(self.infile,backend).get_patches())
-        # patches.extend(NxStack(self.infile,backend).get_patches())
-        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
+        patches.extend(StackRetEncryption(self.infile,backend).get_patches())
         patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
 
         backend.apply_patches(patches)
         return (backend.get_final_content(),"")
 
     ########################
-
-    def generate_medium_detour_fidget_binary(self):
-        tmp_file = tempfile.mktemp()
-        fidget_it(self.infile, tmp_file)
-
-        nr = NetworkRules()
-        backend = DetourBackend(tmp_file)
-        patches = []
-
-        patches.extend(IndirectCFI(tmp_file,backend).get_patches())
-        patches.extend(TransmitProtection(tmp_file,backend).get_patches())
-        patches.extend(ShiftStack(tmp_file,backend).get_patches())
-        patches.extend(Adversarial(tmp_file,backend).get_patches())
-        patches.extend(Backdoor(tmp_file,backend).get_patches())
-        patches.extend(NxStack(tmp_file,backend).get_patches())
-        patches.extend(MallocExtPatcher(tmp_file,backend).get_patches())
-        patches.extend(StackRetEncryption(tmp_file,backend).get_patches())
-        patches.extend(UninitializedPatcher(tmp_file,backend).get_patches())
-
-        backend.apply_patches(patches)
-        content = backend.get_final_content()
-        os.unlink(tmp_file)
-        return (content,"")
 
     def generate_uninitialized_patch(self):
         backend = DetourBackend(self.infile)
