@@ -30,15 +30,11 @@ os.environ["POSTGRES_MASTER_SERVICE_PORT"] = "dummy"
 os.environ["POSTGRES_DATABASE_PASSWORD"] = "dummy"
 from farnsworth.models.job import PatcherexJob
 
-PATCH_TYPES_WITH_RULES = ["voidpartialbitflip"]
-PATCH_TYPES_WITH_BACKDOOR = ["medium_reassembler_fidget",
-                    "medium_detour_fidget",
-                    "medium_reassembler",
+PATCH_TYPES_WITH_RULES = []
+PATCH_TYPES_WITH_BACKDOOR = ["medium_reassembler_optimized",
                     "medium_detour",
-                    "light_detour",
-                    "light_reassembler",
-                    "optimized"]
-PATCH_TYPES_AS_ORIGINAL = ["voidpartialbitflip"]
+                    "medium_reassembler"]
+PATCH_TYPES_AS_ORIGINAL = []
 
 
 def save_patch(fname,patch_content):
