@@ -243,12 +243,14 @@ class MallocExtPatcher(object):
         else:
             use_reg = free_regs[0]
 
-        added_code = """add DWORD [{malloc_pseudorand}], 13;
+        added_code = """
 mov %s, DWORD [{malloc_pseudorand}];
+add %s, 13;
+mov DWORD [{malloc_pseudorand}], %s;
 and %s, 0x8;
 add %s, 0x8;
 add DWORD [esp+%d], %s;
-        """ % (use_reg, use_reg, use_reg, sp_off, use_reg)
+        """ % (use_reg, use_reg, use_reg, use_reg, use_reg, sp_off, use_reg)
 
         code = prefix + added_code + suffix
         l.debug("adding:\n%s", code)
