@@ -290,6 +290,15 @@ class BinaryOptimization(Technique):
                     p1 = InsertCodePatch(insn.address, new_insn)
                     patches_.append(p1)
 
+                # an instruction address cannot be both a source and a consumer
+                if replaced_source_insn_addrs.intersection(replaced_consumer_insn_addrs):
+                    l.warning('Unexpected error: %s has at least one instruction being both a producer and a consumer.'
+                              'Please bug Fish really hard so that he\'ll fix it.',
+                              rr
+                              )
+                    # don't patch it
+                    continue
+
                 patches.extend(patches_)
 
                 # save the register after function prologue
