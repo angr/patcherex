@@ -3,7 +3,6 @@
 import sys
 import os
 import logging
-import utils
 import traceback
 import timeout_decorator
 import itertools
@@ -41,7 +40,6 @@ from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
 from patcherex.errors import *
 
 
-from patcherex import utils
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.backends.reassembler_backend import ReassemblerBackend
 from patcherex.patches import *
