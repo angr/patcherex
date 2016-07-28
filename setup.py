@@ -10,6 +10,7 @@ setup(
         'capstone',
         'psutil',
         'timeout-decorator',
+        'subprocess32',
         'tracer',
         'povsim',
         'shellphish-qemu',

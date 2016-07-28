@@ -38,6 +38,7 @@ from patcherex.techniques.fidgetpatches import fidget_it
 from patcherex.techniques.binary_optimization import optimize_it
 from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
 from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
+from patcherex.errors import *
 
 
 from patcherex import utils
@@ -62,28 +63,47 @@ def get_backdoorpov():
 
 def test_bin(original,patched,bitflip=False):
     import shellphish_qemu
-    qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
-    timeout = 15
-    inputs = ["","B","\n","\x00","B\n \x00"*50]
-    pipe = subprocess.PIPE
+    import subprocess32
 
-    main_args = ["timeout","-s","9",str(timeout),qemu_location]
-
-    for tinput in inputs:
-        p = subprocess.Popen(main_args + [original], stdin=pipe, stdout=pipe, stderr=pipe)
-        stdout,_ = p.communicate(tinput)
-        original_res = (stdout,p.returncode)
+    def try_bin_with_input(path,tinput):
+        pipe = subprocess32.PIPE
+        qemu_location = shellphish_qemu.qemu_path('cgc-nxtracer')
+        main_args = [qemu_location,"--seed","123"]
         if bitflip:
             used_args = main_args + ["-bitflip"]
         else:
             used_args = main_args
-        p = subprocess.Popen(used_args + [patched], stdin=pipe, stdout=pipe, stderr=pipe)
-        stdout,_ = p.communicate(tinput)
-        patched_res = (stdout,p.returncode)
-        assert original_res == patched_res, "unexpected output in %s using %s:\n%s\nvs\n%s" % \
-                (patched,repr(tinput),original_res,patched_res)
-    print "tested using qemu"
-    return
+
+        p = subprocess32.Popen(used_args + [path], stdin=pipe, stdout=pipe, stderr=pipe, preexec_fn=process_killer)
+        status = "ok"
+        try:
+            try:
+                stdout,_ = p.communicate(tinput,timeout=10)
+            except OSError:
+                # I have seen: "OSError: [Errno 32] Broken pipe"
+                # likely because the process dies before it reads all the input
+                # I just "pass", the code later on will check if it is a crash or normal exit
+                pass
+            p.wait()
+            if p.returncode < 0 or p.returncode == 46:
+                status = "crash"
+        except subprocess32.TimeoutExpired, e:
+            status = "halt"
+            p.terminate()
+            p.wait()
+        return status
+
+    inputs = ["","B","\n","\x00","1\n \x00"*10]
+    success_tests = []
+    for tinput in inputs:
+        test_result = try_bin_with_input(original,tinput)
+        if test_result == "ok":
+            success_tests.append(tinput)
+
+    for success_input in success_tests:
+        test_result = try_bin_with_input(patched,success_input)
+        if test_result != "ok":
+            raise FunctionalityError(success_input.encode('hex'))
 
 
 class PatchMaster():
