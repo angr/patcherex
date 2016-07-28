@@ -290,10 +290,16 @@ class BinaryOptimization(Technique):
                 patches.extend(patches_)
 
                 # save the register after function prologue
-                prologue_saves[rr.prologue_addr + rr.prologue_size].append('push\t%s' % reg_name)
+                # prologue_saves[rr.prologue_addr + rr.prologue_size].append('push\t%s' % reg_name)
+                prologue_saves[rr.prologue_addr + rr.prologue_size].append(
+                    'mov\tdword ptr [ebp-%d], %s' % (abs(rr.stack_variable.offset), reg_name)
+                )
 
                 # pop the register before function epilogue
-                epilogue_restores[rr.epilogue_addr].insert(0, 'pop\t%s' % reg_name)
+                # epilogue_restores[rr.epilogue_addr].insert(0, 'pop\t%s' % reg_name)
+                epilogue_restores[rr.epilogue_addr].insert(
+                    0, 'mov\t%s, dword ptr [ebp-%d]' % (reg_name, abs(rr.stack_variable.offset))
+                )
 
                 self.register_reallocations += 1
 
