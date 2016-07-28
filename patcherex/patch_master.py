@@ -50,8 +50,6 @@ from networkrules import NetworkRules
 
 l = logging.getLogger("patcherex.PatchMaster")
 
-TEST_RESULTS = False
-
 
 def get_backdoorpov():
     self_location_folder = os.path.dirname(os.path.realpath(__file__))
@@ -61,7 +59,7 @@ def get_backdoorpov():
     return content
 
 
-def test_bin(original,patched,bitflip=False):
+def test_bin_with_qemu(original,patched_blob,bitflip=False):
     import shellphish_qemu
     import subprocess32
 
@@ -83,16 +81,26 @@ def test_bin(original,patched,bitflip=False):
                 # I have seen: "OSError: [Errno 32] Broken pipe"
                 # likely because the process dies before it reads all the input
                 # I just "pass", the code later on will check if it is a crash or normal exit
-                pass
-            p.wait()
+                if p.returncode == None:
+                    # returncode == None means the process is still running
+                    # this means the process did not terminate
+                    # I am not even sure this is possible, but I am going to terminate it to be sure
+                    p.terminate()
+            p.wait() # either communicate has finished or I called terminate, so wait will not stall
+            # 46 is the special error code value used in cgc-nxtracer used to indicate
+            # execution attempt of not executable memory
             if p.returncode < 0 or p.returncode == 46:
                 status = "crash"
-        except subprocess32.TimeoutExpired, e:
+        except subprocess32.TimeoutExpired:
             status = "halt"
             p.terminate()
             p.wait()
         return status
 
+
+    patched = tempfile.mktemp()
+    with open(patched,'wb') as fp:
+        fp.write(patched_blob)
     inputs = ["","B","\n","\x00","1\n \x00"*10]
     success_tests = []
     for tinput in inputs:
@@ -103,7 +111,9 @@ def test_bin(original,patched,bitflip=False):
     for success_input in success_tests:
         test_result = try_bin_with_input(patched,success_input)
         if test_result != "ok":
-            raise FunctionalityError(success_input.encode('hex'))
+            os.unlink(patched)
+            raise FunctionalityError( success_input.encode('hex'))
+    os.unlink(patched)
 
 
 class PatchMaster():
@@ -225,63 +235,84 @@ class PatchMaster():
 
     ##################
 
-    def generate_medium_reassembler_optimized_binary(self):
-        intermediate = tempfile.mktemp()
-        optimize_it(self.infile, intermediate)
+    def generate_medium_reassembler_optimized_binary(self,test_bin=True):
+        try:
+            intermediate = tempfile.mktemp()
+            optimize_it(self.infile, intermediate)
 
-        # load it up with the reassembler again
-        nr = NetworkRules()
-        backend = ReassemblerBackend(intermediate)
-        patches = []
+            nr = NetworkRules()
+            backend = ReassemblerBackend(intermediate)
+            patches = []
 
-        patches.extend(IndirectCFI(intermediate,backend).get_patches())
-        patches.extend(TransmitProtection(intermediate,backend).get_patches())
-        patches.extend(ShiftStack(intermediate,backend).get_patches())
-        patches.extend(Adversarial(intermediate,backend).get_patches())
-        patches.extend(Backdoor(intermediate,backend).get_patches())
-        # patches.extend(NxStack(intermediate,backend).get_patches())
-        patches.extend(MallocExtPatcher(intermediate,backend).get_patches())
-        patches.extend(StackRetEncryption(intermediate,backend).get_patches())
-        patches.extend(UninitializedPatcher(intermediate,backend).get_patches())
+            patches.extend(IndirectCFI(intermediate,backend).get_patches())
+            patches.extend(TransmitProtection(intermediate,backend).get_patches())
+            patches.extend(ShiftStack(intermediate,backend).get_patches())
+            patches.extend(Adversarial(intermediate,backend).get_patches())
+            patches.extend(Backdoor(intermediate,backend).get_patches())
+            # patches.extend(NxStack(intermediate,backend).get_patches())
+            patches.extend(MallocExtPatcher(intermediate,backend).get_patches())
+            patches.extend(StackRetEncryption(intermediate,backend).get_patches())
+            patches.extend(UninitializedPatcher(intermediate,backend).get_patches())
 
-        backend.apply_patches(patches)
-        return (backend.get_final_content(),"")
+            backend.apply_patches(patches)
+            final_content = backend.get_final_content()
+            if test_bin:
+                test_bin_with_qemu(self.infile,final_content)
+            res = (final_content,"")
+        except PatcherexError:
+            res = (None,None)
 
-    def generate_medium_reassembler_binary(self):
-        nr = NetworkRules()
-        backend = ReassemblerBackend(self.infile)
-        patches = []
+        return res
 
-        patches.extend(IndirectCFI(self.infile,backend).get_patches())
-        patches.extend(TransmitProtection(self.infile,backend).get_patches())
-        patches.extend(ShiftStack(self.infile,backend).get_patches())
-        patches.extend(Adversarial(self.infile,backend).get_patches())
-        patches.extend(Backdoor(self.infile,backend).get_patches())
-        # patches.extend(NxStack(self.infile,backend).get_patches())
-        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
-        patches.extend(StackRetEncryption(self.infile,backend).get_patches())
-        patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
+    def generate_medium_reassembler_binary(self,test_bin=True):
+        try:
+            nr = NetworkRules()
+            backend = ReassemblerBackend(self.infile)
+            patches = []
 
-        backend.apply_patches(patches)
-        return (backend.get_final_content(),"")
+            patches.extend(IndirectCFI(self.infile,backend).get_patches())
+            patches.extend(TransmitProtection(self.infile,backend).get_patches())
+            patches.extend(ShiftStack(self.infile,backend).get_patches())
+            patches.extend(Adversarial(self.infile,backend).get_patches())
+            patches.extend(Backdoor(self.infile,backend).get_patches())
+            # patches.extend(NxStack(self.infile,backend).get_patches())
+            patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
+            patches.extend(StackRetEncryption(self.infile,backend).get_patches())
+            patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
 
-    def generate_medium_detour_binary(self):
-        nr = NetworkRules()
-        backend = DetourBackend(self.infile)
-        patches = []
+            backend.apply_patches(patches)
+            final_content = backend.get_final_content()
+            if test_bin:
+                test_bin_with_qemu(self.infile,final_content)
+            res = (final_content,"")
+        except PatcherexError:
+            res = (None,None)
+        return res
 
-        patches.extend(IndirectCFI(self.infile,backend).get_patches())
-        patches.extend(TransmitProtection(self.infile,backend).get_patches())
-        patches.extend(ShiftStack(self.infile,backend).get_patches())
-        patches.extend(Adversarial(self.infile,backend).get_patches())
-        patches.extend(Backdoor(self.infile,backend).get_patches())
-        # patches.extend(NxStack(self.infile,backend).get_patches())
-        patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
-        patches.extend(StackRetEncryption(self.infile,backend).get_patches())
-        patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
+    def generate_medium_detour_binary(self,test_bin=True):
+        try:
+            nr = NetworkRules()
+            backend = DetourBackend(self.infile)
+            patches = []
 
-        backend.apply_patches(patches)
-        return (backend.get_final_content(),"")
+            patches.extend(IndirectCFI(self.infile,backend).get_patches())
+            patches.extend(TransmitProtection(self.infile,backend).get_patches())
+            patches.extend(ShiftStack(self.infile,backend).get_patches())
+            patches.extend(Adversarial(self.infile,backend).get_patches())
+            patches.extend(Backdoor(self.infile,backend).get_patches())
+            # patches.extend(NxStack(self.infile,backend).get_patches())
+            patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
+            patches.extend(StackRetEncryption(self.infile,backend).get_patches())
+            patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
+
+            backend.apply_patches(patches)
+            final_content = backend.get_final_content()
+            if test_bin:
+                test_bin_with_qemu(self.infile,final_content)
+            res = (final_content,"")
+        except PatcherexError:
+            res = (None,None)
+        return res
 
     ########################
 
@@ -330,7 +361,7 @@ def exec_cmd(args,cwd=None,shell=False,debug=False,pkill=True):
     return res
 
 
-def worker(inq,outq,filename_with_technique=True,timeout=60*3):
+def worker(inq,outq,filename_with_technique=True,timeout=60*3,test_results=True):
     def delete_if_exists(fname):
         try:
             os.unlink(fname)
@@ -348,7 +379,7 @@ def worker(inq,outq,filename_with_technique=True,timeout=60*3):
         delete_if_exists(output_fname)
         delete_if_exists(output_fname+"_log")
         args = ["timeout","-s","9",str(timeout),os.path.realpath(__file__),"single",input_file,technique,output_fname]
-        if TEST_RESULTS:
+        if test_results:
             args += ["--test"]
         res = exec_cmd(args)
         with open(output_fname+"_log","wb") as fp:
@@ -418,9 +449,6 @@ if __name__ == "__main__":
         print "="*50,"process started at",str(datetime.datetime.now())
         print " ".join(map(shellquote,sys.argv))
 
-        if "--test" in sys.argv:
-            TEST_RESULTS = True
-
         logging.getLogger("patcherex.techniques.CpuId").setLevel("INFO")
         logging.getLogger("patcherex.techniques.Packer").setLevel("INFO")
         logging.getLogger("patcherex.techniques.QemuDetection").setLevel("INFO")
@@ -443,27 +471,28 @@ if __name__ == "__main__":
         output_fname = sys.argv[4]
         pm = PatchMaster(input_fname)
         m = getattr(pm,"generate_"+technique+"_binary")
-        res = m()
+
+        if "--test" in sys.argv:
+            res = m(test_bin = True)
+        else:
+            res = m(test_bin = False)
+
         # handle generate_ methods returning also a network rule
         bitflip = False
-        if len(res) == 2:
-            if not any([output_fname.endswith("_"+str(i)) for i in xrange(2,10)]):
-                fp = open(os.path.join(os.path.dirname(output_fname),"ids.rules"),"wb")
-                fp.write(res[1])
-                fp.close()
-            if "bitflip" in res[1]:
-                bitflip = True
-            patched_bin_content = res[0]
-        else:
-            patched_bin_content = res
+        if res[0] == None:
+            sys.exit(33)
+        if not any([output_fname.endswith("_"+str(i)) for i in xrange(2,10)]):
+            fp = open(os.path.join(os.path.dirname(output_fname),"ids.rules"),"wb")
+            fp.write(res[1])
+            fp.close()
+        if "bitflip" in res[1]:
+            bitflip = True
+        patched_bin_content = res[0]
 
         fp = open(output_fname,"wb")
         fp.write(patched_bin_content)
         fp.close()
         os.chmod(output_fname, 0755)
-
-        if TEST_RESULTS:
-            test_bin(input_fname,output_fname,bitflip)
 
         print "="*50,"process ended at",str(datetime.datetime.now())
 
@@ -471,7 +500,9 @@ if __name__ == "__main__":
         out = sys.argv[2]
         techniques = sys.argv[3].split(",")
         if "--test" == sys.argv[7]:
-            TEST_RESULTS = True
+            test_results = True
+        else:
+            test_results = False
 
         files = sys.argv[8:]
         technique_in_filename = True
@@ -517,7 +548,7 @@ if __name__ == "__main__":
             nprocesses = int(psutil.cpu_count()*1.0)
         timeout = int(sys.argv[6])
         for i in xrange(nprocesses):
-            p = multiprocessing.Process(target=worker, args=(inq,outq,technique_in_filename,timeout))
+            p = multiprocessing.Process(target=worker, args=(inq,outq,technique_in_filename,timeout,test_results))
             p.start()
             plist.append(p)
 
