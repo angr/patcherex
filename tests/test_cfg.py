@@ -350,10 +350,10 @@ def test_fullcfg_properties():
         backend = DetourBackend(filepath)
         cfg = backend.cfg
 
-        nodes_dict = defaultdict(set)
+        node_addrs_dict = defaultdict(set)
         for k,ff in cfg.functions.iteritems():
-            for n in ff.blocks:
-                nodes_dict[n].add(ff)
+            for node_addr in ff.block_addrs_set:
+                node_addrs_dict[node_addr].add(ff)
             # check that endpoints are the union of callouts, rets, and jumpouts
             endpoint_union = set(ff.callout_sites).union(set(ff.ret_sites).union(set(ff.jumpout_sites)))
             nose.tools.assert_equal(set(ff.endpoints),endpoint_union)
@@ -370,9 +370,9 @@ def test_fullcfg_properties():
                         nose.tools.assert_equal(len(unexpected_jumpout),0)
 
         # check that every node only belongs to a single function
-        for k,v in nodes_dict.iteritems():
+        for k,v in node_addrs_dict.iteritems():
             if len(v)>1:
-                print "found node in multiple functions:",hex(k.addr),repr(v)
+                print "found node in multiple functions:",hex(k),repr(v)
             nose.tools.assert_equal(len(v),1)
 
         # check that every node only appears once in the cfg
