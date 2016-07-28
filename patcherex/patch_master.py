@@ -65,18 +65,24 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
     def try_bin_with_input(path,tinput):
         pipe = subprocess32.PIPE
         qemu_location = shellphish_qemu.qemu_path('cgc-nxtracer')
-        main_args = [qemu_location,"--seed","123"]
+        main_args = [qemu_location,"-seed","123"]
         if bitflip:
             used_args = main_args + ["-bitflip"]
         else:
             used_args = main_args
 
-        p = subprocess32.Popen(used_args + [path], stdin=pipe, stdout=pipe, stderr=pipe, preexec_fn=process_killer)
+        final_args = used_args + [os.path.realpath(path)]
+        print " ".join(final_args)
+        p = subprocess32.Popen(final_args, stdin=pipe, stdout=pipe, stderr=pipe, preexec_fn=process_killer)
         status = "ok"
         try:
             try:
-                stdout,_ = p.communicate(tinput,timeout=10)
+                stdout,stderr = p.communicate(tinput,timeout=10)
+                print stdout
+                print stderr
+                print p.returncode
             except OSError:
+                print "OSError"
                 # I have seen: "OSError: [Errno 32] Broken pipe"
                 # likely because the process dies before it reads all the input
                 # I just "pass", the code later on will check if it is a crash or normal exit
@@ -91,15 +97,20 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
             if p.returncode < 0 or p.returncode == 46:
                 status = "crash"
         except subprocess32.TimeoutExpired:
+            print "Timeout"
             status = "halt"
             p.terminate()
             p.wait()
+        print status
         return status
 
 
     patched = tempfile.mktemp()
     with open(patched,'wb') as fp:
         fp.write(patched_blob)
+        os.chmod(patched, 0755)
+    # given challenge_binary_node.py the original file is executable
+
     inputs = ["","B","\n","\x00","1\n \x00"*10]
     success_tests = []
     for tinput in inputs:
@@ -111,7 +122,7 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
         test_result = try_bin_with_input(patched,success_input)
         if test_result != "ok":
             os.unlink(patched)
-            raise FunctionalityError(success_input.encode('hex'))
+            raise FunctionalityError("input ->"+success_input.encode('hex')+"<-")
     os.unlink(patched)
 
 

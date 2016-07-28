@@ -41,4 +41,24 @@ class ShiftStack(object):
 
         return patches
 
+        # easy debuugging of qemu tracer
+        #if not "NRFIN" in self.patcher.filename:
+        #    added_code = '''
+        #        sub esp, DWORD [{rnd_shiftstack}]
+        #        ; restore flags, assume eax=0 since we are after restore
+        #        push 0x202
+        #        popf
+        #        mov DWORD [esp-4], eax
+        #        '''
+        #else:
+        #    print "NRFIN DETECTED!"
+        #    added_code = '''
+        #        sub esp, DWORD [{rnd_shiftstack}]
+        #        ; restore flags, assume eax=0 since we are after restore
+        #        push 0x202
+        #        popf
+        #        mov DWORD [esp-4], eax
+        #        sub esp, 0x1000000
+        #        '''
+
 
