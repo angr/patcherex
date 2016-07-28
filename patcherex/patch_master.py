@@ -14,6 +14,7 @@ import concurrent.futures
 import datetime
 import tempfile
 import termcolor
+import traceback
 import cPickle as pickle
 from ctypes import cdll
 from cStringIO import StringIO
@@ -110,7 +111,7 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
         test_result = try_bin_with_input(patched,success_input)
         if test_result != "ok":
             os.unlink(patched)
-            raise FunctionalityError( success_input.encode('hex'))
+            raise FunctionalityError(success_input.encode('hex'))
     os.unlink(patched)
 
 
@@ -257,7 +258,8 @@ class PatchMaster():
             if test_bin:
                 test_bin_with_qemu(self.infile,final_content)
             res = (final_content,"")
-        except PatcherexError:
+        except PatcherexError, e:
+            traceback.print_exc(e)
             res = (None,None)
 
         return res
@@ -283,7 +285,8 @@ class PatchMaster():
             if test_bin:
                 test_bin_with_qemu(self.infile,final_content)
             res = (final_content,"")
-        except PatcherexError:
+        except PatcherexError, e:
+            traceback.print_exc(e)
             res = (None,None)
         return res
 
@@ -308,7 +311,8 @@ class PatchMaster():
             if test_bin:
                 test_bin_with_qemu(self.infile,final_content)
             res = (final_content,"")
-        except PatcherexError:
+        except PatcherexError, e:
+            traceback.print_exc(e)
             res = (None,None)
         return res
 
@@ -330,7 +334,7 @@ class PatchMaster():
 
     def create_one_patch(self,patch_type):
         m = getattr(self,"generate_"+patch_type+"_binary")
-        patch, network_rule = m()
+        patch, network_rule = m(test_bin=True)
         return patch, network_rule
 
 
