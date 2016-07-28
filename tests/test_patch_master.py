@@ -35,6 +35,8 @@ PATCH_TYPES_WITH_BACKDOOR = ["medium_reassembler_optimized",
                     "medium_detour",
                     "medium_reassembler"]
 PATCH_TYPES_AS_ORIGINAL = []
+PATCH_TYPES_EXPECTED_FAIL = [('KPRCA_00044','medium_reassembler'),
+                        ('KPRCA_00044','medium_reassembler_optimized')]
 
 
 def save_patch(fname,patch_content):
@@ -51,6 +53,13 @@ def try_one_patch(args):
     # if ("fidget"  not in patch_type): continue
     pm = PatchMaster(test)
     patched_bin, nrule = pm.create_one_patch(patch_type)
+
+    if((os.path.basename(test),patch_type) in PATCH_TYPES_EXPECTED_FAIL):
+        nose.tools.assert_true(patched_bin == None)
+        return None
+    else:
+        nose.tools.assert_true(patched_bin != None)
+
     tmp_fname = os.path.join(td,os.path.basename(test)+"_"+patch_type)
     save_patch(tmp_fname,patched_bin)
     # save_patch("/tmp/aaa",patched_bin)
@@ -125,10 +134,10 @@ def test_cfe_trials():
     all_named_types = set(PATCH_TYPES_AS_ORIGINAL + PATCH_TYPES_WITH_BACKDOOR + PATCH_TYPES_WITH_RULES)
     nose.tools.assert_equal(len(all_named_types - set(PATCH_TYPES)),0)
 
-    tfolder = os.path.join(bin_location, "cfe_original")
+    tfolder = os.path.join(bin_location, "patcherex_cfe_tests")
     tests = utils.find_files(tfolder,"*",only_exec=True)
 
-    bins = ["CROMU_00070","NRFIN_00073","CROMU_00071"] # ,"KPRCA_00016_1","KPRCA_00056",
+    bins = ["KPRCA_00044","CROMU_00070","NRFIN_00073","CROMU_00071"]
     titerator = [t for t in tests if any([b in t for b in bins])]
     generated_patches = set()
     tests = []
@@ -147,12 +156,12 @@ def test_cfe_trials():
             pool = multiprocessing.Pool(5)
             res = pool.map(try_one_patch,tests)
             for r in res:
-                if r[0] == False:
+                if r != None and r[0] == False:
                     print "ERROR:","while running",res[1]
 
     generated_patches = [r[2] for r in res if r != None]
     # it is not impossible that two patches are exactly the same, but it is worth investigation
-    nose.tools.assert_equal(len(set(generated_patches)),len(bins)*len(PATCH_TYPES))
+    nose.tools.assert_equal(len(set(generated_patches)),len(bins)*len(PATCH_TYPES) - len(PATCH_TYPES_EXPECTED_FAIL))
     print "Generated",len(generated_patches),"different patches of ",len(PATCH_TYPES),"types:",PATCH_TYPES
 
 
