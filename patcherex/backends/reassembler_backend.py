@@ -5,7 +5,7 @@ import tempfile
 import subprocess
 
 import compilerex
-from topsecret import Binary
+from topsecret import Binary, BinaryError
 
 from ..patches import *
 from ..backend import Backend
@@ -103,7 +103,13 @@ class ReassemblerBackend(Backend):
     def save(self, filename=None):
 
         # Get the assembly
-        assembly = self._binary.assembly(comments=True, symbolized=True)
+        try:
+            assembly = self._binary.assembly(comments=True, symbolized=True)
+        except BinaryError as ex:
+            raise ReassemblerError('topsecret.Binary failed to reassemble the binary. Here is the exception we '
+                                   'caught: %s' %
+                                   str(ex)
+                                   )
 
         # Save the assembly onto a temporary path
         fd, tmp_file_path = tempfile.mkstemp(suffix=".s")
@@ -281,5 +287,10 @@ class ReassemblerBackend(Backend):
         Load and disassemble the binary.
         """
 
-        self._binary = self.project.analyses.Binary(syntax='at&t')
-        self._binary.symbolize()
+        try:
+            self._binary = self.project.analyses.Binary(syntax='at&t')
+            self._binary.symbolize()
+        except BinaryError as ex:
+            raise ReassemblerError('topsecret.Binary failed to load the binary. Here is the exception we caught: %s' %
+                                   str(ex)
+                                   )
