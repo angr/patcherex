@@ -9,13 +9,11 @@ from topsecret import Binary
 
 from ..patches import *
 from ..backend import Backend
+from ..errors import ReassemblerError, CompilationError, ReassemblerNotImplementedError
 from ..utils import str_overwrite
 from .misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
 
 l = logging.getLogger('reassembler')
-
-class CompilationError(Exception):
-    pass
 
 class ReassemblerBackend(Backend):
     def __init__(self, filename, debugging=False):
@@ -90,9 +88,9 @@ class ReassemblerBackend(Backend):
                 self._binary.remove_instruction(p.ins_addr)
 
             else:
-                raise NotImplementedError('ReassemblerBackend does not support patch %s. '
-                                          'Please bug Fish to implement it' % type(p)
-                                          )
+                raise ReassemblerNotImplementedError('ReassemblerBackend does not support patch %s. '
+                                                     'Please bug Fish to implement it' % type(p)
+                                                     )
 
         if entry_point_asm_before_restore:
             entry_point_asm_before_restore = [ ASMConverter.intel_to_att(ASM_ENTRY_POINT_PUSH_ENV) ] + \
@@ -128,7 +126,6 @@ class ReassemblerBackend(Backend):
 
         if retcode != 0:
             raise CompilationError("File: %s Error: %s" % (tmp_file_path,res))
-            return False
 
         # Remove the temporary file
         if not self._debugging:
@@ -268,9 +265,9 @@ class ReassemblerBackend(Backend):
         r = self.save(tmp_file_path)
 
         if not r:
-            raise Exception('Reassembler fails. '
-                            'The compiler says: %s\n%s' % (self._compiler_stdout, self._compiler_stderr)
-                            )
+            raise ReassemblerError('Reassembler fails. '
+                                   'The compiler says: %s\n%s' % (self._compiler_stdout, self._compiler_stderr)
+                                   )
 
         with open(tmp_file_path, "rb") as f:
             return f.read()

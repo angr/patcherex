@@ -10,6 +10,7 @@ import pyvex
 from simuvex import SimConstantVariable, SimRegisterVariable, SimMemoryVariable
 from angr import KnowledgeBase
 from ..backends import ReassemblerBackend
+from ..errors import SimplePtrEncError
 
 from ..technique import Technique
 from ..patches import InsertCodePatch, PointerArrayPatch, AddEntryPointPatch, AddRWDataPatch
@@ -20,7 +21,6 @@ l = logging.getLogger('techniques.simple_ptr_enc')
 # TODO: - support more types of VEX statements and expressions
 # TODO: - compress the pointer storage array
 # TODO: - use random strings for label names ('begin', 'end', etc.)
-# TODO: - raise proper exceptions
 # TODO: - more testing
 # TODO: - bug fixes
 # TODO: - do not re-encrypt for control-flow changing code, like jmps and calls
@@ -1178,8 +1178,7 @@ class SimplePointerEncryption(Technique):
             last_instr_addr = pred.instruction_addrs[-1]
             last_instr = cfg.project.factory.block(last_instr_addr, num_inst=1)
             if last_instr.capstone.insns[0].mnemonic != 'int':
-                # TODO: raise a proper exception
-                raise Exception("unsupported syscall callers at %#08x", pred.addr)
+                raise SimplePtrEncError("unsupported syscall callers at %#08x", pred.addr)
 
             for index in argument_indices_in:
                 reg = SYSCALL_ARGUMENTS[index]

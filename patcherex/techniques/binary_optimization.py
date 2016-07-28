@@ -10,6 +10,7 @@ from angr import KnowledgeBase
 from ..backends import ReassemblerBackend
 from ..patches import RemoveInstructionPatch, InsertCodePatch
 from ..technique import Technique
+from ..errors import BinaryOptimizationError, BinaryOptimizationNotImplementedError
 
 l = logging.getLogger('techniques.binary_optimization')
 
@@ -173,7 +174,9 @@ class BinaryOptimization(Technique):
                 elif len(operands) > 2 and 'ptr' in operands[2]:
                     operands[2] = argument_asm
                 else:
-                    raise Exception('WTF')
+                    raise BinaryOptimizationError('Unexpected operand string in instruction %s.' %
+                                                  str(old_consumer.capstone.insns[0])
+                                                  )
 
                 new_op_str = ", ".join(operands)
 
@@ -217,7 +220,7 @@ class BinaryOptimization(Technique):
                     operands = insn.op_str.split(',')
                     if not len(operands) == 2:
                         l.warning('Unsupported instruction %s. Skip.', str(insn))
-                        raise NotImplementedError()
+                        raise BinaryOptimizationNotImplementedError()
 
                     # replace the dest
                     new_insn = "%s\t%s, %s" % (insn.mnemonic, reg_name, operands[1])
@@ -244,8 +247,8 @@ class BinaryOptimization(Technique):
                         if 'ptr' in operand:
                             operand = reg_name
                         else:
-                            raise NotImplementedError('Unexpected operand found in instruction %s.'
-                                                      'Please bug Fish hard.' % insn)
+                            raise BinaryOptimizationNotImplementedError('Unexpected operand found in instruction %s.'
+                                                                        'Please bug Fish hard.' % insn)
 
                         new_insn = "%s\t%s" % (insn.mnemonic, operand)
 
@@ -256,8 +259,8 @@ class BinaryOptimization(Technique):
                         elif 'ptr' in operands[1]:
                             operands[1] = reg_name
                         else:
-                            raise NotImplementedError('Unexpected operands found in instruction %s. '
-                                                      'Please bug Fish hard.' % insn)
+                            raise BinaryOptimizationNotImplementedError('Unexpected operands found in instruction %s. '
+                                                                        'Please bug Fish hard.' % insn)
 
                         new_insn = "%s\t%s, %s" % (insn.mnemonic, operands[0], operands[1])
 
@@ -270,14 +273,14 @@ class BinaryOptimization(Technique):
                         elif 'ptr' in operands[2]:
                             operands[2] = reg_name
                         else:
-                            raise NotImplementedError('Unexpected operands found in instruction %s. '
-                                                      'Please bug Fish hard.' % insn)
+                            raise BinaryOptimizationNotImplementedError('Unexpected operands found in instruction %s. '
+                                                                        'Please bug Fish hard.' % insn)
 
                         new_insn = "%s\t%s, %s, %s" % (insn.mnemonic, operands[0], operands[1], operands[2])
 
                     else:
                         # TODO:
-                        raise NotImplementedError()
+                        raise BinaryOptimizationNotImplementedError()
 
                     # patch: remove the old instruction
                     p0 = RemoveInstructionPatch(insn.address, None)
@@ -303,9 +306,9 @@ class BinaryOptimization(Technique):
 
                 self.register_reallocations += 1
 
-            except NotImplementedError:
+            except BinaryOptimizationNotImplementedError:
+                l.error('Something is not implemented.', exc_info=True)
                 raise
-                continue
 
         for insertion_addr, insns in prologue_saves.iteritems():
             p = InsertCodePatch(insertion_addr, "\n".join(insns))
@@ -385,7 +388,7 @@ def optimize_it(input_filepath, output_filepath):
     r = b1.save(rr_filepath)
 
     if not r:
-        raise Exception('Optimization fails stage 1.')
+        raise BinaryOptimizationError('Optimization fails at stage 1.')
 
     # other optimization techniques
     b2 = ReassemblerBackend(rr_filepath, debugging=True)
@@ -395,5 +398,5 @@ def optimize_it(input_filepath, output_filepath):
     r = b2.save(target_filepath)
 
     if not r:
-        raise Exception('Optimization fails stage 2.')
+        raise BinaryOptimizationError('Optimization fails at stage 2.')
     os.unlink(rr_filepath)
