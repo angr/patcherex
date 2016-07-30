@@ -112,7 +112,7 @@ class ReassemblerBackend(Backend):
                                    )
 
         # Save the assembly onto a temporary path
-        fd, tmp_file_path = tempfile.mkstemp(suffix=".s")
+        fd, tmp_file_path = tempfile.mkstemp(prefix=os.path.basename(self.project.filename), suffix=".s")
         os.write(fd, assembly)
         os.close(fd)
 
@@ -144,7 +144,8 @@ class ReassemblerBackend(Backend):
         self._apply_raw_file_patches(filename)
 
         # add segments
-        self._add_segments(filename,self._add_segment_patches)
+        if self._add_segment_patches:
+            self._add_segments(filename,self._add_segment_patches)
 
         return True
 
