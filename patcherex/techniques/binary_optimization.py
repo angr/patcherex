@@ -391,13 +391,14 @@ class BinaryOptimization(Technique):
 
         return self._patches
 
-def optimize_it(input_filepath, output_filepath):
+def optimize_it(input_filepath, output_filepath, debugging=False):
     """
     Take a binary as an input, apply optimization techniques, and output to the specified path. An exception is raised
     if optimization fails.
 
     :param str input_filepath: The binary to work on.
     :param str output_filepath: The binary to output to.
+    :param bool debugging: True to enable debugging mode.
     :return: None
     """
 
@@ -405,7 +406,7 @@ def optimize_it(input_filepath, output_filepath):
     rr_filepath = tempfile.mktemp()
 
     # register reallocation first
-    b1 = ReassemblerBackend(input_filepath, debugging=True)
+    b1 = ReassemblerBackend(input_filepath, debugging=debugging)
     cp = BinaryOptimization(input_filepath, b1, {'register_reallocation'})
     patches = cp.get_patches()
     b1.apply_patches(patches)
@@ -415,7 +416,7 @@ def optimize_it(input_filepath, output_filepath):
         raise BinaryOptimizationError('Optimization fails at stage 1.')
 
     # other optimization techniques
-    b2 = ReassemblerBackend(rr_filepath, debugging=True)
+    b2 = ReassemblerBackend(rr_filepath, debugging=debugging)
     cp = BinaryOptimization(rr_filepath, b2, {'constant_propagation'})
     patches = cp.get_patches()
     b2.apply_patches(patches)
@@ -423,4 +424,8 @@ def optimize_it(input_filepath, output_filepath):
 
     if not r:
         raise BinaryOptimizationError('Optimization fails at stage 2.')
-    os.unlink(rr_filepath)
+
+    try:
+        os.unlink(rr_filepath)
+    except OSError:
+        pass
