@@ -247,7 +247,7 @@ class PatchMaster():
 
     def generate_medium_reassembler_optimized_binary(self,test_bin=True):
         try:
-            intermediate = tempfile.mktemp()
+            intermediate = tempfile.mktemp(prefix='%s_' % os.path.basename(self.infile))
             optimize_it(self.infile, intermediate)
 
             nr = NetworkRules()
