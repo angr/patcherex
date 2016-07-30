@@ -112,7 +112,7 @@ class ReassemblerBackend(Backend):
                                    )
 
         # Save the assembly onto a temporary path
-        fd, tmp_file_path = tempfile.mkstemp(suffix=".s")
+        fd, tmp_file_path = tempfile.mkstemp(prefix=os.path.basename(self.project.filename), suffix=".s")
         os.write(fd, assembly)
         os.close(fd)
 
