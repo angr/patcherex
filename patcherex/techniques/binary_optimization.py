@@ -73,9 +73,17 @@ class BinaryOptimization(Technique):
             patches.append(patch)
 
             # Insert a new instruction there
-            old_consumer = self.backend.project.factory.block(cp.constant_consuming_loc.ins_addr, num_inst=1)
+            ins_addr = cp.constant_consuming_loc.ins_addr
+            old_consumer = self.backend.project.factory.block(ins_addr, num_inst=1)
 
-            operands = old_consumer.capstone.insns[0].op_str.split(",")
+            insns = old_consumer.capstone.insns
+            if not insns:
+                # capstone cannot disassemble it somehow
+                l.error('Capstone fails to disassemble instruction at %#x.', ins_addr)
+                continue
+
+            insn = old_consumer.capstone.insns[0]
+            operands = insn.op_str.split(",")
             operands[1] = cp.constant
 
             # here is the tricky part: the constant might be an address
@@ -85,6 +93,13 @@ class BinaryOptimization(Technique):
                 if cp.constant in symbol_manager.addr_to_label:
                     # it's a label... use its label name
                     operands[1] = "{" + symbol_manager.addr_to_label[cp.constant][0].name + "}"
+
+                # also we have to process operands[0]...
+                op_0 = topsecret.binary.Operand(self.backend._binary, ins_addr, insn.operands[0],
+                                                operands[0], insn.mnemonic, syntax='intel'
+                                                )
+                operands[0] = op_0.assembly()
+
 
             if isinstance(operands[1], (int, long)):
                 new_op_str = "%s, %#x" % (operands[0], operands[1])
