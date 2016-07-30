@@ -144,7 +144,8 @@ class ReassemblerBackend(Backend):
         self._apply_raw_file_patches(filename)
 
         # add segments
-        self._add_segments(filename,self._add_segment_patches)
+        if self._add_segment_patches:
+            self._add_segments(filename,self._add_segment_patches)
 
         return True
 
