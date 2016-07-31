@@ -108,7 +108,7 @@ class NoFlagPrintfPatcher(object):
                 flag_page=FLAG_PAGE,
                 flag_page_almost_end=FLAG_PAGE + 0xffc,
                 format_spec_char=ord(func_obj.format_spec_char),
-            ) % [pnum]*9
+            ) % tuple([pnum]*9)
             patches.append(InsertCodePatch(func.addr, check, priority=250, name="noflagprintf_%d" % pnum))
             l.info("function at %#8x protected" % func.addr)
 
