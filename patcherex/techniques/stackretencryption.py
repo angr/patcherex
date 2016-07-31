@@ -341,9 +341,6 @@ class StackRetEncryption(object):
                 succ = (p.successors + p.unconstrained_successors)[0].state
                 rx_arg = succ.mem[succ.regs.sp+16].dword.resolved
                 size_arg = succ.mem[succ.regs.sp+12].dword.resolved
-                # if the size is 4 or less we say it's safe
-                if not size_arg.symbolic and succ.se.any_int(size_arg) <= 4:
-                    return True
                 # we say the rx_bytes arg is okay
                 if not rx_arg.symbolic:
                     if func_info.bp_based:
