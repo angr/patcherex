@@ -194,7 +194,7 @@ class StackRetEncryption(object):
                 start = ff.startpoint
                 ends = set()
                 for ret_site in ff.ret_sites:
-                    bb = self.patcher.project.factory.block(ret_site.addr)
+                    bb = self.patcher.project.factory.fresh_block(ret_site.addr, ret_site.size)
                     last_instruction = bb.capstone.insns[-1]
                     if last_instruction.mnemonic != u"ret":
                         msg = "bb at %s does not terminate with a ret in function %s"
@@ -261,8 +261,12 @@ class StackRetEncryption(object):
         reg_free_map = dict()
         reg_not_free_map = dict()
         for n in self.patcher.cfg.nodes():
+
+            if self.patcher.project.is_hooked(n.addr):
+                continue
+
             try:
-                bl = self.patcher.project.factory.block(n.addr)
+                bl = self.patcher.project.factory.block(n.addr, max_size=n.size)
             except angr.AngrMemoryError:
                 bl = None
 
@@ -405,7 +409,10 @@ class StackRetEncryption(object):
             def instruction_to_str(instr):
                 return str(instr.mnemonic+" "+instr.op_str)
 
-            instructions = self.patcher.project.factory.block(ff.addr).capstone.insns
+            if self.patcher.project.is_hooked(ff.addr):
+                return False
+
+            instructions = self.patcher.project.factory.fresh_block(ff.addr, size=ff.startpoint.size).capstone.insns
             if instruction_to_str(instructions[0]) == "push ebp" and\
                     instruction_to_str(instructions[1]) == "mov ebp, esp":
                 return True

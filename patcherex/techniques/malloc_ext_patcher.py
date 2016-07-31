@@ -73,7 +73,10 @@ class MallocExtPatcher(object):
             assert n.addr not in reg_free_map #no duplicated nodes
             assert n.addr != 0 #no weird nodes
 
-            bl = self.patcher.project.factory.block(n.addr)
+            if self.patcher.project.is_hooked(n.addr):
+                continue
+
+            bl = self.patcher.project.factory.block(n.addr, max_size=n.size)
             used_regs = set()
             free_regs = set()
 
