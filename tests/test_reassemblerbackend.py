@@ -178,9 +178,9 @@ def manual_run_functionality_core(b, optimize=False, queue=None):
 
     except Exception as ex:
         #print s, "failed miserably with an exception: %s" % str(ex)
-        import logging
-        logging.getLogger('a').setLevel(logging.DEBUG)
-        logging.getLogger('a').error('failed miserably...', exc_info=True)
+        #import logging
+        #logging.getLogger('a').setLevel(logging.DEBUG)
+        #logging.getLogger('a').error('failed miserably...', exc_info=True)
 
         queue.put((b, False, str(ex)))
 
