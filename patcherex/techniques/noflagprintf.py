@@ -1,6 +1,5 @@
 import claripy
 from patcherex.patches import AddLabelPatch, InsertCodePatch
-from simuvex.s_cc import SimCCCdecl
 
 # func name to format string arg position
 PRINTF_VARIANTS = {
@@ -54,7 +53,8 @@ class NoFlagPrintfPatcher(object):
                     continue
 
                 fmt_str = args[fmt_arg_pos]
-                if not claripy.is_true(claripy.Or(*(claripy.And(seg.min_addr <= fmt_str, fmt_str <= seg.max_addr) for seg in self.ro_segments))):
+                if not claripy.is_true(claripy.Or(*(claripy.And(seg.min_addr <= fmt_str, fmt_str <= seg.max_addr)\
+                        for seg in self.ro_segments))):
                     # we bad
                     break
 
@@ -83,14 +83,14 @@ class NoFlagPrintfPatcher(object):
 
             _loop_printfcheck:
                 cmp byte [esi], 0
-                je _restore
+                je _restore_printfcheck
                 cmp byte [esi], {format_spec_char}
                 ; die!!!
                 je 0x41414141
                 inc esi
                 jmp _loop_printfcheck
 
-            _restore:
+            _restore_printfcheck:
                 pop esi
 
             _end:
@@ -102,7 +102,7 @@ class NoFlagPrintfPatcher(object):
                 format_spec_char=ord(func_obj.format_spec_char),
             )
 
-            patches.append(InsertCodePatch(func.addr, check))
+            patches.append(InsertCodePatch(func.addr, check, priority=250))
 
         if patches:
             max_ro_addr = max(seg.max_addr for seg in self.ro_segments)
