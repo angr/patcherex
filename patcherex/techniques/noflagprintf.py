@@ -81,14 +81,14 @@ class NoFlagPrintfPatcher(object):
                 push esi ; = pointer to string
                 mov esi, [esp+{stack_offset_2}]
 
-            _loop:
+            _loop_printfcheck:
                 cmp byte [esi], 0
                 je _restore
                 cmp byte [esi], {format_spec_char}
                 ; die!!!
                 je 0x41414141
                 inc esi
-                jmp _loop
+                jmp _loop_printfcheck
 
             _restore:
                 pop esi
