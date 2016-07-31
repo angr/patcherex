@@ -72,9 +72,13 @@ class UninitializedPatcher(object):
         reg_free_map = dict()
         reg_not_free_map = dict()
         for n in self.patcher.cfg.nodes():
+
+            if self.patcher.project.is_hooked(n.addr):
+                continue
+
             try:
-                bl = self.patcher.project.factory.block(n.addr)
-            except AngrMemoryError:
+                bl = self.patcher.project.factory.block(n.addr, max_size=n.size)
+            except (AngrTranslationError, AngrMemoryError):
                 bl = None
 
             # no weird or duplicate nodes
@@ -268,10 +272,12 @@ class UninitializedPatcher(object):
         while to_process:
             bl, seen, written = to_process.pop()
             seen.add(bl)
-            try:
-                insts = self.patcher.project.factory.block(bl.addr, max_size=bl.size).instruction_addrs
-            except (AngrMemoryError,AngrTranslationError):
-                insts = []
+
+            cfg_node = self.patcher.cfg.get_any_node(bl.addr)
+            if not cfg_node:
+                continue
+            insts = cfg_node.instruction_addrs
+
             for i in insts:
                 if i in inverted_stack_accesses:
                     actions = inverted_stack_accesses[i]

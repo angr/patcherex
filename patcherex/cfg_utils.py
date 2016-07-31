@@ -59,13 +59,17 @@ def detect_syscall_wrapper(backend,ff):
                     return instr.operands[1].imm
         return None
 
+    if backend.project.is_hooked(ff.addr):
+        # don't mess with already hooked functions, like SimProcedures
+        return None
+
     try:
         succ = ff.startpoint.successors()
     except:
         # TODO recheck when https://git.seclab.cs.ucsb.edu/angr/angr/issues/191 is fixed
         return None
     ends = ff.endpoints
-    first_instr = backend.project.factory.block(ff.startpoint.addr).capstone.insns[0]
+    first_instr = ff._get_block(ff.startpoint.addr).capstone.insns[0]
     syscall_number = check_first_instruction(first_instr)
     if syscall_number == None:
         return None
