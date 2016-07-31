@@ -3,6 +3,7 @@
 import sys
 import os
 import logging
+import resource
 import traceback
 import timeout_decorator
 import itertools
@@ -459,6 +460,9 @@ if __name__ == "__main__":
 
     elif sys.argv[1] == "single":
         cdll['libc.so.6'].prctl(1,9)
+        mem_limit = 16 * pow(2, 30)
+        resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
+
         print "="*50,"process started at",str(datetime.datetime.now())
         print " ".join(map(shellquote,sys.argv))
 
