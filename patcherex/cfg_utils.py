@@ -50,7 +50,17 @@ def is_floatingpoint_function(backend,ff):
         return False
 
 
-def detect_syscall_wrapper(backend,ff):
+def detect_syscall_wrapper(backend, ff):
+    """
+    Determine if the function is a syscall wrapper, and if it is, return the syscall number.
+
+    :param backend: Patcherex backend.
+    :param angr.knowledge.Function ff: The function to detect.
+    :return: The syscall number if it is a syscall wrapper, or None if it's not a syscall wrapper, or we cannot get the
+            syscall number.
+    :rtype: int or None
+    """
+
     # see: https://github.com/CyberGrandChallenge/libcgc/blob/master/libcgc.s
     def check_first_instruction(instr):
         if instr.mnemonic == u'mov':
@@ -65,8 +75,7 @@ def detect_syscall_wrapper(backend,ff):
 
     try:
         succ = ff.startpoint.successors()
-    except:
-        # TODO recheck when https://git.seclab.cs.ucsb.edu/angr/angr/issues/191 is fixed
+    except networkx.NetworkXError:
         return None
     ends = ff.endpoints
     first_instr = ff._get_block(ff.startpoint.addr).capstone.insns[0]
