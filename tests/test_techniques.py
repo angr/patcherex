@@ -1245,6 +1245,55 @@ def test_malloc_patcher():
         res = p.communicate(poll_input)
         nose.tools.assert_equal(expected_output, res[0])
 
+def run_qemu(filepath, to_input, trace=None):
+    pipe = subprocess.PIPE
+    args = [qemu_location, filepath]
+    if trace is not None:
+        args[1:1] = ["-d", "exec", "-D", trace]
+    p = subprocess.Popen(args, stdin=pipe, stdout=pipe, stderr=pipe)
+    res = p.communicate(to_input)
+    return p.returncode, res[0], res[1]
+
+@try_reassembler_and_detour
+def test_no_flag_printf():
+    from patcherex.techniques.noflagprintf import NoFlagPrintfPatcher
+    filepath = os.path.join(bin_location, "cfe_original/PIZZA_00002/PIZZA_00002")
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = global_BackendClass(filepath)
+        patcher = NoFlagPrintfPatcher(filepath, backend)
+        patches = patcher.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+
+        crash_test = """new deliverer
+%s %s
+new pizza
+hello
+deliver
+hello
+%s %s
+"""
+        trace_file = os.path.join(td, "trace")
+        ret, stdout, stderr = run_qemu(tmp_file, crash_test, trace=trace_file)
+        nose.tools.assert_not_equal(ret, 0)
+        nose.tools.assert_true(open(trace_file, 'rb').read().endswith('[41414141]\n'))
+
+        ok_test = """new deliverer
+nick stephens
+new pizza
+two MILLION dollars
+deliver
+two MILLION dollars
+nick stephens
+"""
+        expected_ret, expected_stdout, _ = run_qemu(filepath, ok_test)
+        actual_ret, actual_stdout, _ = run_qemu(tmp_file, ok_test)
+        nose.tools.assert_equal(expected_ret, actual_ret)
+        nose.tools.assert_equal(expected_stdout, actual_stdout)
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
