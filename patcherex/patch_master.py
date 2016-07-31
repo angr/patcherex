@@ -38,6 +38,7 @@ from patcherex.techniques.fidgetpatches import fidget_it
 from patcherex.techniques.binary_optimization import optimize_it
 from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
 from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
+from patcherex.techniques.noflagprintf import NoFlagPrintfPatcher
 from patcherex.errors import *
 
 
@@ -263,6 +264,7 @@ class PatchMaster():
             patches.extend(MallocExtPatcher(intermediate,backend).get_patches())
             patches.extend(StackRetEncryption(intermediate,backend).get_patches())
             patches.extend(UninitializedPatcher(intermediate,backend).get_patches())
+            patches.extend(NoFlagPrintfPatcher(intermediate, backend).get_patches())
 
             backend.apply_patches(patches)
             final_content = backend.get_final_content()
@@ -290,6 +292,7 @@ class PatchMaster():
             patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
             patches.extend(StackRetEncryption(self.infile,backend).get_patches())
             patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
+            patches.extend(NoFlagPrintfPatcher(self.infile, backend).get_patches())
 
             backend.apply_patches(patches)
             final_content = backend.get_final_content()
@@ -316,6 +319,7 @@ class PatchMaster():
             patches.extend(MallocExtPatcher(self.infile,backend).get_patches())
             patches.extend(StackRetEncryption(self.infile,backend).get_patches())
             patches.extend(UninitializedPatcher(self.infile,backend).get_patches())
+            patches.extend(NoFlagPrintfPatcher(self.infile, backend).get_patches())
 
             backend.apply_patches(patches)
             final_content = backend.get_final_content()
@@ -425,15 +429,12 @@ def ftodir2(f,technique,out):
 
 if __name__ == "__main__":
     if sys.argv[1] == "run":
-        logging.getLogger("patcherex.techniques.CpuId").setLevel("INFO")
-        logging.getLogger("patcherex.techniques.Packer").setLevel("INFO")
-        logging.getLogger("patcherex.techniques.QemuDetection").setLevel("INFO")
-        logging.getLogger("patcherex.techniques.SimpleCFI").setLevel("INFO")
-        logging.getLogger("patcherex.techniques.ShadowStack").setLevel("INFO")
         logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
-        logging.getLogger("patcherex.backends.StackRetEncryption").setLevel("INFO")
-        logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("INFO")
-        logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("INFO")
+        logging.getLogger("patcherex.backend").setLevel("INFO")
+        logging.getLogger("patcherex.techniques.NoFlagPrintfPatcher").setLevel("DEBUG")
+        logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
+        logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
+        logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.NxStack").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
@@ -462,13 +463,9 @@ if __name__ == "__main__":
         print "="*50,"process started at",str(datetime.datetime.now())
         print " ".join(map(shellquote,sys.argv))
 
-        logging.getLogger("patcherex.techniques.CpuId").setLevel("INFO")
-        logging.getLogger("patcherex.techniques.Packer").setLevel("INFO")
-        logging.getLogger("patcherex.techniques.QemuDetection").setLevel("INFO")
-        logging.getLogger("patcherex.techniques.SimpleCFI").setLevel("INFO")
-        logging.getLogger("patcherex.techniques.ShadowStack").setLevel("INFO")
         logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
         logging.getLogger("patcherex.backend").setLevel("INFO")
+        logging.getLogger("patcherex.techniques.NoFlagPrintfPatcher").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
@@ -477,7 +474,6 @@ if __name__ == "__main__":
         logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
         logging.getLogger("patcherex.techniques.Backdoor").setLevel("DEBUG")
         logging.getLogger("patcherex.PatchMaster").setLevel("INFO")
-        logging.getLogger("fidget").setLevel("INFO")
 
         input_fname = sys.argv[2]
         technique = sys.argv[3]
