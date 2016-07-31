@@ -6,6 +6,15 @@ import identifier
 
 l = logging.getLogger('patcherex.backend')
 
+FIND_FUNCS = (
+    'malloc',
+    'printf',
+    'fdprintf',
+    'fprintf',
+    'sprintf',
+    'snprintf',
+)
+
 class Backend(object):
     """
     Patcher backend.
@@ -65,7 +74,7 @@ class Backend(object):
     def identifier(self):
         if self._identifer is None:
             self._identifer = identifier.Identifier(self.project, self.cfg, require_predecessors=False)
-            list(self._identifer.run(only_find={"malloc"}))
+            list(self._identifer.run(only_find=FIND_FUNCS))
         return self._identifer
 
 
