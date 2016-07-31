@@ -16,6 +16,7 @@ import datetime
 import tempfile
 import termcolor
 import traceback
+import time
 import cPickle as pickle
 from ctypes import cdll
 from cStringIO import StringIO
@@ -465,6 +466,7 @@ if __name__ == "__main__":
         resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
 
         print "="*50,"process started at",str(datetime.datetime.now())
+        start_time = time.time()
         print " ".join(map(shellquote,sys.argv))
 
         logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
@@ -507,7 +509,7 @@ if __name__ == "__main__":
         fp.close()
         os.chmod(output_fname, 0755)
 
-        print "="*50,"process ended at",str(datetime.datetime.now())
+        print "="*50,"process ended at",str(datetime.datetime.now()),"in",str(time.time()-start_time)
 
     elif sys.argv[1] == "multi" or sys.argv[1] == "multi_name" or sys.argv[1] == "multi_name2":
         out = sys.argv[2]
