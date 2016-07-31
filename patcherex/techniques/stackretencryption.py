@@ -311,9 +311,10 @@ class StackRetEncryption(object):
                 return [], True
         return all_succ, False
 
-    def _block_calls_safe_syscalls(self, block):
+    def _block_calls_safe_syscalls(self, block, func_info, var):
         # checks that the block only calls sycalls that aren't receive
         # receive is the only one that stack ret encryption is useful for
+        # also only checks this var
 
         target_kind = block.vex.constant_jump_targets_and_jumpkinds
         if len(target_kind) != 1:
@@ -324,6 +325,34 @@ class StackRetEncryption(object):
         if cfg_utils.detect_syscall_wrapper(self.patcher, target) and \
                 cfg_utils.detect_syscall_wrapper(self.patcher, target) != 3:
             return True
+
+        # if it is receive we need to do extra checks
+        if cfg_utils.detect_syscall_wrapper(self.patcher, target) and \
+                        cfg_utils.detect_syscall_wrapper(self.patcher, target) == 3:
+
+            # execute the block
+            s = self.patcher.identifier.base_symbolic_state.copy()
+            s.regs.ip = block.addr
+            if func_info.bp_based:
+                s.regs.bp = s.regs.sp + func_info.bp_sp_diff
+            p = self.patcher.project.factory.path(s)
+            p.step()
+            if len(p.successors + p.unconstrained_successors) > 0:
+                succ = (p.successors + p.unconstrained_successors)[0].state
+                rx_arg = succ.mem[succ.regs.sp+16].dword.resolved
+                size_arg = succ.mem[succ.regs.sp+12].dword.resolved
+                # if the size is 4 or less we say it's safe
+                if not size_arg.symbolic and succ.se.any_int(size_arg) <= 4:
+                    return True
+                # we say the rx_bytes arg is okay
+                if not rx_arg.symbolic:
+                    if func_info.bp_based:
+                        rx_bytes_off = 0-succ.se.any_int(s.regs.bp-rx_arg)
+                    else:
+                        rx_bytes_off = succ.se.any_int(rx_arg-s.regs.sp) - (func_info.frame_size + 4) + 4
+                    if rx_bytes_off == var:
+                        return True
+
         return False
 
     def _func_is_safe(self, ident, func):
@@ -347,7 +376,7 @@ class StackRetEncryption(object):
                 for addr, kind in func_info.stack_var_accesses[v]:
                     if kind == "load":
                         bbl = self.patcher.project.factory.block(addr)
-                        if not self._block_calls_safe_syscalls(bbl):
+                        if not self._block_calls_safe_syscalls(bbl, func_info, v):
                             is_safe = False
         return is_safe
 

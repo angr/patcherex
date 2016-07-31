@@ -265,7 +265,6 @@ class UninitializedPatcher(object):
         possible_uninitialized_reads = set()
 
         to_process = [(ff.startpoint, set(), set())]  # block, seen addrs, written to stack vars
-        call_sites = ff.get_call_sites()
         while to_process:
             bl, seen, written = to_process.pop()
             seen.add(bl)
@@ -294,12 +293,9 @@ class UninitializedPatcher(object):
 
                             uninitialized_size = the_next - arg
 
-                            if bl.addr in call_sites:
-                                call_target = ff.get_call_target(bl.addr)
-                                # this is not 100% correct if a binary is bigger than 16MB
-                                # unfortunately, the region for unresolved calls is 0x9000000
-                                if call_target is not None and (0x8000000 < call_target < 0x9000000):
-                                    call_target = self.patcher.cfg.functions[call_target]
+                            target_kind = self.patcher.project.factory.block(i).vex.constant_jump_targets_and_jumpkinds
+                            if len(target_kind) == 1 and target_kind.keys()[0] in self.patcher.cfg.functions:
+                                call_target = self.patcher.cfg.functions[target_kind.keys()[0]]
                             else:
                                 call_target = None
 
