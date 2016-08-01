@@ -5,6 +5,7 @@ import os
 from collections import defaultdict
 from patcherex import utils
 
+timeout = 600
 ptypes = ["medium_detour","medium_reassembler","medium_reassembler_optimized"]
 btypes = ["original","Os","Oz","O0","O1","O2","O3","Ofast"]
 
@@ -71,6 +72,7 @@ if __name__ == "__main__":
         blacklist = None
 
     results = defaultdict(list)
+    times = defaultdict(dict)
     log_files = utils.find_files(res_folder,"*_log")
     for lfile in log_files:
         with open(lfile) as fp:
@@ -80,6 +82,12 @@ if __name__ == "__main__":
         if ret_code != 0:
             results[fname_to_pbtype(lfile)].append((filename_to_cbname(lfile),ret_code,log_payload, \
                     content.split("==== RETCODE: ")[0][-200:]))
+
+        if "=========== process ended at" in content:
+            etime = float(content.split("=========== process ended at")[1].split("in")[1].split()[0])
+            times[fname_to_pbtype(lfile)[0]][filename_to_cbname(lfile)] = etime
+        if ret_code == -9:
+            times[fname_to_pbtype(lfile)[0]][filename_to_cbname(lfile)] = float(timeout+1)
 
     tester_results_file = os.path.join(res_folder,"tester.txt")
     if os.path.exists(tester_results_file):
@@ -106,14 +114,14 @@ if __name__ == "__main__":
             timeouts = [b[0] for b in results[(ptype,btype)] if b[1] == -9]
             total_timeout_failures = len(timeouts)
             print "timeouts:", cblist_to_str(timeouts)
-            expected_failed_generation = [(b[0],b[2]) for b in results[(ptype, btype)] if \
+            expected_failed_generation = [(b[0],b[1],b[2]) for b in results[(ptype, btype)] if \
                     b[1] == 33 and b[2] == "ReassemblerError"]
             print "expected_failed_generation:", cblist_to_str(expected_failed_generation)
-            unexpected_failed_generation = [(b[0],b[2]) for b in results[(ptype, btype)] if \
+            unexpected_failed_generation = [(b[0],b[1],b[2]) for b in results[(ptype, btype)] if \
                     b[1] == 33 and b[2] != "ReassemblerError" and b[2] != "FunctionalityError"]
             print "unexpected_failed_generation:", cblist_to_str(unexpected_failed_generation)
-            unexpected_undetected_failed_generation = [(b[0], b[2]) for b in results[(ptype, btype)] if \
-                    b[1] != 33 and b[1] != 0 and b[1] != -9]
+            unexpected_undetected_failed_generation = [(b[0],b[1],b[2]) for b in results[(ptype, btype)] if \
+                    b[1] != 33 and b[1] != 0 and b[1] != -9 and b[1] != 999]
             print "unexpected_undetected_failed_generation:", cblist_to_str(unexpected_undetected_failed_generation)
             total_generation_failures = len(timeouts) + len(expected_failed_generation) + \
                     len(unexpected_failed_generation) + len(unexpected_undetected_failed_generation)
@@ -169,6 +177,19 @@ if __name__ == "__main__":
         print "----- total generation failures:", totg
         print "total detected functionality failures:", totd
         print "----- total functionality failures:", totf
+
+    intervals = list(xrange(50,70+1,10))+list(xrange(75,95,5))+list(xrange(95,100+1,1))
+    print "=" * 50, "TIME"
+    for ptype in ptypes:
+        tt = times[ptype]
+        tstr = "%30s " % ptype
+        per = 0
+        vlist = list(sorted(tt.values()))
+        slist = []
+        slist.append("avg:%3s"%str(int(round((reduce(lambda x,y:x+y,tt.values())/float(len(tt.values()))),0))))
+        for i in intervals:
+            slist.append(str(i) + "%:" + "%3s"%str(int(vlist[min(int(len(vlist)/100.0*i),len(vlist)-1)])))
+        print tstr+"-".join(slist)
 
 '''
 DIR=/tmp/ttt100; TESTERDIR=/home/antoniob/cb_test_api; mkdir $DIR; find ../../binaries-private/cgc_samples_multiflags/ -type f -executable | tr '\n' ' ' | xargs -P1 nice -n5 unbuffer ./patch_master.py multi_name2  $DIR  medium_detour,medium_reassembler,medium_reassembler_optimized  $DIR/res.pickle 0 600 --test | tee $DIR/patcher.txt; unbuffer bash -c "$TESTERDIR/test_api_client.py 1 $DIR/original/medium_detour;$TESTERDIR/test_api_client.py 1 $DIR/O0/medium_detour $TESTERDIR/blacklist/O0.txt;$TESTERDIR/test_api_client.py 1 $DIR/O1/medium_detour $TESTERDIR/blacklist/O1.txt;$TESTERDIR/test_api_client.py 1 $DIR/O2/medium_detour $TESTERDIR/blacklist/O2.txt;$TESTERDIR/test_api_client.py 1 $DIR/O3/medium_detour $TESTERDIR/blacklist/O3.txt;$TESTERDIR/test_api_client.py 1 $DIR/Ofast/medium_detour $TESTERDIR/blacklist/Ofast.txt;$TESTERDIR/test_api_client.py 1 $DIR/Os/medium_detour $TESTERDIR/blacklist/Os.txt;$TESTERDIR/test_api_client.py 1 $DIR/Oz/medium_detour $TESTERDIR/blacklist/Oz.txt;$TESTERDIR/test_api_client.py 1 $DIR/original/medium_reassembler;$TESTERDIR/test_api_client.py 1 $DIR/O0/medium_reassembler $TESTERDIR/blacklist/O0.txt;$TESTERDIR/test_api_client.py 1 $DIR/O1/medium_reassembler $TESTERDIR/blacklist/O1.txt;$TESTERDIR/test_api_client.py 1 $DIR/O2/medium_reassembler $TESTERDIR/blacklist/O2.txt;$TESTERDIR/test_api_client.py 1 $DIR/O3/medium_reassembler $TESTERDIR/blacklist/O3.txt;$TESTERDIR/test_api_client.py 1 $DIR/Ofast/medium_reassembler $TESTERDIR/blacklist/Ofast.txt;$TESTERDIR/test_api_client.py 1 $DIR/Os/medium_reassembler $TESTERDIR/blacklist/Os.txt;$TESTERDIR/test_api_client.py 1 $DIR/Oz/medium_reassembler $TESTERDIR/blacklist/Oz.txt;$TESTERDIR/test_api_client.py 1 $DIR/original/medium_reassembler_optimized;$TESTERDIR/test_api_client.py 1 $DIR/O0/medium_reassembler_optimized $TESTERDIR/blacklist/O0.txt;$TESTERDIR/test_api_client.py 1 $DIR/O1/medium_reassembler_optimized $TESTERDIR/blacklist/O1.txt;$TESTERDIR/test_api_client.py 1 $DIR/O2/medium_reassembler_optimized $TESTERDIR/blacklist/O2.txt;$TESTERDIR/test_api_client.py 1 $DIR/O3/medium_reassembler_optimized $TESTERDIR/blacklist/O3.txt;$TESTERDIR/test_api_client.py 1 $DIR/Ofast/medium_reassembler_optimized $TESTERDIR/blacklist/Ofast.txt;$TESTERDIR/test_api_client.py 1 $DIR/Os/medium_reassembler_optimized $TESTERDIR/blacklist/Os.txt;$TESTERDIR/test_api_client.py 1 $DIR/Oz/medium_reassembler_optimized $TESTERDIR/blacklist/Oz.txt" 2>&1 | tee $DIR/tester.txt
