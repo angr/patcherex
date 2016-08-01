@@ -76,7 +76,11 @@ class MallocExtPatcher(object):
             if self.patcher.project.is_hooked(n.addr):
                 continue
 
-            bl = self.patcher.project.factory.block(n.addr, max_size=n.size)
+            try:
+                bl = self.patcher.project.factory.block(n.addr, max_size=n.size)
+            except angr.AngrTranslationError:
+                l.warning("angr translation at block %#x", n.addr)
+                continue
             used_regs = set()
             free_regs = set()
 
