@@ -3,6 +3,7 @@ import angr
 import logging
 import networkx
 from collections import defaultdict
+from angr.lifter import AngrMemoryError,AngrTranslationError
 
 import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
@@ -267,7 +268,7 @@ class StackRetEncryption(object):
 
             try:
                 bl = self.patcher.project.factory.block(n.addr, max_size=n.size)
-            except angr.AngrMemoryError:
+            except (AngrTranslationError, AngrMemoryError):
                 bl = None
 
             # no weird or duplicate nodes
