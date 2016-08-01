@@ -1,6 +1,6 @@
 import claripy
 import logging
-from patcherex.patches import AddLabelPatch, InsertCodePatch
+from patcherex.patches import AddLabelPatch, InsertCodePatch, AddRODataPatch
 
 l = logging.getLogger("patcherex.techniques.NoFlagPrintfPatcher")
 
@@ -23,6 +23,36 @@ class NoFlagPrintfPatcher(object):
         self.ident = self.patcher.identifier
 
         self._ro_segments = None
+        self.all_strings = self._get_strings()
+        self.hash_dict = self._generate_hash_dict()
+
+    def _get_strings(self):
+        state = self.patcher.project.factory.blank_state()
+        string_references = []
+        for v in self.patcher.cfg._memory_data.values():
+            if v.sort == "string" and v.size > 1:
+                st = state.se.any_str(state.memory.load(v.address, v.size))
+                string_references.append((v.address, st))
+        return [] if len(string_references) == 0 else zip(*string_references)[1]
+
+    def _generate_hash_dict(self):
+        def hash_str(tstr):
+            hash = 0
+            for c in tstr:
+                hash ^= ord(c)
+            if hash == 0:
+                hash += 1
+            return chr(hash)
+
+        hash_dict = {}
+        for func, (func_name, func_obj) in self.ident.matches.items():
+            if func_name not in PRINTF_VARIANTS:
+                continue
+            if func_obj.format_spec_char is None:
+                continue
+            relevant_strings = [s for s in self.all_strings if func_obj.format_spec_char in s]
+            hash_dict[func_obj.format_spec_char] = list(sorted(set(map(hash_str,relevant_strings)),key=lambda x:ord(x)))
+        return hash_dict
 
     @property
     def ro_segments(self):
@@ -38,6 +68,7 @@ class NoFlagPrintfPatcher(object):
         patches = []
 
         pnum = 0
+        used_spec_chars = []
         for func, (func_name, func_obj) in self.ident.matches.items():
             if func_name not in PRINTF_VARIANTS:
                 continue
@@ -70,12 +101,14 @@ class NoFlagPrintfPatcher(object):
                 # patch not necessary for this function
                 continue
 
-            pnum += 1
+            pnum += 1 # we need this to ensure always different labels
+            used_spec_chars.append(func_obj.format_spec_char)
             check = """
                 ; is the address not in RO memory?
                 cmp dword [esp+{stack_offset}], {{max_ro_addr}}
                 jbe _end_printfcheck_%d
 
+                ; int 3
                 ; is the address in the flag page?
                 cmp dword [esp+{stack_offset}], {flag_page}
                 jb _check_for_percent_%d
@@ -88,17 +121,38 @@ class NoFlagPrintfPatcher(object):
             _check_for_percent_%d:
                 push esi ; = pointer to string
                 mov esi, [esp+{stack_offset_2}]
+                push eax
+                xor eax, eax; hash
 
             _loop_printfcheck_%d:
                 cmp byte [esi], 0
+                je _final_check_printfcheck_%d
+                xor al, byte[esi]
+                cmp byte[esi], {format_spec_char}
+                jne _continue_printfcheck_%d
+                    mov ah, 0x1
+                _continue_printfcheck_%d:
+                    inc esi
+                    jmp _loop_printfcheck_%d
+
+            _final_check_printfcheck_%d:
+                test ah, ah
                 je _restore_printfcheck_%d
-                cmp byte [esi], {format_spec_char}
-                ; die!!!
-                je 0x41414141
-                inc esi
-                jmp _loop_printfcheck_%d
+                test al, al ; avoid al==0 as we do in the hash algorithm
+                jne _do_not_inc_%d
+                    inc al
+                _do_not_inc_%d: ; the dynamic hash will always be bigger than 0, the hash list is null terminated
+                    mov esi, {{hash_list_{format_spec_char}}}
+                _hash_check_loop_%d:
+                    cmp byte[esi], 0 ; the end of the list has been reached
+                    je 0x41414141
+                    cmp byte[esi], al ; esi points to the hash list
+                    je _restore_printfcheck_%d
+                    inc esi
+                    jmp _hash_check_loop_%d
 
             _restore_printfcheck_%d:
+                pop eax
                 pop esi
 
             _end_printfcheck_%d:
@@ -108,7 +162,8 @@ class NoFlagPrintfPatcher(object):
                 flag_page=FLAG_PAGE,
                 flag_page_almost_end=FLAG_PAGE + 0xffc,
                 format_spec_char=ord(func_obj.format_spec_char),
-            ) % tuple([pnum]*9)
+            ) % tuple([pnum]*18)
+
             patches.append(InsertCodePatch(func.addr, check, priority=250, name="noflagprintf_%d" % pnum))
             l.info("function at %#8x protected" % func.addr)
 
@@ -116,4 +171,10 @@ class NoFlagPrintfPatcher(object):
             max_ro_addr = max(seg.max_addr for seg in self.ro_segments)
             patches.append(AddLabelPatch(max_ro_addr, name="max_ro_addr"))
 
+        # print repr(self.hash_dict)
+        for fspec in used_spec_chars:
+            hash_list = "".join(self.hash_dict[fspec]) + "\x00"
+            patches.append(AddRODataPatch(hash_list,
+                        name="hash_list_{format_spec_char}".format(format_spec_char=ord(fspec))))
+        # print "\n".join(map(str,patches))
         return patches

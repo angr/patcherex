@@ -1249,12 +1249,13 @@ def test_malloc_patcher():
 @try_reassembler_and_detour
 def test_no_flag_printf():
     from patcherex.techniques.noflagprintf import NoFlagPrintfPatcher
-    filepath = os.path.join(bin_location, "cfe_original/PIZZA_00002/PIZZA_00002")
+    filepath1 = os.path.join(bin_location, "cfe_original/PIZZA_00002/PIZZA_00002")
+    filepath2 = os.path.join(bin_location, "cgc_samples_multiflags/KPRCA_00011/original/KPRCA_00011")
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = global_BackendClass(filepath)
-        patcher = NoFlagPrintfPatcher(filepath, backend)
+        backend = global_BackendClass(filepath1)
+        patcher = NoFlagPrintfPatcher(filepath1, backend)
         patches = patcher.get_patches()
         backend.apply_patches(patches)
         backend.save(tmp_file)
@@ -1266,11 +1267,10 @@ hello
 deliver
 hello
 %s %s
-"""
-        trace_file = os.path.join(td, "trace")
-
-        res = Runner(tmp_file,crash_test, record_stdout=True)
+        """
+        res = Runner(tmp_file, crash_test, record_stdout=True)
         nose.tools.assert_not_equal(res.returncode, 0)
+        # shutil.copy(tmp_file, "/tmp/aaa")
         nose.tools.assert_equal(res.reg_vals['eip'], 0x41414141)
 
         ok_test = """new deliverer
@@ -1280,11 +1280,26 @@ two MILLION dollars
 deliver
 two MILLION dollars
 nick stephens
-"""
-        res = Runner(filepath,ok_test, record_stdout=True)
+        """
+        res = Runner(filepath1, ok_test, record_stdout=True)
         expected_ret = res.returncode
         expected_stdout = res.stdout
-        res = Runner(tmp_file,ok_test, record_stdout=True)
+        res = Runner(tmp_file, ok_test, record_stdout=True)
+        actual_ret = res.returncode
+        actual_stdout = res.stdout
+        nose.tools.assert_equal(expected_ret, actual_ret)
+        nose.tools.assert_equal(expected_stdout, actual_stdout)
+
+        backend = global_BackendClass(filepath2)
+        patcher = NoFlagPrintfPatcher(filepath2, backend)
+        patches = patcher.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+        # shutil.copy(tmp_file,"/tmp/aaa")
+        res = Runner(filepath2, ok_test, record_stdout=True)
+        expected_ret = res.returncode
+        expected_stdout = res.stdout
+        res = Runner(tmp_file, ok_test, record_stdout=True)
         actual_ret = res.returncode
         actual_stdout = res.stdout
         nose.tools.assert_equal(expected_ret, actual_ret)
