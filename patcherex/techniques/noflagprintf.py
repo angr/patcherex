@@ -172,7 +172,7 @@ class NoFlagPrintfPatcher(object):
             patches.append(AddLabelPatch(max_ro_addr, name="max_ro_addr"))
 
         # print repr(self.hash_dict)
-        for fspec in used_spec_chars:
+        for fspec in set(used_spec_chars):
             hash_list = "".join(self.hash_dict[fspec]) + "\x00"
             patches.append(AddRODataPatch(hash_list,
                         name="hash_list_{format_spec_char}".format(format_spec_char=ord(fspec))))
