@@ -114,10 +114,15 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
         os.chmod(patched, 0755)
     # given challenge_binary_node.py the original file is executable
 
+    # check file size, if it more than 200% (equivalent to 125% speed/memory overhead) we do not even try to submit
+    # this should really never happen even when we do not remove the pdf,
+    # the biggest increase of file size I have seen was 121%
     osize = os.path.getsize(original)
     psize = os.path.getsize(patched)
-    if psize/float(osize) > 120.1:
-        raise SizeError(str(psize)+ " vs " + str(osize))
+    size_overhead = (psize/float(osize))*100.0
+    print "size_overhead", size_overhead
+    if size_overhead > 200.0:
+        raise SizeError(str(psize) + " vs " + str(osize))
 
     inputs = ["","B","\n","\x00","1\n \x00"*10,"\xff\x80"+"".join([chr(i) for i in xrange(2,200,6)])]
     success_tests = []
