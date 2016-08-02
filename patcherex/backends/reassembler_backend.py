@@ -16,9 +16,9 @@ from .misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
 l = logging.getLogger('reassembler')
 
 class ReassemblerBackend(Backend):
-    def __init__(self, filename, debugging=False):
+    def __init__(self, filename, debugging=False, try_pdf_removal=True):
 
-        super(ReassemblerBackend, self).__init__(filename)
+        super(ReassemblerBackend, self).__init__(filename, try_pdf_removal=try_pdf_removal)
 
         l.info("Reassembling %s...", os.path.basename(filename))
         filesize = os.stat(filename).st_size
@@ -89,7 +89,7 @@ class ReassemblerBackend(Backend):
 
             else:
                 raise ReassemblerNotImplementedError('ReassemblerBackend does not support patch %s. '
-                                                     'Please bug Fish to implement it' % type(p)
+                                                     'Please bug Fish to implement it.' % type(p)
                                                      )
 
         if entry_point_asm_before_restore:
@@ -289,7 +289,7 @@ class ReassemblerBackend(Backend):
         """
 
         try:
-            self._binary = self.project.analyses.Binary(syntax='at&t')
+            self._binary = self.project.analyses.Binary(syntax='at&t', remove_cgc_attachments=self.try_pdf_removal)
             self._binary.symbolize()
         except BinaryError as ex:
             raise ReassemblerError('topsecret.Binary failed to load the binary. Here is the exception we caught: %s' %
