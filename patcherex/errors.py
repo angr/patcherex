@@ -5,6 +5,9 @@ class PatcherexError(Exception):
 class FunctionalityError(PatcherexError):
     pass
 
+class SizeError(PatcherexError):
+    pass
+
 #
 # Reassembler errors
 #
