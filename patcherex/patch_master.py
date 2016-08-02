@@ -65,10 +65,10 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
     import shellphish_qemu
     import subprocess32
 
-    def try_bin_with_input(path,tinput):
+    def try_bin_with_input(path,tinput,seed=123):
         pipe = subprocess32.PIPE
         qemu_location = shellphish_qemu.qemu_path('cgc-nxtracer')
-        main_args = [qemu_location,"-seed","123"]
+        main_args = [qemu_location,"-seed",str(seed)]
         if bitflip:
             used_args = main_args + ["-bitflip"]
         else:
@@ -114,15 +114,16 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
         os.chmod(patched, 0755)
     # given challenge_binary_node.py the original file is executable
 
-    inputs = ["","B","\n","\x00","1\n \x00"*10]
+    inputs = ["","B","\n","\x00","1\n \x00"*10,"\xff\x80"+"".join([chr(i) for i in xrange(2,200,6)])]
     success_tests = []
-    for tinput in inputs:
-        test_result = try_bin_with_input(original,tinput)
+    for i,tinput in enumerate(inputs):
+        tseed = 1000+i
+        test_result = try_bin_with_input(original,tinput,tseed)
         if test_result == "ok":
-            success_tests.append(tinput)
+            success_tests.append((tinput,tseed))
 
-    for success_input in success_tests:
-        test_result = try_bin_with_input(patched,success_input)
+    for success_input,tseed in success_tests:
+        test_result = try_bin_with_input(patched,success_input,tseed)
         if test_result != "ok":
             os.unlink(patched)
             raise FunctionalityError("input ->"+success_input.encode('hex')+"<-")
