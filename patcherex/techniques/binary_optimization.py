@@ -95,7 +95,7 @@ class BinaryOptimization(Technique):
                     operands[1] = "{" + symbol_manager.addr_to_label[cp.constant][0].name + "}"
 
                 # also we have to process operands[0]...
-                op_0 = topsecret.binary.Operand(self.backend._binary, ins_addr, insn.operands[0],
+                op_0 = topsecret.binary.Operand(self.backend._binary, ins_addr, insn.size, insn.operands[0],
                                                 operands[0], insn.mnemonic, syntax='intel'
                                                 )
                 operands[0] = op_0.assembly()
