@@ -5,7 +5,7 @@ import tempfile
 import subprocess
 
 import compilerex
-from topsecret import Binary, BinaryError
+from angr.analyses.reassembler import BinaryError
 
 from ..patches import *
 from ..backend import Backend
@@ -106,7 +106,7 @@ class ReassemblerBackend(Backend):
         try:
             assembly = self._binary.assembly(comments=True, symbolized=True)
         except BinaryError as ex:
-            raise ReassemblerError('topsecret.Binary failed to reassemble the binary. Here is the exception we '
+            raise ReassemblerError('Reassembler failed to reassemble the binary. Here is the exception we '
                                    'caught: %s' %
                                    str(ex)
                                    )
@@ -289,9 +289,9 @@ class ReassemblerBackend(Backend):
         """
 
         try:
-            self._binary = self.project.analyses.Binary(syntax='at&t', remove_cgc_attachments=self.try_pdf_removal)
+            self._binary = self.project.analyses.Reassembler(syntax='at&t', remove_cgc_attachments=self.try_pdf_removal)
             self._binary.symbolize()
         except BinaryError as ex:
-            raise ReassemblerError('topsecret.Binary failed to load the binary. Here is the exception we caught: %s' %
+            raise ReassemblerError('Reassembler failed to load the binary. Here is the exception we caught: %s' %
                                    str(ex)
                                    )

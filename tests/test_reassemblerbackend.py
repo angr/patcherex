@@ -36,7 +36,7 @@ def set_proc_name(procname):
 def enable_logging():
     logging.getLogger('reassembler').setLevel(logging.DEBUG)
     logging.getLogger('binary').setLevel(logging.DEBUG)
-    logging.getLogger('topsecret.binary_optimizer').setLevel(logging.DEBUG)
+    logging.getLogger('angr.analyses.binary_optimizer').setLevel(logging.DEBUG)
     logging.getLogger('techniques.binary_optimization').setLevel(logging.DEBUG)
 
 #

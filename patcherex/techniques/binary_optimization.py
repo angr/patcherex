@@ -4,7 +4,7 @@ from collections import defaultdict
 import logging
 import tempfile
 
-import topsecret
+import angr
 from angr import KnowledgeBase
 
 from ..backends import ReassemblerBackend
@@ -63,7 +63,7 @@ class BinaryOptimization(Technique):
 
         patches = [ ]
 
-        for cp in bo.constant_propagations:  # type: topsecret.binary_optimizer.ConstantPropagation
+        for cp in bo.constant_propagations:  # type: angr.analyses.binary_optimizer.ConstantPropagation
             # remove the assignment site
             patch = RemoveInstructionPatch(cp.constant_assignment_loc.ins_addr, None)
             patches.append(patch)
@@ -89,13 +89,13 @@ class BinaryOptimization(Technique):
             # here is the tricky part: the constant might be an address
             # if it's an address, we need to convert it to a label
             if isinstance(self.backend, ReassemblerBackend):
-                symbol_manager = self.backend._binary.symbol_manager  # type: topsecret.binary.SymbolManager
+                symbol_manager = self.backend._binary.symbol_manager  # type: angr.analyses.reassembler.SymbolManager
                 if cp.constant in symbol_manager.addr_to_label:
                     # it's a label... use its label name
                     operands[1] = "{" + symbol_manager.addr_to_label[cp.constant][0].name + "}"
 
                 # also we have to process operands[0]...
-                op_0 = topsecret.binary.Operand(self.backend._binary, ins_addr, insn.size, insn.operands[0],
+                op_0 = angr.analyses.reassembler.Operand(self.backend._binary, ins_addr, insn.size, insn.operands[0],
                                                 operands[0], insn.mnemonic, syntax='intel'
                                                 )
                 operands[0] = op_0.assembly()
@@ -126,7 +126,7 @@ class BinaryOptimization(Technique):
 
         patches = [ ]
 
-        for rsv in bo.redundant_stack_variables:  # type: topsecret.binary_optimizer.RedundantStackVariable
+        for rsv in bo.redundant_stack_variables:  # type: angr.analyses.binary_optimizer.RedundantStackVariable
 
             if not rsv.argument_register_as_retval:
                 # remove the reading-to-register instruction
@@ -216,7 +216,7 @@ class BinaryOptimization(Technique):
         prologue_saves = defaultdict(list)
         epilogue_restores = defaultdict(list)
 
-        for rr in bo.register_reallocations:  # type: topsecret.binary_optimizer.RegisterReallocation
+        for rr in bo.register_reallocations:  # type: angr.analyses.binary_optimizer.RegisterReallocation
             try:
                 patches_ = [ ]
                 # which register to replace?
@@ -365,7 +365,7 @@ class BinaryOptimization(Technique):
 
         register_names = self.backend.project.arch.register_names
 
-        for dead_assignment in bo.dead_assignments:  # type: topsecret.binary_optimizer.DeadAssignment
+        for dead_assignment in bo.dead_assignments:  # type: angr.analyses.binary_optimizer.DeadAssignment
             ins_addr = dead_assignment.pv.location.ins_addr
             dead_reg = dead_assignment.pv.variable.reg
 
