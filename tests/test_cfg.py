@@ -15,7 +15,7 @@ from patcherex.backends.detourbackend import DetourBackend
 # these tests only verify that the cfg interface did not change much
 # large scale testing of the CFGs is an open problem  
 
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
+bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../test_binaries'))
 
 
 def is_sane_function(ff):
@@ -66,7 +66,7 @@ def last_block_to_callers(addr,cfg,inv_callsites):
 
 
 def test_EAGLE_00005_bb():
-    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/EAGLE_00005")
+    filepath = os.path.join(bin_location, "EAGLE_00005")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
     # import IPython; IPython.embed()
@@ -90,7 +90,7 @@ def test_EAGLE_00005_bb():
 
 def test_CADET_00003():
     print "Testing test_CADET_00003..."
-    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    filepath = os.path.join(bin_location, "CADET_00003")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
 
@@ -179,7 +179,7 @@ def test_CADET_00003():
 
 def test_0b32aa01_01():
     print "Testing test_0b32aa01_01..."
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
 
@@ -244,7 +244,7 @@ def test_0b32aa01_01():
 
 
 def test_detect_syscall_wrapper():
-    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00071")
+    filepath = os.path.join(bin_location, "CROMU_00071")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
     legitimate_syscall_wrappers = set([
@@ -263,7 +263,7 @@ def test_detect_syscall_wrapper():
     print map(lambda x:(hex(x[0]),x[1]),syscall_wrappers)
     nose.tools.assert_equal(syscall_wrappers,legitimate_syscall_wrappers)
 
-    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
+    filepath = os.path.join(bin_location, "CROMU_00070")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
     legitimate_syscall_wrappers = set([
@@ -284,7 +284,7 @@ def test_detect_syscall_wrapper():
 
 
 def test_is_floatingpoint_function():
-    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00071")
+    filepath = os.path.join(bin_location, "CROMU_00071")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
     floatingpoint_functions = [ff for ff in cfg.functions.values() if cfg_utils.is_floatingpoint_function(backend,ff)]
@@ -307,7 +307,7 @@ def test_is_floatingpoint_function():
     nose.tools.assert_true(last <= real_end)
     nose.tools.assert_true(last > real_end-0x20) #I allow some imprecision
 
-    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
+    filepath = os.path.join(bin_location, "CROMU_00070")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
     floatingpoint_functions = [ff for ff in cfg.functions.values() if cfg_utils.is_floatingpoint_function(backend,ff)]
@@ -346,7 +346,7 @@ def test_fullcfg_properties():
 
     for binary in binaries:
         print "testing",binary,"..."
-        filepath = os.path.join(bin_location, "cgc_samples_multiflags/%s/original/%s" % (binary,binary))
+        filepath = os.path.join(bin_location, binary)
         backend = DetourBackend(filepath)
         cfg = backend.cfg
 
@@ -396,7 +396,7 @@ def test_jumpouts_and_indirectcalls():
         if binary in cfg_cache:
             cfg = cfg_cache["binary"]
         else:
-            filepath = os.path.join(bin_location, "cgc_samples_multiflags/%s/original/%s" % (binary,binary))
+            filepath = os.path.join(bin_location, binary)
             backend = DetourBackend(filepath)
             cfg = backend.cfg
             cfg_cache["binary"] = cfg
@@ -408,7 +408,7 @@ def test_jumpouts_and_indirectcalls():
         if binary in cfg_cache:
             cfg = cfg_cache["binary"]
         else:
-            filepath = os.path.join(bin_location, "cgc_samples_multiflags/%s/original/%s" % (binary,binary))
+            filepath = os.path.join(bin_location, binary)
             backend = DetourBackend(filepath)
             cfg = backend.cfg
             cfg_cache["binary"] = cfg
@@ -419,9 +419,9 @@ def test_jumpouts_and_indirectcalls():
 
 def test_setlongjmp_detection():
     solutions = [
-            ("cgc_samples_multiflags/CADET_00003/original/CADET_00003",0x80486c8,0x80486e3),
-            ("cgc_samples_multiflags/CROMU_00008/original/CROMU_00008",0x804C3AC,0x804C3C7),
-            ("cgc_samples_multiflags/CROMU_00008/Ofast/CROMU_00008",0x804ABD7,0x804ABF2),
+            ("CADET_00003",0x80486c8,0x80486e3),
+            ("CROMU_00008",0x804C3AC,0x804C3C7),
+            ("Ofast/CROMU_00008",0x804ABD7,0x804ABF2),
 
     ]
 

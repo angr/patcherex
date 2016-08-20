@@ -14,21 +14,18 @@ import shellphish_qemu
 from patcherex.patch_master import PatchMaster
 from povsim import CGCPovSimulator
 
-
 l = logging.getLogger("patcherex.test.test_patch_master")
+bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../test_binaries'))
 logging.getLogger("povsim.cgc_pov_simulator").setLevel('DEBUG')
 
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
+patcherex_main_folder = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../patcherex'))
 qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
 self_location_folder = os.path.dirname(os.path.realpath(__file__))
 backdoor_pov_location = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov.pov")
 
-os.environ["POSTGRES_DATABASE_NAME"] = "dummy"
-os.environ["POSTGRES_DATABASE_USER"] = "dummy"
-os.environ["POSTGRES_MASTER_SERVICE_HOST"] = "dummy"
-os.environ["POSTGRES_MASTER_SERVICE_PORT"] = "dummy"
-os.environ["POSTGRES_DATABASE_PASSWORD"] = "dummy"
-from farnsworth.models.job import PatcherexJob
+GLOBAL_PATCH_TYPES = [ "medium_reassembler_optimized",
+                "medium_detour",
+                "medium_reassembler"]
 
 PATCH_TYPES_WITH_RULES = []
 PATCH_TYPES_WITH_BACKDOOR = ["medium_reassembler_optimized",
@@ -128,13 +125,13 @@ def try_one_patch(args):
 
 
 def test_cfe_trials():
-    PATCH_TYPES = [str(p) for p in PatcherexJob.PATCH_TYPES]
+    PATCH_TYPES = [str(p) for p in GLOBAL_PATCH_TYPES]
     print "PATCH_TYPES:", PATCH_TYPES
     nose.tools.assert_equal(len(PATCH_TYPES),len(set(PATCH_TYPES)))
     all_named_types = set(PATCH_TYPES_AS_ORIGINAL + PATCH_TYPES_WITH_BACKDOOR + PATCH_TYPES_WITH_RULES)
     nose.tools.assert_equal(len(all_named_types - set(PATCH_TYPES)),0)
 
-    tfolder = os.path.join(bin_location, "patcherex_cfe_tests")
+    tfolder = bin_location
     tests = utils.find_files(tfolder,"*",only_exec=True)
 
     bins = ["KPRCA_00044","CROMU_00070","NRFIN_00073","CROMU_00071"]
@@ -153,7 +150,7 @@ def test_cfe_trials():
                 r = try_one_patch(test)
                 res.append(r)
         else:
-            pool = multiprocessing.Pool(5)
+            pool = multiprocessing.Pool(8)
             res = pool.map(try_one_patch,tests)
             for r in res:
                 if r != None and r[0] == False:
@@ -162,7 +159,7 @@ def test_cfe_trials():
     generated_patches = [r[2] for r in res if r != None]
     # it is not impossible that two patches are exactly the same, but it is worth investigation
     nose.tools.assert_equal(len(set(generated_patches)),len(bins)*len(PATCH_TYPES) - len(PATCH_TYPES_EXPECTED_FAIL))
-    print "Generated",len(generated_patches),"different patches of ",len(PATCH_TYPES),"types:",PATCH_TYPES
+    print "Generated",len(generated_patches),"different patches of",len(PATCH_TYPES),"types:",PATCH_TYPES
 
 
 def run_all():

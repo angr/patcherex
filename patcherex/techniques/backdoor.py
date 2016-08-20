@@ -21,7 +21,6 @@ class Backdoor(object):
 
     def get_c_patch(self):
         code = '''
-// [NOT SURE:] this is compiled to 268 bytes with -Oz
 
 static inline int ROTATE_LEFT(const int value, int shift) {
     unsigned int uvalue = (unsigned int)value;
@@ -33,10 +32,10 @@ static inline int ROTATE_LEFT(const int value, int shift) {
 #define K3 0x8F1BBCDC
 #define K4 0xCA62C1D6
 
+// modified starting from: https://software.intel.com/en-us/articles/improving-the-performance-of-the-secure-hash-algorithm-1
 __attribute__((fastcall)) int SHA1(int MESSAGE[] )
 {
   // __asm("int $3");
-  // these arrays are not necessary but used to better highlight dependencies
   int B, C, D, E;
   int A,An;
   int K;
@@ -371,7 +370,6 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
             l.warning("Found %d receive_wrapper... better not to touch anything"%len(receive_wrapper))
             return []
         receive_wrapper = receive_wrapper[0]
-        #import IPython; IPython.embed()
         # here we assume that receive_wrapper is a "sane" syscall wrapper, as checked by detect_syscall_wrapper
         last_block = [b for b in receive_wrapper.blocks if b.addr != receive_wrapper.addr][0]
         victim_addr = int(last_block.addr)

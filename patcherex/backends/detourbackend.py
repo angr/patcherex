@@ -20,6 +20,7 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 symbols will look like {}
 """
 
+# http://stackoverflow.com/questions/4999233/how-to-raise-error-if-duplicates-keys-in-dictionary
 class RejectingDict(dict):
     def __setitem__(self, k, v):
         if k in self:

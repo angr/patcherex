@@ -36,7 +36,6 @@ from patcherex.techniques.nxstack import NxStack
 from patcherex.techniques.adversarial import Adversarial
 from patcherex.techniques.backdoor import Backdoor
 from patcherex.techniques.bitflip import Bitflip
-from patcherex.techniques.fidgetpatches import fidget_it
 from patcherex.techniques.binary_optimization import optimize_it
 from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
 from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
@@ -145,118 +144,6 @@ class PatchMaster():
     def __init__(self,infile):
         self.infile = infile
 
-    def generate_shadow_stack_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = ShadowStack(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-
-    def generate_packed_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = Packer(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-
-    def generate_simplecfi_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = SimpleCFI(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-
-    def generate_cpuid_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = CpuId(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-
-    def generate_qemudetection_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = QemuDetection(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-
-    def generate_randomsyscallloop_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = RandomSyscallLoop(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-
-    def generate_stackretencryption_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = StackRetEncryption(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-
-    def generate_indirectcfi_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = IndirectCFI(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-
-    def generate_adversarial_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = Adversarial(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-
-    def generate_backdoor_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = Backdoor(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-
-    def generate_backdoor_reassembler_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = Backdoor(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-
-    def generate_transmitprotection_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = TransmitProtection(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-    
-    def generate_nxstack_binary(self):
-        backend = DetourBackend(self.infile)
-        cp = NxStack(self.infile,backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content()
-
-    def generate_bitflip_binary(self):
-        nr = NetworkRules()
-        backend = DetourBackend(self.infile)
-        cp = Bitflip(self.infile,backend)
-        patches1 = cp.get_patches()
-
-        backend.apply_patches(patches1)
-        return (backend.get_final_content(),nr.get_bitflip_rule())
-
-    def generate_fidget_bitflip_binary(self):
-        nr = NetworkRules()
-        midfile = self.infile + '.fidget' + str(random.randrange(0,1000))
-        fidget_it(self.infile, midfile)
-        backend = DetourBackend(midfile)
-        cp = Bitflip(midfile,backend)
-        patches1 = cp.get_patches()
-
-        backend.apply_patches(patches1)
-        return (backend.get_final_content(),nr.get_bitflip_rule())
-
-
     ##################
 
     def generate_medium_reassembler_optimized_binary(self,test_bin=True):
@@ -345,20 +232,6 @@ class PatchMaster():
         return res
 
     ########################
-
-    def generate_uninitialized_patch(self):
-        backend = DetourBackend(self.infile)
-        cp = UninitializedPatcher(self.infile, backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content(),""
-
-    def generate_malloc_ext_patch(self):
-        backend = DetourBackend(self.infile)
-        cp = MallocExtPatcher(self.infile, backend)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        return backend.get_final_content(),""
 
     def create_one_patch(self,patch_type):
         m = getattr(self,"generate_"+patch_type+"_binary")
@@ -610,10 +483,3 @@ if __name__ == "__main__":
         #IPython.embed()
 
 
-'''
-./patch_master.py multi /tmp/cgc shadow_stack,packed,simplecfi  /tmp/cgc/res.pickle 0 300 ../../bnaries-private/cgc_qualifier_event/cgc/002ba801_01
-unbuffer ./patch_master.py multi  ~/antonio/tmp/cgc1/ shadow_stack,packed,simplecfi   ~/antonio/tmp/cgc1/res.pickle 40 300 ../../binaries-private/cgc_qualifier_event/cgc/002ba801_01 | tee ~/antonio/tmp/cgc1/log.txt
-find /home/cgc/antonio/shared/patcher_dataset/bin/original_selected  -type f -executable -print | xargs -P1 ./patch_master.py multi_name /home/cgc/antonio/shared/patcher_dataset/bin/packed/  packed  /home/cgc/antonio/shared/patcher_dataset/bin/packed/res.pickle 40 300
-./patch_master.py single ../../binaries-private/cgc_trials/CADET_00003 stackretencryption  ../../vm/shared/patched
-find ../../binaries-private/cgc_samples_multiflags/ -type f -executable | grep CADET_00003 | tr '\n' ' ' | xargs -P1  ./patch_master.py multi_name2 /tmp/cgc4 stackretencryption,backdoor,final,adversarial  /tmp/cgc/res.pickle 0 300
-'''

@@ -175,11 +175,10 @@ int ROTATE_LEFT(const int value, int shift) {
 }
 
 
-
+// modified starting from: https://software.intel.com/en-us/articles/improving-the-performance-of-the-secure-hash-algorithm-1
 // Update HASH[] by processing a one 64-byte block in MESSAGE[]
 __attribute__((fastcall)) int SHA1(int MESSAGE[] )
 {
-  // these arrays are not necessary but used to better highlight dependencies
   int B, C, D, E;
   int A,An,Dn;
   int K;

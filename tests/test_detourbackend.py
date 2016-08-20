@@ -15,7 +15,7 @@ from tracer import Runner
 
 l = logging.getLogger("patcherex.test.test_detourbackend")
 
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
+bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../test_binaries'))
 qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
 
 global_data_fallback = None
@@ -44,7 +44,7 @@ def add_fallback_strategy(f):
 
 @add_fallback_strategy
 def test_simple_inline():
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
 
     pipe = subprocess.PIPE
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -68,7 +68,7 @@ def test_simple_inline():
 
 @add_fallback_strategy
 def test_added_code():
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
 
     with patcherex.utils.tempdir() as td:
@@ -92,7 +92,7 @@ def test_added_code():
 
 @add_fallback_strategy
 def test_added_code_and_data():
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
 
     with patcherex.utils.tempdir() as td:
@@ -125,7 +125,7 @@ def test_added_code_and_data():
 
 @add_fallback_strategy
 def test_rw_memory():
-    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
+    filepath = os.path.join(bin_location, "CROMU_00070")
     pipe = subprocess.PIPE
 
     tlen=1
@@ -215,7 +215,7 @@ def test_rw_memory():
 
 @add_fallback_strategy
 def test_ro_memory():
-    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
+    filepath = os.path.join(bin_location, "CROMU_00070")
     pipe = subprocess.PIPE
 
     tlen=1
@@ -307,7 +307,7 @@ def test_ro_memory():
 
 @add_fallback_strategy
 def test_rwinit_memory():
-    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
+    filepath = os.path.join(bin_location, "CROMU_00070")
     pipe = subprocess.PIPE
 
     tlen=1
@@ -399,7 +399,7 @@ def test_rwinit_memory():
 
 @add_fallback_strategy
 def test_added_code_and_data_complex():
-    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
+    filepath = os.path.join(bin_location, "CROMU_00070")
     pipe = subprocess.PIPE
 
     common_patches = []
@@ -528,7 +528,7 @@ def test_added_code_and_data_complex():
 
 @add_fallback_strategy
 def test_added_code_and_data_big():
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
 
     with patcherex.utils.tempdir() as td:
@@ -561,7 +561,7 @@ def test_added_code_and_data_big():
 
 @add_fallback_strategy
 def test_detour():
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
 
     with patcherex.utils.tempdir() as td:
@@ -591,7 +591,7 @@ def test_detour():
 
 @add_fallback_strategy
 def test_single_entry_point_patch():
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
 
     with patcherex.utils.tempdir() as td:
@@ -617,7 +617,7 @@ def test_single_entry_point_patch():
 
 @add_fallback_strategy
 def test_complex1():
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
 
     with patcherex.utils.tempdir() as td:
@@ -664,7 +664,7 @@ def test_complex1():
 
 @add_fallback_strategy
 def test_double_patch_collision():
-    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
 
     with patcherex.utils.tempdir() as td:
@@ -765,7 +765,7 @@ def test_double_patch_collision():
 
 @add_fallback_strategy
 def test_conflicting_symbols():
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
 
     patches = []
     backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -815,7 +815,7 @@ def test_random_canary():
             return False
         return True
 
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
 
     with patcherex.utils.tempdir() as td:
@@ -983,7 +983,7 @@ def test_patch_conflicts():
         p42=create_dpatch("42",0x08049953+3,1)
         return p11,p12,p21,p22,p31,p32,p41,p42
 
-    filepath = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00071")
+    filepath = os.path.join(bin_location, "CROMU_00071")
     pipe = subprocess.PIPE
     base_str = "Database checksum: "
 
@@ -1278,7 +1278,7 @@ def test_patch_conflicts():
 
 @add_fallback_strategy
 def test_c_compilation():
-    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
 
     common_patches = []
@@ -1421,7 +1421,7 @@ def test_c_compilation():
 
 @add_fallback_strategy
 def test_entrypointpatch_restore():
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
@@ -1458,7 +1458,7 @@ def test_entrypointpatch_restore():
 
 @add_fallback_strategy
 def test_piling():
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
@@ -1503,9 +1503,9 @@ def test_pdf_removal():
     # also, this test will obviously fail with any backend moving things in memory
     # I try to print all ro and rw data and compare between pdf and not pdf
     tests = [
-                (os.path.join(bin_location, "cgc_samples_multiflags/CROMU_00071/original/CROMU_00071"),
+                (os.path.join(bin_location, "CROMU_00071"),
                 0x0804D790, 0x0804D9B8, 0x08062BD8, 0x08062BEC),
-                (os.path.join(bin_location, "cgc_samples_multiflags/KPRCA_00046/original/KPRCA_00046"),
+                (os.path.join(bin_location, "KPRCA_00046"),
                 0x0804F868, 0x0805007C, 0x08064298, 0x0806891C)
             ]
 

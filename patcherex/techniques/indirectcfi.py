@@ -6,7 +6,6 @@ import patcherex.cfg_utils as cfg_utils
 
 import re
 import capstone
-import networkx
 import logging
 from collections import defaultdict
 
@@ -46,6 +45,7 @@ class IndirectCFI(object):
         # <BlockNode at 0x804974f (size 19)> ['0x8049762', '0x9000020']
 
         # TODO: we decided that we hope that any indirect call always goes to the main bin!
+        # but we do not apply indirectcfi if we find an allocate of executable memory
         return True
 
         baddr = self.patcher.cfg.get_any_node(addr,anyaddr=True).addr

@@ -266,10 +266,10 @@ int type1_negotiate(unsigned int ipmask, unsigned int regmask, unsigned int regn
 #define K3 0x8F1BBCDC
 #define K4 0xCA62C1D6
 
+// modified starting from: https://software.intel.com/en-us/articles/improving-the-performance-of-the-secure-hash-algorithm-1
 __attribute__((fastcall)) int SHA1(int MESSAGE[] )
 {
   //__asm("int $3");
-  // these arrays are not necessary but used to better highlight dependencies
   int B, C, D, E;
   int A,An;
   int K;

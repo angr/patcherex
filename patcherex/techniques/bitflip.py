@@ -79,7 +79,6 @@ class Bitflip(object):
             l.warning("Found %d receive_wrapper... better not to touch anything"%len(receive_wrapper))
             return []
         receive_wrapper = receive_wrapper[0]
-        #import IPython; IPython.embed()
         # here we assume that receive_wrapper is a "sane" syscall wrapper, as checked by detect_syscall_wrapper
         last_block = [b for b in receive_wrapper.blocks if b.addr != receive_wrapper.addr][0]
         victim_addr = int(last_block.addr)

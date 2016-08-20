@@ -18,7 +18,7 @@ from patcherex.techniques import ShadowStack, SimplePointerEncryption, ShiftStac
 from patcherex.techniques.binary_optimization import optimize_it
 from patcherex.errors import BinaryOptimizationError
 
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
+bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../test_binaries'))
 
 #
 # Utils
@@ -79,10 +79,10 @@ def run_functionality(filename, save_as=None, optimize=False):
 
 def test_functionality():
     binaries = [
-        os.path.join('cgc_trials', 'CADET_00003'),
-        os.path.join('cgc_trials', 'CROMU_00070'),
-        os.path.join('cgc_trials', 'CROMU_00071'),
-        os.path.join('cgc_trials', 'EAGLE_00005'),
+        'CADET_00003',
+        'CROMU_00070',
+        'CROMU_00071',
+        'EAGLE_00005',
     ]
 
     for b in binaries:
@@ -211,11 +211,12 @@ def run_shadowstack(filename):
 
 def test_shadowstack():
     binaries = [
-        os.path.join('cgc_trials', 'CADET_00003'),
-        os.path.join('cgc_trials', 'CROMU_00070'),
-        os.path.join('cgc_trials', 'CROMU_00071'),
-        os.path.join('cgc_trials', 'EAGLE_00005'),
+        'CADET_00003',
+        'CROMU_00070',
+        'CROMU_00071',
+        'EAGLE_00005',
     ]
+
 
     for b in binaries:
         run_shadowstack(b)
@@ -241,12 +242,12 @@ def run_simple_pointer_encryption(filename):
 
 def test_simple_pointer_encryption():
     binaries = [
-        os.path.join('cgc_trials', 'CADET_00003'),
-        os.path.join('cgc_trials', 'CROMU_00070'),
-        os.path.join('cgc_trials', 'CROMU_00071'),
-        # os.path.join('cgc_trials', 'EAGLE_00005'),
-        #  os.path.join('cgc_samples_multiflags', 'CROMU_00001', 'original', 'CROMU_00001'),
+        'CADET_00003',
+        'CROMU_00070',
+        'CROMU_00071',
+        'EAGLE_00005',
     ]
+
 
     for b in binaries:
         run_simple_pointer_encryption(b)
@@ -272,7 +273,7 @@ def run_shiftstack(filename):
 
 def test_shiftstack():
     binaries = [
-        os.path.join('cgc_trials', 'CADET_00003'),
+        'CADET_00003',
     ]
 
     for b in binaries:
@@ -299,7 +300,7 @@ def run_adversarial(filename):
 
 def disabled_adversarial():
     binaries = [
-        os.path.join('cgc_trials', 'CADET_00003'),
+        'CADET_00003',
     ]
 
     for b in binaries:
@@ -342,28 +343,7 @@ def run_optimization(filename):
 
 def test_optimization():
     binaries = [
-        #os.path.join('cgc_trials', 'CADET_00003'),
-        #os.path.join('cgc_trials', 'CROMU_00070'),
-        #os.path.join('cgc_trials', 'CROMU_00071'),
-        #os.path.join('cgc_trials', 'EAGLE_00005'),
-
-        #os.path.join('cgc_samples_multiflags', 'CADET_00001', 'original', 'CADET_00001'),
-        #os.path.join('cgc_samples_multiflags', 'CROMU_00001', 'original', 'CROMU_00001'),
-        os.path.join('cgc_samples_multiflags', 'CROMU_00002', 'original', 'CROMU_00002'),
-        #os.path.join('cgc_samples_multiflags', 'CROMU_00007', 'original', 'CROMU_00007'),
-        #os.path.join('cgc_samples_multiflags', 'CROMU_00008', 'original', 'CROMU_00008'),
-        #os.path.join('cgc_samples_multiflags', 'CROMU_00070', 'original', 'CROMU_00070'),
-        #os.path.join('cgc_samples_multiflags', 'CROMU_00071', 'original', 'CROMU_00071'),
-        #os.path.join('cgc_samples_multiflags', 'EAGLE_00004', 'original', 'EAGLE_00004_1'),
-        #os.path.join('cgc_samples_multiflags', 'EAGLE_00004', 'original', 'EAGLE_00004_2'),
-        #os.path.join('cgc_samples_multiflags', 'EAGLE_00004', 'original', 'EAGLE_00004_3'),
-        #os.path.join('cgc_samples_multiflags', 'EAGLE_00005', 'original', 'EAGLE_00005'),
-
-        #os.path.join('cgc_samples_multiflags', 'KPRCA_00001', 'original', 'KPRCA_00001'),
-        #os.path.join('cgc_samples_multiflags', 'KPRCA_00015', 'original', 'KPRCA_00015'),
-        #os.path.join('cgc_samples_multiflags', 'KPRCA_00055', 'original', 'KPRCA_00055'),
-        #os.path.join('cgc_samples_multiflags', 'KPRCA_00056', 'original', 'KPRCA_00056'),
-        #os.path.join('cgc_samples_multiflags', 'KPRCA_00057', 'original', 'KPRCA_00057'),
+        os.path.join('original', 'CROMU_00002'),
     ]
 
     for b in binaries:
@@ -384,6 +364,14 @@ def trace():
 #
 # MAIN
 #
+
+def run_all():
+    functions = globals()
+    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    for f in sorted(all_functions.keys()):
+        if hasattr(all_functions[f], '__call__'):
+            all_functions[f]()
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -407,31 +395,14 @@ def main():
     if args.log:
         enable_logging()
 
-    if not args.test:
-        raise Exception("You must specify which test you want to run.")
-
     optimize = args.optimize
     threads = args.threads
     test = args.test
 
     if test == 'functionality_all':
         manual_run_functionality_all(threads=threads, optimize=optimize)
-
     else:
-        g = globals()
-        for k, v in g.iteritems():
-            if k == "test_%s" % test:
-               v()
+        run_all()
 
 if __name__ == "__main__":
     main()
-
-    # trace()
-    # manual_run_functionality_all(threads=8, optimize=True)
-    #test_simple_pointer_encryption()
-    #test_functionality()
-    #test_shadowstack()
-    #test_shiftstack()
-    # test_adversarial()
-    #test_optimization()
-    pass

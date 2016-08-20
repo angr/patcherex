@@ -24,7 +24,7 @@ logging.getLogger("reassembler").setLevel("DEBUG")
 
 # TODO ideally these tests should be run in the vm
 
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries-private'))
+bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../test_binaries'))
 poll_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'polls'))
 qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
 self_location_folder = os.path.dirname(os.path.realpath(__file__))
@@ -155,7 +155,7 @@ def add_full_fallback_strategy(f):
 def test_shadowstack():
     logging.getLogger("patcherex.techniques.ShadowStack").setLevel("DEBUG")
     from patcherex.techniques.shadowstack import ShadowStack
-    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
 
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -180,7 +180,7 @@ def test_shadowstack():
 @add_fallback_strategy
 def test_packer():
     from patcherex.techniques.packer import Packer
-    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
 
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
@@ -202,7 +202,7 @@ def test_packer():
 def test_simplecfi():
     logging.getLogger("patcherex.techniques.SimpleCFI").setLevel("DEBUG")
     from patcherex.techniques.simplecfi import SimpleCFI
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
 
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -217,7 +217,6 @@ def test_simplecfi():
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(exploiting_input)
     expected_retcode = 1 #should be -11
-    #TODO fix these two checks when our tracer will be fixed (https://git.seclab.cs.ucsb.edu/cgc/tracer/issues/2)
     nose.tools.assert_equal((res[0][:200] == expected1[:200] and p.returncode == expected_retcode), True)
 
     expected2 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
@@ -245,7 +244,7 @@ def test_simplecfi():
 def test_qemudetection():
     logging.getLogger("patcherex.techniques.QemuDetection").setLevel("DEBUG")
     from patcherex.techniques.qemudetection import QemuDetection
-    filepath = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
+    filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
 
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -276,7 +275,7 @@ def test_qemudetection():
 @add_fallback_strategy
 def test_randomsyscallloop():
     from patcherex.techniques.randomsyscallloop import RandomSyscallLoop
-    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
 
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -302,7 +301,7 @@ def test_randomsyscallloop():
 @add_fallback_strategy
 def test_cpuid():
     from patcherex.techniques.cpuid import CpuId
-    filepath = os.path.join(bin_location, "cgc_trials/CADET_00003")
+    filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
 
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -330,11 +329,11 @@ def test_cpuid():
 def test_stackretencryption():
     logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
     from patcherex.techniques.stackretencryption import StackRetEncryption
-    filepath1 = os.path.join(bin_location, "cgc_scored_event_2/cgc/0b32aa01_01")
-    filepath2 = os.path.join(bin_location, "cgc_trials/last_trial/original/CROMU_00070")
-    filepath3 = os.path.join(bin_location, "cgc_samples_multiflags/CROMU_00008/original/CROMU_00008")
-    filepath4 = os.path.join(bin_location, "cgc_samples_multiflags/KPRCA_00026/original/KPRCA_00026")
-    filepath5 = os.path.join(bin_location, "cgc_samples_multiflags/KPRCA_00025/original/KPRCA_00025")
+    filepath1 = os.path.join(bin_location, "0b32aa01_01")
+    filepath2 = os.path.join(bin_location, "CROMU_00070")
+    filepath3 = os.path.join(bin_location, "original/CROMU_00008")
+    filepath4 = os.path.join(bin_location, "original/KPRCA_00026")
+    filepath5 = os.path.join(bin_location, "original/KPRCA_00025")
     pipe = subprocess.PIPE
 
     p = subprocess.Popen([qemu_location, filepath1], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -458,8 +457,8 @@ def test_indirectcfi():
     logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
     from patcherex.techniques.indirectcfi import IndirectCFI
     tests = [
-        ("tests/i386/patchrex/indirect_call_test_O0","b7fff000"),
-        ("tests/i386/patchrex/indirect_call_test_fullmem_O0","78000000"),
+        ("patchrex/indirect_call_test_O0","b7fff000"),
+        ("patchrex/indirect_call_test_fullmem_O0","78000000"),
     ]
     if global_BackendClass == ReassemblerBackend:
         tests = tests[:1]
@@ -657,7 +656,7 @@ def test_indirectcfi():
 
 def test_freeregs():
     def bin_str(name,btype="original"):
-        return "cgc_samples_multiflags/%s/%s/%s" % (name,btype,name)
+        return "%s/%s" % (btype,name)
 
     from patcherex.techniques.stackretencryption import StackRetEncryption
     tests = [
@@ -717,8 +716,8 @@ def test_transmitprotection():
 
     logging.getLogger("patcherex.techniques.TransmitProtection").setLevel("DEBUG")
     from patcherex.techniques.transmitprotection import TransmitProtection
-    vulnerable_fname1 = os.path.join(bin_location, "tests/i386/patchrex/arbitrary_transmit_O0")
-    vulnerable_fname2 = os.path.join(bin_location, "tests/i386/patchrex/arbitrary_transmit_stdin_O0")
+    vulnerable_fname1 = os.path.join(bin_location, "patchrex/arbitrary_transmit_O0")
+    vulnerable_fname2 = os.path.join(bin_location, "patchrex/arbitrary_transmit_stdin_O0")
 
     res = Runner(vulnerable_fname1,"08048000\n00000005\n",record_stdout=True)
     nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
@@ -813,7 +812,7 @@ def test_transmitprotection():
 def test_shiftstack():
     logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
     from patcherex.techniques.shiftstack import ShiftStack
-    filepath = os.path.join(bin_location, "cfe_original/CROMU_00044/CROMU_00044")
+    filepath = os.path.join(bin_location, "CROMU_00044")
     tinput = "1\n"*50+"2\n"*50
 
     res = Runner(filepath,tinput,record_stdout=True)
@@ -867,7 +866,7 @@ def test_nxstack():
     logging.getLogger("patcherex.techniques.NxStack").setLevel("DEBUG")
     from patcherex.techniques.nxstack import NxStack
     from patcherex.techniques.shiftstack import ShiftStack
-    filepath = os.path.join(bin_location, "cfe_original/CROMU_00044/CROMU_00044")
+    filepath = os.path.join(bin_location, "CROMU_00044")
     tinput = "login\n"*50+"2\n"*50
     res = Runner(filepath,tinput,record_stdout=True)
     original_output = res.stdout
@@ -970,7 +969,7 @@ def test_adversarial():
     from patcherex.techniques.adversarial import Adversarial
     pipe = subprocess.PIPE
     tinput = "1\n"*50+"2\n"*50
-    filepath = os.path.join(bin_location, "cfe_original/CROMU_00044/CROMU_00044")
+    filepath = os.path.join(bin_location, "CROMU_00044")
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
@@ -1011,11 +1010,11 @@ def test_backdoor():
     for bitflip in [False,True]:
         print "======== Bitflip:", bitflip
         from patcherex.techniques.backdoor import Backdoor
-        filepath = os.path.join(bin_location, "cfe_original/CADET_00003/CADET_00003")
+        filepath = os.path.join(bin_location, "CADET_00003")
         real_backdoor_enter = "3367b180".decode('hex')
         fake_backdoor_enter = "3367b181".decode('hex')
         logging.getLogger('povsim').setLevel("DEBUG")
-        custom_bins = [os.path.join(bin_location,os.path.join("tests/i386/patchrex","backdoorme"+str(i))) \
+        custom_bins = [os.path.join(bin_location,os.path.join("patchrex","backdoorme"+str(i))) \
                 for i in xrange(1,9+1)]
         bins = [filepath] + custom_bins
 
@@ -1114,9 +1113,9 @@ def test_bitflip():
     from patcherex.techniques.bitflip import Bitflip
     from patcherex.techniques.backdoor import Backdoor
     tests = []
-    tests.append(os.path.join(bin_location, "tests/i386/patchrex/CADET_00003_fixed"))
-    tests.append(os.path.join(bin_location, "tests/i386/patchrex/echo1"))
-    tests.append(os.path.join(bin_location, "tests/i386/patchrex/echo2"))
+    tests.append(os.path.join(bin_location, "patchrex/CADET_00003_fixed"))
+    tests.append(os.path.join(bin_location, "patchrex/echo1"))
+    tests.append(os.path.join(bin_location, "patchrex/echo2"))
     slens = [0,1,0x1000,0xfff,0x1001]
     i = 1
     while True:
@@ -1169,7 +1168,7 @@ def test_bitflip():
 
 @try_reassembler_and_detour
 def test_uninitialized():
-    filepath = os.path.join(bin_location, "cfe_original/CROMU_00070/CROMU_00070")
+    filepath = os.path.join(bin_location, "CROMU_00070")
     from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
 
     with patcherex.utils.tempdir() as td:
@@ -1214,7 +1213,7 @@ def test_uninitialized():
 @try_reassembler_and_detour
 def test_malloc_patcher():
     from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
-    filepath = os.path.join(bin_location, "cfe_original/NRFIN_00078/NRFIN_00078")
+    filepath = os.path.join(bin_location, "NRFIN_00078")
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
@@ -1249,8 +1248,8 @@ def test_malloc_patcher():
 @try_reassembler_and_detour
 def test_no_flag_printf():
     from patcherex.techniques.noflagprintf import NoFlagPrintfPatcher
-    filepath1 = os.path.join(bin_location, "cfe_original/PIZZA_00002/PIZZA_00002")
-    filepath2 = os.path.join(bin_location, "cgc_samples_multiflags/KPRCA_00011/original/KPRCA_00011")
+    filepath1 = os.path.join(bin_location, "PIZZA_00002")
+    filepath2 = os.path.join(bin_location, "original/KPRCA_00011")
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")

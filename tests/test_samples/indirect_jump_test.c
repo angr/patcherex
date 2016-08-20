@@ -202,7 +202,3 @@ int main() {
   jump_table1();
   jump_table2();
 }
-
-/*
-~/git/cgc/compilerex $ PP=../vm/shared/; rm $PP/1; ./compile.sh ../patcherex/tests/test_samples/indirect_call_test.c -o $PP/1
-*/

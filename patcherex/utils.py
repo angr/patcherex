@@ -705,7 +705,7 @@ def get_nasm_c_wrapper_code(function_symbol, get_return=False, debug=False):
     # TODO maybe with better calling convention on llvm this can be semplified
     wcode = []
     wcode.append("pusha")
-    # TODO add param list haandling, right two params in ecx/edx are supported
+    # TODO add param list handling, right two params in ecx/edx are supported
     '''
     assert len(param_list) <= 2 # TODO support more parameters
     if len(param_list) == 1:
