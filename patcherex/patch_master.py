@@ -144,7 +144,16 @@ class PatchMaster():
     def __init__(self,infile):
         self.infile = infile
 
+    def generate_stackretencryption_binary(self, test_bin=None):
+        backend = ReassemblerBackend(self.infile)
+        patches = []
+        patches.extend(StackRetEncryption(self.infile, backend).get_patches())
+        backend.apply_patches(patches)
+        final_content = backend.get_final_content()
+        return (final_content, "")
+
     ##################
+
 
     def generate_medium_reassembler_optimized_binary(self,test_bin=True):
         try:

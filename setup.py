@@ -14,7 +14,6 @@ setup(
         'tracer',
         'povsim',
         'shellphish-qemu',
-        'fidget',
         'identifier',
    ],
 )
