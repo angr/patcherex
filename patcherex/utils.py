@@ -362,6 +362,10 @@ class ASMConverter(object):
             size_suffix = ASMConverter.size_suffix[size]
             m = 'movs' + size_suffix + 'l'
             return m
+        elif m == 'movzx':
+            size_suffix = ASMConverter.size_suffix[size]
+            m = 'movz' + size_suffix + 'l'
+            return m
 
         m += ASMConverter.size_suffix[size]
         return m
