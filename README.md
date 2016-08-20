@@ -86,7 +86,7 @@ patches.append(AddRODataPatch("HI!\x00",name="transmitted_string"))
 injected_code = '''
 ; at this code location, it is fine to clobber eax and ebx
 mov eax, {transmitted_string} ; a patch can refer to another patch address, by putting its name between curly brackets
-mov ebx,
+mov ebx, 4
 call {transmit_function}
 '''
 patches.append(InsertCodePatch(0x8048166,injected_code,name="injected_code_after_receive"))
