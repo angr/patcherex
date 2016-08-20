@@ -350,7 +350,8 @@ def main():
                         help="Enable logging output from a predefined set of loggers."
                         )
     parser.add_argument("-t", "--test", type=str,
-                        help="Specify which test to run."
+                        help="Specify which test to run.\n"
+                        "'--test all' will run all tests."
                         )
     parser.add_argument("-o", "--optimize", action="store_true", default=None,
                         help="Enable binary optimization. Some test cases may not support it."
@@ -371,8 +372,12 @@ def main():
 
     if test == 'functionality_all':
         manual_run_functionality_all(threads=threads, optimize=optimize)
-    else:
+    elif test == 'all':
         run_all()
+    elif test:
+        globals()['test_%s' % test]()
+    else:
+        parser.print_help()
 
 if __name__ == "__main__":
     main()
