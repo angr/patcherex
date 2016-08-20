@@ -14,7 +14,7 @@ import nose.tools
 
 from patcherex.backends import ReassemblerBackend
 from patcherex.patches import *
-from patcherex.techniques import ShadowStack, SimplePointerEncryption, ShiftStack, Adversarial, BinaryOptimization
+from patcherex.techniques import ShadowStack, ShiftStack, Adversarial, BinaryOptimization
 from patcherex.techniques.binary_optimization import optimize_it
 from patcherex.errors import BinaryOptimizationError
 
@@ -221,36 +221,6 @@ def test_shadowstack():
     for b in binaries:
         run_shadowstack(b)
 
-def run_simple_pointer_encryption(filename):
-    filepath = os.path.join(bin_location, filename)
-
-    p = ReassemblerBackend(filepath, debugging=True)
-
-    cp = SimplePointerEncryption(filepath, p, optimize=True)
-    patches = cp.get_patches()
-
-    p.apply_patches(patches)
-
-    r = p.save(os.path.join('/', 'tmp', 'simple_pointer_encryption', os.path.basename(filename)))
-
-    if not r:
-        print "Compiler says:"
-        print p._compiler_stdout
-        print p._compiler_stderr
-
-    nose.tools.assert_true(r, 'SimplePointerEncryption patching with reassembler fails on binary %s' % filename)
-
-def test_simple_pointer_encryption():
-    binaries = [
-        'CADET_00003',
-        'CROMU_00070',
-        'CROMU_00071',
-        'EAGLE_00005',
-    ]
-
-
-    for b in binaries:
-        run_simple_pointer_encryption(b)
 
 def run_shiftstack(filename):
     filepath = os.path.join(bin_location, filename)
