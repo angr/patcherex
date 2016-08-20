@@ -329,7 +329,7 @@ def test_cpuid():
 def test_stackretencryption():
     logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
     from patcherex.techniques.stackretencryption import StackRetEncryption
-    filepath1 = os.path.join(bin_location, "0b32aa01_01")
+    filepath1 = os.path.join(bin_location, "0b32aa01_01_2")
     filepath2 = os.path.join(bin_location, "CROMU_00070")
     filepath3 = os.path.join(bin_location, "original/CROMU_00008")
     filepath4 = os.path.join(bin_location, "original/KPRCA_00026")
