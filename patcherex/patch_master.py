@@ -40,6 +40,7 @@ from patcherex.techniques.binary_optimization import optimize_it
 from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
 from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
 from patcherex.techniques.noflagprintf import NoFlagPrintfPatcher
+from patcherex.techniques.fidgetpatches import fidget_it
 from patcherex.errors import *
 
 
@@ -151,6 +152,16 @@ class PatchMaster():
         backend.apply_patches(patches)
         final_content = backend.get_final_content()
         return (final_content, "")
+
+    def generate_fidget_bitflip_binary(self):
+        nr = NetworkRules()
+        midfile = self.infile + '.fidget' + str(random.randrange(0,1000))
+        fidget_it(self.infile, midfile)
+        backend = DetourBackend(midfile)
+        cp = Bitflip(midfile,backend)
+        patches1 = cp.get_patches()
+        backend.apply_patches(patches1)
+        return (backend.get_final_content(),nr.get_bitflip_rule())
 
     ##################
 
