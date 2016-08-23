@@ -63,12 +63,13 @@ class CodePatch(Patch):
     """
     Base class for all code patches
     """
-    def __init__(self, name, asm_code, is_c=False, optimization="-Oz"):
+    def __init__(self, name, asm_code, is_c=False, is_att=False, optimization="-Oz"):
         super(CodePatch, self).__init__(name)
 
         self.asm_code = asm_code
         self.is_c = is_c
         self.optimization = optimization
+        self.is_att = is_att
 
     def att_asm(self):
         """
@@ -77,6 +78,8 @@ class CodePatch(Patch):
         :rtype: str
         """
 
+        if self.is_att:
+            return self.asm_code
         if not self.is_c:
             return ASMConverter.intel_to_att(self.asm_code)
         else:
@@ -85,16 +88,17 @@ class CodePatch(Patch):
             return asm_str
 
 class AddCodePatch(CodePatch):
-    def __init__(self, asm_code, name=None, is_c=False, optimization="-Oz"):
-        super(AddCodePatch, self).__init__(name, asm_code, is_c=is_c, optimization=optimization)
+    def __init__(self, asm_code, name=None, is_c=False, is_att=False, optimization="-Oz"):
+        super(AddCodePatch, self).__init__(name, asm_code, is_c=is_c, is_att=is_att,
+                optimization=optimization)
 
     def __repr__(self):
         return "AddCodePatch [%s] (%d) %s %s" % (self.name,len(self.asm_code),self.is_c,self.optimization)
 
 
 class AddEntryPointPatch(CodePatch):
-    def __init__(self, asm_code, name=None, priority=1, after_restore=False):
-        super(AddEntryPointPatch, self).__init__(name, asm_code)
+    def __init__(self, asm_code, name=None, is_att=False, priority=1, after_restore=False):
+        super(AddEntryPointPatch, self).__init__(name, asm_code, is_att=is_att)
         self.priority = priority
         self.after_restore = after_restore
 
@@ -104,8 +108,8 @@ class AddEntryPointPatch(CodePatch):
 
 
 class InsertCodePatch(CodePatch):
-    def __init__(self, addr, code, name=None, priority=1, stackable=False):
-        super(InsertCodePatch, self).__init__(name, asm_code=code)
+    def __init__(self, addr, code, name=None, is_att=False, priority=1, stackable=False):
+        super(InsertCodePatch, self).__init__(name, asm_code=code, is_att=is_att)
         self.addr = addr
         self.priority = priority
         self.stackable = stackable
