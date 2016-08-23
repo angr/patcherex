@@ -6,9 +6,13 @@ The code has been tested on Ubuntu 16.04 64bit, using PyPy as the Python interpr
 ## Installation
 
 ```bash
-apt-get install nasm clang
+sudo apt-get install nasm clang
+
+# mkvirtualenv cgc # create and activate a proper virtual env in which other CRS components have been installed (see setup.py)
+
+git clone https://github.com/shellphish/patcherex.git
 cd patcherex
-pip install -e . # before doing this, other CRS components need to be installed (see setup.py)
+pip install -e .
 ```
 
 There are three fundamental concepts in *patcherex*:
@@ -26,6 +30,7 @@ Different types of patches exist, for instance:
 * **AddEntryPointPatch**: add some code that is going to be executed before the original entry point of the binary.
 * **AddCodePatch**: add some code that other patches can use.
 * **AddRWData**: add some RW data that other patches can use.
+* ...
 
 See [patcherex/patches.py](patcherex/patches.py) for the full list of available patches.
 
@@ -41,7 +46,7 @@ There are two backends:
 The DetourBackend generates bigger and slower binaries (and in some rare cases it cannot insert some patches), however it is slightly more reliable than the ReassemblerBackend (i.e., it breaks slightly less binaries).
 
 ### techniques
-A techniques is a component analyzing a binary and returning a list of patches.
+A technique is a component analyzing a binary and returning a list of patches.
 
 For instance:
 * **StackRetEncryption**: it encrypts the return pointers of "unsafe" functions.
