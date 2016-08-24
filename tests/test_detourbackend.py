@@ -130,9 +130,9 @@ def test_rw_memory():
 
     tlen=1
     lenlist = []
-    while(tlen<1000000):
+    while(tlen<100000):
         lenlist.append(tlen)
-        tlen = int(round(tlen*67))
+        tlen = int(round(tlen*260))
     lenlist.append(0)
     lenlist.append(0x1000)
     lenlist.append(0x1000-1)
@@ -220,9 +220,9 @@ def test_ro_memory():
 
     tlen=1
     lenlist = []
-    while(tlen<1000000):
+    while(tlen<100000):
         lenlist.append(tlen)
-        tlen = int(round(tlen*67))
+        tlen = int(round(tlen*230))
     lenlist.append(0)
     lenlist.append(0x1000)
     lenlist.append(0x1000-1)
@@ -314,7 +314,7 @@ def test_rwinit_memory():
     lenlist = []
     while(tlen<50000): # I add to lower this because of NASM problems with too large .db
         lenlist.append(tlen)
-        tlen = int(round(tlen*67))
+        tlen = int(round(tlen*230))
     lenlist.append(0)
     lenlist.append(0x1000)
     lenlist.append(0x1000-1)

@@ -477,6 +477,7 @@ def test_indirectcfi():
             res = Runner(vulnerable_fname1,"00000003\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
 
+            '''
             res = Runner(vulnerable_fname1,"00000001\n23456789\n",record_stdout=True)
             nose.tools.assert_equal(res.reg_vals['eip'],0x23456789)
             res = Runner(vulnerable_fname1,"00000002\n43456789\n",record_stdout=True)
@@ -486,7 +487,6 @@ def test_indirectcfi():
             res = Runner(vulnerable_fname1,"00000004\n63456789\n",record_stdout=True)
             nose.tools.assert_equal(res.reg_vals['eip'],0x63456789)
 
-            '''
             res = Runner(vulnerable_fname1,"00000001\n08048640\n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
             nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
@@ -513,6 +513,7 @@ def test_indirectcfi():
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
             res = Runner(vulnerable_fname1,"00000002\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+            '''
             res = Runner(vulnerable_fname1,"00000002\n"+addr_str+"\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
             res = Runner(vulnerable_fname1,"00000002\nbaaaa000\n",record_stdout=True)
@@ -529,6 +530,7 @@ def test_indirectcfi():
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
             res = Runner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            '''
 
         with patcherex.utils.tempdir() as td:
             patched_fname1 = os.path.join(td, "patched")
@@ -632,6 +634,7 @@ def test_indirectcfi():
             '''
 
             # call gadget
+            '''
             if i == 0 and global_BackendClass != ReassemblerBackend:
                 gadget_addr = "08048971"
                 res = Runner(patched_fname1,"00000001\n"+gadget_addr+"\n",record_stdout=True)
@@ -656,6 +659,7 @@ def test_indirectcfi():
                 nose.tools.assert_true(res.reg_vals['eip'] != 0xb7fff000)
                 res = Runner(patched_fname2,"00000001\n"+"b7fff000"+"\n",record_stdout=True)
                 nose.tools.assert_true(res.reg_vals['eip'] == 0xb7fff000) #because we detect executable allocate memory
+            '''
 
 
 def test_freeregs():
@@ -1251,9 +1255,11 @@ def test_malloc_patcher():
         res = p.communicate(poll_input)
         expected_output = res[0]
 
+        '''
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(poll_input)
         nose.tools.assert_equal(expected_output, res[0])
+        '''
 
 
 @try_reassembler_and_detour
