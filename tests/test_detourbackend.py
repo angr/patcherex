@@ -130,10 +130,15 @@ def test_rw_memory():
 
     tlen=1
     lenlist = []
-    while(tlen<100000):
-        lenlist.append(tlen)
-        tlen = int(round(tlen*260))
     lenlist.append(0)
+    lenlist.append(1)
+    lenlist.append(2)
+    lenlist.append(2)
+    lenlist.append(3)
+    lenlist.append(4)
+    lenlist.append(5)
+    lenlist.append(0x101)
+    lenlist.append(0x501)
     lenlist.append(0x1000)
     lenlist.append(0x1000-1)
     lenlist.append(0x1000+1)
@@ -220,10 +225,15 @@ def test_ro_memory():
 
     tlen=1
     lenlist = []
-    while(tlen<100000):
-        lenlist.append(tlen)
-        tlen = int(round(tlen*230))
     lenlist.append(0)
+    lenlist.append(1)
+    lenlist.append(2)
+    lenlist.append(2)
+    lenlist.append(3)
+    lenlist.append(4)
+    lenlist.append(5)
+    lenlist.append(0x101)
+    lenlist.append(0x501)
     lenlist.append(0x1000)
     lenlist.append(0x1000-1)
     lenlist.append(0x1000+1)
@@ -312,10 +322,15 @@ def test_rwinit_memory():
 
     tlen=1
     lenlist = []
-    while(tlen<50000): # I add to lower this because of NASM problems with too large .db
-        lenlist.append(tlen)
-        tlen = int(round(tlen*230))
     lenlist.append(0)
+    lenlist.append(1)
+    lenlist.append(2)
+    lenlist.append(2)
+    lenlist.append(3)
+    lenlist.append(4)
+    lenlist.append(5)
+    lenlist.append(0x101)
+    lenlist.append(0x501)
     lenlist.append(0x1000)
     lenlist.append(0x1000-1)
     lenlist.append(0x1000+1)
