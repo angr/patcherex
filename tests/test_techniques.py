@@ -69,12 +69,7 @@ def try_reassembler_and_detour(f):
         global_data_fallback = None
         global_try_pdf_removal = True
         f()
-        global_data_fallback = None
-        global_try_pdf_removal = False
-        f()
-        global_data_fallback = True
-        global_try_pdf_removal = False
-        f()
+
     return wrapper
 
 
@@ -126,30 +121,6 @@ def add_fallback_strategy(f):
         global_try_pdf_removal = False
         f()
     return wrapper
-
-
-def add_full_fallback_strategy(f):
-    @wraps(f)
-    def wrapper():
-        global global_data_fallback
-        global global_try_pdf_removal
-        global global_BackendClass
-
-        global_BackendClass = DetourBackend
-        global_data_fallback = None
-        global_try_pdf_removal = True
-        f()
-        global_data_fallback = True
-        global_try_pdf_removal = True
-        f()
-        global_data_fallback = None
-        global_try_pdf_removal = False
-        f()
-        global_data_fallback = True
-        global_try_pdf_removal = False
-        f()
-    return wrapper
-
 
 @add_fallback_strategy
 def test_shadowstack():
@@ -462,7 +433,7 @@ def test_indirectcfi():
     from patcherex.techniques.indirectcfi import IndirectCFI
     tests = [
         ("patchrex/indirect_call_test_O0","b7fff000"),
-        ("patchrex/indirect_call_test_fullmem_O0","78000000"),
+        #("patchrex/indirect_call_test_fullmem_O0","78000000"),
     ]
     if global_BackendClass == ReassemblerBackend:
         tests = tests[:1]

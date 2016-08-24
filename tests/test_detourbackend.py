@@ -1064,7 +1064,6 @@ def test_patch_conflicts():
         estr = expected_str([p12,p22,p32,p42])
         print repr(estr)
         nose.tools.assert_true(res[0].startswith(estr))
-        '''
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
@@ -1080,7 +1079,6 @@ def test_patch_conflicts():
         print repr(estr)
         nose.tools.assert_true(res[0].startswith(estr))
 
-        '''
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -1181,6 +1179,7 @@ def test_patch_conflicts():
         nose.tools.assert_true(res[0].startswith(estr))
         '''
 
+        '''
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -1259,6 +1258,7 @@ def test_patch_conflicts():
         estr = expected_str([p41])
         print repr(estr)
         nose.tools.assert_true(res[0].startswith(estr))
+        '''
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
