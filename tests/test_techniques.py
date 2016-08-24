@@ -1196,8 +1196,7 @@ def test_uninitialized():
 
         # the exploit should no longer work
         pov = os.path.join(poll_location, "CROMU_00070_2.pov")
-        for i in range(3):
-            nose.tools.assert_false(CGCPovSimulator().test_binary_pov(pov, tmp_file))
+        nose.tools.assert_false(CGCPovSimulator().test_binary_pov(pov, tmp_file))
 
         # the poll should still work
         poll_input = "\x02\x10\x00\xbf\xb6\x7e\xabZ\x3e\xbeG\x01\x06\x00u\xd3\x04E\x8ao" \
