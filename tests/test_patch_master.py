@@ -134,7 +134,7 @@ def test_cfe_trials():
     tfolder = bin_location
     tests = utils.find_files(tfolder,"*",only_exec=True)
 
-    bins = ["KPRCA_00044","CROMU_00070","NRFIN_00073","CROMU_00071"]
+    bins = ["KPRCA_00044","NRFIN_00073"]
     titerator = [t for t in tests if any([b in t for b in bins])]
     generated_patches = set()
     tests = []
@@ -150,7 +150,7 @@ def test_cfe_trials():
                 r = try_one_patch(test)
                 res.append(r)
         else:
-            pool = multiprocessing.Pool(8)
+            pool = multiprocessing.Pool(5)
             res = pool.map(try_one_patch,tests)
             for r in res:
                 if r != None and r[0] == False:
