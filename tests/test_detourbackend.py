@@ -132,18 +132,12 @@ def test_rw_memory():
     lenlist = []
     lenlist.append(0)
     lenlist.append(1)
-    lenlist.append(2)
-    lenlist.append(2)
-    lenlist.append(3)
     lenlist.append(4)
     lenlist.append(5)
-    lenlist.append(0x101)
     lenlist.append(0x501)
     lenlist.append(0x1000)
     lenlist.append(0x1000-1)
     lenlist.append(0x1000+1)
-    lenlist.append(0x2000)
-    lenlist.append(0x2000-1)
     lenlist.append(0x2000+1)
 
     for tlen in lenlist:
@@ -227,18 +221,12 @@ def test_ro_memory():
     lenlist = []
     lenlist.append(0)
     lenlist.append(1)
-    lenlist.append(2)
-    lenlist.append(2)
-    lenlist.append(3)
     lenlist.append(4)
     lenlist.append(5)
-    lenlist.append(0x101)
     lenlist.append(0x501)
     lenlist.append(0x1000)
     lenlist.append(0x1000-1)
     lenlist.append(0x1000+1)
-    lenlist.append(0x2000)
-    lenlist.append(0x2000-1)
     lenlist.append(0x2000+1)
 
     for tlen in lenlist:
@@ -324,18 +312,12 @@ def test_rwinit_memory():
     lenlist = []
     lenlist.append(0)
     lenlist.append(1)
-    lenlist.append(2)
-    lenlist.append(2)
-    lenlist.append(3)
     lenlist.append(4)
     lenlist.append(5)
-    lenlist.append(0x101)
     lenlist.append(0x501)
     lenlist.append(0x1000)
     lenlist.append(0x1000-1)
     lenlist.append(0x1000+1)
-    lenlist.append(0x2000)
-    lenlist.append(0x2000-1)
     lenlist.append(0x2000+1)
 
     for tlen in lenlist:
