@@ -86,7 +86,7 @@ class SimpleCFI(object):
                     l.debug("cannot find any ret in function %s" % ff.name)
                 else:
                     return ends #avoid "long" problems
-            
+
         l.debug("function %s has problems and cannot be patched" % ff.name)
         return []
 
@@ -104,3 +104,6 @@ class SimpleCFI(object):
                 patches += new_patch
 
         return common_patches + patches
+
+def init_technique(program_name, backend, options):
+    return SimpleCFI(program_name, backend, **options)

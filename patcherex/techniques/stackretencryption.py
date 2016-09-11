@@ -211,7 +211,7 @@ class StackRetEncryption(object):
                         l.debug("cannot find any ret in function %s" %ff.name)
                     else:
                         return int(start.addr),map(int,ends) #avoid "long" problems
-            
+
         l.debug("function %s has problems and cannot be patched" % ff.name)
         return None, None
 
@@ -526,3 +526,6 @@ class StackRetEncryption(object):
             common_patches.append(AddCodePatch(self.safe_encrypt,name="safe_encrypt"))
 
         return common_patches + patches
+
+def init_technique(program_name, backend, options):
+    return StackRetEncryption(program_name, backend, **options)

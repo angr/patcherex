@@ -344,3 +344,6 @@ class Adversarial(object):
 
         #return self.get_debug_patches() + patches
         return patches
+
+def init_technique(program_name, backend, options):
+    return Adversarial(program_name, backend, **options)

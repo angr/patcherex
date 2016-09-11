@@ -53,3 +53,5 @@ class QemuDetection(object):
         return patches
 
 
+def init_technique(program_name, backend, options):
+    return QemuDetection(program_name, backend, **options)

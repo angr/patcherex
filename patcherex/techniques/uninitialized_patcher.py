@@ -442,3 +442,6 @@ class UninitializedPatcher(object):
             self._handle_func(ff)
 
         return list(self.patches)
+
+def init_technique(program_name, backend, options):
+    return UninitializedPatcher(program_name, backend, **options)

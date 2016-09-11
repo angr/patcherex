@@ -187,4 +187,5 @@ class CpuId(object):
 
         return patches
 
-
+def init_technique(program_name, backend, options):
+    return CpuId(program_name, backend, **options)

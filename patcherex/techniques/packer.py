@@ -25,8 +25,8 @@ class Packer(object):
             # making the entire code writable weakens security only if we make the stack not executable/randomly placed
             p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align = segment
             p_flags |= 0x2
-            restructure_segment = p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align    
-            return [restructure_segment]        
+            restructure_segment = p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align
+            return [restructure_segment]
 
         start = size = None
         oep_page = self.oep & 0xfffff000
@@ -95,3 +95,5 @@ class Packer(object):
         return patches
 
 
+def init_technique(program_name, backend, options):
+    return Packer(program_name, backend, **options)

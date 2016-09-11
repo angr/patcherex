@@ -196,3 +196,6 @@ class ShadowStack:
                 patches += new_patches
 
         return common_patches + patches
+
+def init_technique(program_name, backend, options):
+    return ShadowStack(program_name, backend, **options)
