@@ -266,3 +266,6 @@ add DWORD [esp+%d], %s;
         self.patches.append(InsertCodePatch(malloc_addr, code))
 
         return list(self.patches)
+
+def init_technique(program_name, backend, options):
+    return MallocExtPatcher(program_name, backend, **options)

@@ -78,7 +78,7 @@ class DetourBackend(Backend):
         self.added_data_segment = 0x07000000
         self.single_segment_header_size = 32
         # we may need up to 3 additional segments (1 for pdf removal 2 for patching)
-        self.additional_headers_size = 3*self.single_segment_header_size 
+        self.additional_headers_size = 3*self.single_segment_header_size
 
         self.added_code = ""
         self.added_data = ""
@@ -137,10 +137,10 @@ class DetourBackend(Backend):
             self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + self.added_data_segment
         else:
             last_segment = self.modded_segments[-1]
-            # at the end of the file there is stuff which is supposely not loaded in memory 
+            # at the end of the file there is stuff which is supposely not loaded in memory
             # but it is present in the file (e.g., segment headers)
             # we need to account for that
-            self.real_size_last_segment = len(self.ncontent) - last_segment[1]  
+            self.real_size_last_segment = len(self.ncontent) - last_segment[1]
             # this is the start in memory of RWData
             self.name_map["ADDED_DATA_START"] = last_segment[2] + last_segment[5]
 
@@ -231,13 +231,13 @@ class DetourBackend(Backend):
         instructions = utils.decompile(self.read_mem_from_file(checker_function_start,0x30),checker_function_start)
         if not expected_instructions == [instruction.mnemonic.encode("ascii") for instruction in instructions]:
             l.warning("unexpected instructions in checker function")
-            return False, None, None, None, None  
+            return False, None, None, None, None
 
         # 7) check for pdf acceses from cfg
         if False: # TODO, see issue: https://git.seclab.cs.ucsb.edu/cgc/patcherex/issues
             l.warning("unexpected acceses to the pdf")
             return False, None, None, None, None
-            
+
         return True, pdf_beginning_pos, pdf_length, instructions[3].address, len(instructions[3].bytes)
 
     def remove_pdf(self, pdf_start, pdf_length, check_instruction_addr, check_instruction_size):
@@ -299,7 +299,7 @@ class DetourBackend(Backend):
         # change pointer to program headers to point at the end of the elf
         self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<I", len(self.ncontent)), 0x1C)
 
-        # copying original program headers (potentially modified by patches and/or pdf removal) 
+        # copying original program headers (potentially modified by patches and/or pdf removal)
         # in the new place (at the  end of the file)
         for segment in segments:
             self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *segment))
@@ -549,7 +549,7 @@ class DetourBackend(Backend):
                     mov esi, _to_init_data
                     mov edi, %s
                     mov ecx, %d
-                    cld 
+                    cld
                     rep movsb
                 ''' % (",".join([hex(ord(x)) for x in self.to_init_data]), \
                         hex(self.name_map["ADDED_DATA_START"] + self.added_rwdata_len), \
@@ -594,7 +594,7 @@ class DetourBackend(Backend):
         # 3) AddEntryPointPatch
         # basically like AddCodePatch but we detour by changing oep
         # and we jump at the end of all of them
-        # resolving symbols 
+        # resolving symbols
         if any([isinstance(p, AddEntryPointPatch) for p in patches]):
             pre_entrypoint_code_position = self.get_current_code_position()
             current_symbol_pos = self.get_current_code_position()
@@ -695,7 +695,7 @@ class DetourBackend(Backend):
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
         if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
                 any([isinstance(p,SegmentHeaderPatch) for p in patches]) or self.pdf_removed:
-            # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers 
+            # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers
 
             # 6) SegmentHeaderPatch
             segment_header_patches = [p for p in patches if isinstance(p,SegmentHeaderPatch)]
@@ -954,3 +954,6 @@ class DetourBackend(Backend):
             f.write(final_content)
 
         os.chmod(filename, 0755)
+
+def init_backend(program_name):
+    return DetourBackend(program_name)

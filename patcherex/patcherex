@@ -1,0 +1,55 @@
+#!/usr/bin/env python
+
+from importlib import import_module
+import argparse
+import sys
+
+
+def get_backend(name):
+    if "patcherex.backends." + name in sys.modules:
+        return sys.modules["patcherex.backends." + name]
+    else:
+        return import_module("patcherex.backends." + name)
+
+
+def get_technique(name):
+    if "patcherex.techniques." + name in sys.modules:
+        return sys.modules["patcherex.techniques." + name]
+    else:
+        return import_module("patcherex.techniques." + name)
+
+def apply_techniques(program, backend_name, techs):
+    patches = []
+    backend = get_backend(backend_name).init_backend(program)
+
+    for technique in techs:
+        patches.extend(get_technique(technique["name"]).init_technique(program, backend, technique["options"]).get_patches())
+
+    backend.apply_patches(patches)
+    final_content = backend.get_final_content()
+    return {"final_content": final_content}
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Automatically apply security and hardening patches to a program.")
+    parser.add_argument("-t", "--technique", action="append", help="a technique to apply. Can be specified multiple times")
+    parser.add_argument("-c", "--config", help="a yaml config specifying techniques and their options")
+    parser.add_argument("-b", "--backend", help="the backend to use for applying patches. Overrides backend in --config")
+    parser.add_argument("program", help="binary program to patch")
+    parser.add_argument("output", help="output file")
+
+    args = parser.parse_args()
+    if not (args.technique or args.config):
+        parser.error("Must have either --technique (-t) or --config (-c)")
+
+    techniques = []
+    for technique in args.technique:
+        techniques.append({"name": technique, "options": {}})
+
+    if args.config:
+        raise NotImplemented("Config parsing is not yet implemented.")
+
+    result = apply_techniques(args.program, args.backend, techniques)
+    outfile = open(args.output, "wb")
+    outfile.write(result["final_content"])
+    outfile.close()

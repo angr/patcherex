@@ -97,7 +97,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
         patches.append(self.get_c_patch())
         code = '''
             ; get 4 rnd value retrying in the unlikely case, in which rnd failed
-            xor esi, esi 
+            xor esi, esi
             _random_loop:
                 cmp esi, 4
                 je _random_exit
@@ -127,7 +127,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
         else:
             bitflip_in_backdoor_code = ""
         code = '''
-            xor edi, edi 
+            xor edi, edi
             xor esi, esi
             _receive_loop:
                 cmp edi, 16
@@ -139,7 +139,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 inc dl
                 xor eax, eax
                 mov al, 3
-                int 0x80 
+                int 0x80
                 ; not checking for receive fail, if disconnect --> infinite loop, it should never happen with our pov
                 ; not checking nbytes, we receive one at the time
                 inc edi
@@ -197,7 +197,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
         code = code_header + '''
             _enter_backdoor:
 
-            ; we do not check rx_bytes: the assumption is that the network will never split the 4 bytes we send 
+            ; we do not check rx_bytes: the assumption is that the network will never split the 4 bytes we send
             ; I think it is a correct assumption because on the pov side we send 4 bytes together and 4 is very small
             mov esi, edx
             xor ebx, ebx
@@ -215,7 +215,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 ; ecx is buf+current_byte, we assume that buf+min(count,4) is still readable memory
                 mov dl, BYTE [ecx]
                 mov BYTE [{backdoor_receive_buffer}+ebx], dl
-                
+
                 inc BYTE [{backdoor_receive_len}]
                 inc ecx
                 dec esi
@@ -256,7 +256,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 push 0xc35b5990 ; nop, pop ecx, pop ebx, ret: pop ecx is used to clean [esp] from the stack
                 push esp
                 call {get_4_rnd}
-                
+
                 ; int 3
                 ; mov DWORD [{random_value}], 0x0006a87c ; uncomment for debug
                 mov eax, DWORD [{random_value}]
@@ -276,7 +276,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                     cmp edi, 8
                     je _trasmit_exit
                     xor ebx, ebx
-                    inc ebx ; stdout 
+                    inc ebx ; stdout
                     mov ecx, {random_value}
                     xor edx, edx
                     mov dl, 8
@@ -365,7 +365,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
         cfg = self.patcher.cfg
 
         receive_wrapper = [ff for ff in cfg.functions.values() if \
-                cfg_utils.detect_syscall_wrapper(self.patcher,ff) == 3] 
+                cfg_utils.detect_syscall_wrapper(self.patcher,ff) == 3]
         if len(receive_wrapper) != 1:
             l.warning("Found %d receive_wrapper... better not to touch anything"%len(receive_wrapper))
             return []
@@ -379,3 +379,6 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
             patches.append(Bitflip.get_translation_table_patch())
 
         return patches
+
+def init_technique(program_name, backend, options):
+    return Backdoor(program_name, backend, **options)

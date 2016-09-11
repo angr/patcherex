@@ -295,3 +295,7 @@ class ReassemblerBackend(Backend):
             raise ReassemblerError('Reassembler failed to load the binary. Here is the exception we caught: %s' %
                                    str(ex)
                                    )
+
+
+def init_backend(program_name):
+    return ReassemblerBackend(program_name)

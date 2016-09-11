@@ -16,5 +16,6 @@ setup(
         'shellphish-qemu',
         'fidget',
         'identifier',
+        'pyyaml',
    ],
 )

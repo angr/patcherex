@@ -33,14 +33,14 @@ class IndirectCFI(object):
 
     def classify_cj(self, instruction):
         # TODO handle special cases
-        # a common pattern is: 
+        # a common pattern is:
         # mov     ecx, ds:off_83C4B88[eax*4]
         # jmp     ecx
         # in this case we could protect eax to be less than about 500
         return "standard"
 
     def is_mainbin_call(self,addr,ff):
-        # TODO it seems that it is not really possible that all the call targets are resolved 
+        # TODO it seems that it is not really possible that all the call targets are resolved
         # for instance in original/NRFIN_00008 we have:
         # <BlockNode at 0x804974f (size 19)> ['0x8049762', '0x9000020']
 
@@ -103,7 +103,7 @@ class IndirectCFI(object):
 
         # TODO instead of relying on "dynamic first usage" we can get this information from fuzzer
         # TODO to protect vtables we can check where the target is coming from (it should be from rodata)
-        # however there are two problem: 1) identifying target's origin and 2) are we sure that it is always on rodata? 
+        # however there are two problem: 1) identifying target's origin and 2) are we sure that it is always on rodata?
         # TODO check more stuff than just no indirect call to pop
         target_resolver, additional_patches = compile_mem_access(instruction)
         if target_resolver == None:
@@ -281,3 +281,7 @@ class IndirectCFI(object):
             patches.extend(new_patches)
 
         return patches
+
+
+def init_technique(program_name, backend, options):
+    return IndirectCFI(program_name, backend, **options)

@@ -74,7 +74,7 @@ class Bitflip(object):
         cfg = self.patcher.cfg
 
         receive_wrapper = [ff for ff in cfg.functions.values() if \
-                cfg_utils.detect_syscall_wrapper(self.patcher,ff) == 3] 
+                cfg_utils.detect_syscall_wrapper(self.patcher,ff) == 3]
         if len(receive_wrapper) != 1:
             l.warning("Found %d receive_wrapper... better not to touch anything"%len(receive_wrapper))
             return []
@@ -105,3 +105,6 @@ class Bitflip(object):
 
         patches.append(InsertCodePatch(victim_addr,code,"postreceive_bitflip_patch",priority=900))
         return patches
+
+def init_technique(program_name, backend, options):
+    return Bitflip(program_name, backend, **options)
