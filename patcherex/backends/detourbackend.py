@@ -955,5 +955,5 @@ class DetourBackend(Backend):
 
         os.chmod(filename, 0755)
 
-def init_backend(program_name):
-    return DetourBackend(program_name)
+def init_backend(program_name, options):
+    return DetourBackend(program_name, **options)
