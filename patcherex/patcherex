@@ -1,9 +1,18 @@
 #!/usr/bin/env python
 
 from importlib import import_module
+import yaml
 import argparse
 import sys
+import logging
+import os
+from tempfile import NamedTemporaryFile
+from subprocess import call
 
+l = logging.getLogger("patcherex.patcherex")
+
+class ConfigFormatError(Exception):
+    pass
 
 def get_backend(name):
     if "patcherex.backends." + name in sys.modules:
@@ -18,12 +27,12 @@ def get_technique(name):
     else:
         return import_module("patcherex.techniques." + name)
 
-def apply_techniques(program, backend_name, techs):
+def apply_techniques(program, backend, techs):
     patches = []
-    backend = get_backend(backend_name).init_backend(program)
+    backend = get_backend(backend["name"]).init_backend(program, backend["options"])
 
     for technique in techs:
-        patches.extend(get_technique(technique["name"]).init_technique(program, backend, technique["options"]).get_patches())
+        patches.extend(get_technique(technique).init_technique(program, backend, techs[technique]["options"]).get_patches())
 
     backend.apply_patches(patches)
     final_content = backend.get_final_content()
@@ -33,23 +42,56 @@ def apply_techniques(program, backend_name, techs):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Automatically apply security and hardening patches to a program.")
     parser.add_argument("-t", "--technique", action="append", help="a technique to apply. Can be specified multiple times")
-    parser.add_argument("-c", "--config", help="a yaml config specifying techniques and their options")
     parser.add_argument("-b", "--backend", help="the backend to use for applying patches. Overrides backend in --config")
+    cfggrp = parser.add_mutually_exclusive_group()
+    cfggrp.add_argument("-c", "--config", help="a yaml config specifying techniques and their options")
+    cfggrp.add_argument("-e", "--editor", action="store_true", help="launch $EDITOR with a temporary file to hold a config")
     parser.add_argument("program", help="binary program to patch")
     parser.add_argument("output", help="output file")
 
     args = parser.parse_args()
-    if not (args.technique or args.config):
+    if not (args.technique or args.config or args.editor):
         parser.error("Must have either --technique (-t) or --config (-c)")
 
-    techniques = []
-    for technique in args.technique:
-        techniques.append({"name": technique, "options": {}})
+    techniques = {}
+    if args.technique:
+        for technique in args.technique:
+            techniques[technique] = {"options": {}}
 
-    if args.config:
-        raise NotImplemented("Config parsing is not yet implemented.")
+    backend = args.backend
 
-    result = apply_techniques(args.program, args.backend, techniques)
+    if args.editor:
+        EDITOR = os.environ.get("EDITOR")
+        if EDITOR == None:
+            l.warn("$EDITOR not set, using vi")
+            EDITOR = "vi"
+
+        configfile = NamedTemporaryFile(suffix=".yaml")
+        starter = open(os.path.join(os.path.dirname(__file__), "configs/default_config.yaml"))
+        configfile.write(starter.read())
+        configfile.flush()
+        starter.close()
+        call([EDITOR, configfile.name])
+        configfile.seek(0)
+    elif args.config:
+        configfile = open(args.config, "rb")
+
+    if configfile:
+        config = yaml.safe_load(configfile.read())
+        configfile.close()
+        if backend == None and config.get("backend") != None:
+            backend = {}
+            backend["name"] = config["backend"]["name"]
+            backend["options"] = config["backend"].get("options") or {}
+            if not isinstance(backend["name"], str):
+                raise ConfigFormatError("backend.name must be a string")
+            if not isinstance(backend["options"], dict):
+                raise ConfigFormatError("backend.options must be a dictionary")
+        if config.get("techniques") != None:
+            for technique in config["techniques"]:
+                techniques[technique] = {"options": config["techniques"][technique]["options"] or {}}
+
+    result = apply_techniques(args.program, backend, techniques)
     outfile = open(args.output, "wb")
     outfile.write(result["final_content"])
     outfile.close()

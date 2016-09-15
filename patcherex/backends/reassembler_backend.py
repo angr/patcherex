@@ -301,5 +301,5 @@ class ReassemblerBackend(Backend):
                                    )
 
 
-def init_backend(program_name):
-    return ReassemblerBackend(program_name)
+def init_backend(program_name, options):
+    return ReassemblerBackend(program_name, **options)
