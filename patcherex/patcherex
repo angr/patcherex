@@ -6,6 +6,7 @@ import argparse
 import sys
 import logging
 import os
+import angr.log
 from tempfile import NamedTemporaryFile
 from subprocess import call
 
@@ -14,12 +15,22 @@ l = logging.getLogger("patcherex.patcherex")
 class ConfigFormatError(Exception):
     pass
 
+def create_directory(path):
+    try:
+        l.debug("Attempting to create directory %s", path)
+        os.makedirs(path)
+    except: #If the directory already exists
+        l.debug("Failed to create directory %s, assuming it already exists", path)
+        pass
+
+def short_name(path):
+    return os.path.split(path)[1]
+
 def get_backend(name):
     if "patcherex.backends." + name in sys.modules:
         return sys.modules["patcherex.backends." + name]
     else:
         return import_module("patcherex.backends." + name)
-
 
 def get_technique(name):
     if "patcherex.techniques." + name in sys.modules:
@@ -32,22 +43,46 @@ def apply_techniques(program, backend, techs):
     backend = get_backend(backend["name"]).init_backend(program, backend["options"])
 
     for technique in techs:
+        l.info("Applying %s to %s", technique, short_name(program))
         patches.extend(get_technique(technique).init_technique(program, backend, techs[technique]["options"]).get_patches())
 
+    l.info("Finished applying techniques to %s, now applying patches", short_name(program))
     backend.apply_patches(patches)
     final_content = backend.get_final_content()
     return {"final_content": final_content}
 
+def process_file(program, backend, techniques, output_loc):
+    l.info("Processing binary %s", short_name(program))
+    result = apply_techniques(program, backend, techniques)
+    l.info("Finished patching %s, writing out to %s", short_name(program), output_loc)
+    outfile = open(output_loc, "wb")
+    outfile.write(result["final_content"])
+    outfile.close()
+    os.chmod(output_loc, 0755)
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Automatically apply security and hardening patches to a program.")
+    l.setLevel(logging.INFO)
+    parser = argparse.ArgumentParser(description="Automatically apply security and hardening patches to a program.", epilog="Use " + sys.argv[0] + " <subcommand> -h for extended usage information.")
     parser.add_argument("-t", "--technique", action="append", help="a technique to apply. Can be specified multiple times")
-    parser.add_argument("-b", "--backend", help="the backend to use for applying patches. Overrides backend in --config")
+    parser.add_argument("-b", "--backend", help="backend to use for applying patches. Overrides backend in --config")
     cfggrp = parser.add_mutually_exclusive_group()
-    cfggrp.add_argument("-c", "--config", help="a yaml config specifying techniques and their options")
+    cfggrp.add_argument("-c", "--config", help="yaml config specifying techniques and their options")
     cfggrp.add_argument("-e", "--editor", action="store_true", help="launch $EDITOR with a temporary file to hold a config")
-    parser.add_argument("program", help="binary program to patch")
-    parser.add_argument("output", help="output file")
+
+    subparsers = parser.add_subparsers(dest="mode", help="run patcherex on a single binary, multiple binaries, or an entire directory")
+
+    single = subparsers.add_parser("single", help="run on a single binary")
+    single.add_argument("program", help="binary program to patch")
+    single.add_argument("output", help="output file")
+
+    multi = subparsers.add_parser("multi", help="run on multiple binaries")
+    multi.add_argument("output_dir", help="output directory")
+    multi.add_argument("programs", nargs="+", help="binary programs to patch")
+
+    whole_dir = subparsers.add_parser("dir", help="run on an entire directory")
+    whole_dir.add_argument("input_dir", help="input directories with binaries")
+    whole_dir.add_argument("output_dir", help="output directory")
 
     args = parser.parse_args()
     if not (args.technique or args.config or args.editor):
@@ -66,19 +101,19 @@ if __name__ == "__main__":
             l.warn("$EDITOR not set, using vi")
             EDITOR = "vi"
 
-        configfile = NamedTemporaryFile(suffix=".yaml")
+        config_file = NamedTemporaryFile(suffix=".yaml")
         starter = open(os.path.join(os.path.dirname(__file__), "configs/default_config.yaml"))
-        configfile.write(starter.read())
-        configfile.flush()
+        config_file.write(starter.read())
+        config_file.flush()
         starter.close()
-        call([EDITOR, configfile.name])
-        configfile.seek(0)
+        call([EDITOR, config_file.name])
+        config_file.seek(0)
     elif args.config:
-        configfile = open(args.config, "rb")
+        config_file = open(args.config, "rb")
 
-    if configfile:
-        config = yaml.safe_load(configfile.read())
-        configfile.close()
+    if config_file:
+        config = yaml.safe_load(config_file.read())
+        config_file.close()
         if backend == None and config.get("backend") != None:
             backend = {}
             backend["name"] = config["backend"]["name"]
@@ -91,7 +126,17 @@ if __name__ == "__main__":
             for technique in config["techniques"]:
                 techniques[technique] = {"options": config["techniques"][technique]["options"] or {}}
 
-    result = apply_techniques(args.program, backend, techniques)
-    outfile = open(args.output, "wb")
-    outfile.write(result["final_content"])
-    outfile.close()
+    if args.mode == "single":
+        process_file(os.path.abspath(args.program), backend, techniques, os.path.abspath(args.output))
+    elif args.mode == "multi":
+        output_path = os.path.abspath(args.output_dir)
+        create_directory(output_path)
+        for program in args.programs:
+            process_file(os.path.abspath(program), backend, techniques, os.path.join(output_path, os.path.split(program)[1]))
+    elif args.mode == "dir":
+        output_path = os.path.abspath(args.output_dir)
+        create_directory(output_path)
+        input_path = os.path.abspath(args.input_dir)
+        files = [os.path.abspath(os.path.join(input_path, f)) for f in os.listdir(input_path) if os.path.isfile(os.path.join(input_path, f))]
+        for program in files:
+            process_file(program, backend, techniques, os.path.join(output_path, os.path.split(program)[1]))
