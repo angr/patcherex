@@ -77,7 +77,7 @@ if __name__ == "__main__":
     single.add_argument("output", help="output file")
 
     multi = subparsers.add_parser("multi", help="run on multiple binaries")
-    multi.add_argument("output_dir", help="output directory")
+    multi.add_argument("suffix", help="suffix to be appended to each binary name for output file, e.g. '_patched'")
     multi.add_argument("programs", nargs="+", help="binary programs to patch")
 
     whole_dir = subparsers.add_parser("dir", help="run on an entire directory")
@@ -129,14 +129,16 @@ if __name__ == "__main__":
     if args.mode == "single":
         process_file(os.path.abspath(args.program), backend, techniques, os.path.abspath(args.output))
     elif args.mode == "multi":
-        output_path = os.path.abspath(args.output_dir)
-        create_directory(output_path)
-        for program in args.programs:
-            process_file(os.path.abspath(program), backend, techniques, os.path.join(output_path, os.path.split(program)[1]))
+        programs = [os.path.abspath(program) for program in args.programs]
+        output_files = [os.path.join(os.path.split(program)[0], os.path.split(program)[1] + args.suffix) for program in programs]
+        for program, output_file in zip(programs, output_files):
+            process_file(os.path.abspath(program), backend, techniques, output_file)
     elif args.mode == "dir":
         output_path = os.path.abspath(args.output_dir)
         create_directory(output_path)
         input_path = os.path.abspath(args.input_dir)
-        files = [os.path.abspath(os.path.join(input_path, f)) for f in os.listdir(input_path) if os.path.isfile(os.path.join(input_path, f))]
-        for program in files:
-            process_file(program, backend, techniques, os.path.join(output_path, os.path.split(program)[1]))
+        programs = [os.path.abspath(os.path.join(input_path, f)) for f in os.listdir(input_path) if os.path.isfile(os.path.join(input_path, f))]
+        output_files = [os.path.join(output_path, os.path.split(program)[1]) for program in programs]
+        for program, output_file in zip(programs, output_files):
+            print program, output_file
+            process_file(program, backend, techniques, output_file)
