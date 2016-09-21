@@ -5,6 +5,7 @@ setup(
     version='1.2',
     description='The patcherex',
     packages=['patcherex'],
+    scripts=["patcherex/patcherex"],
     install_requires=[
         'angr',
         'capstone',
