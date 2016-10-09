@@ -1,3 +1,4 @@
+#pylint: disable=import-error,no-self-use
 import idaapi
 import idc
 
@@ -16,7 +17,6 @@ class CodePatchForm(GenericPatchForm):
 
     form_code = r"""STARTITEM 0
 Edit Patch
-{form_change_callback}
 <Address:{patch_address}>
 <Name:{patch_name}>
 <Code:{patch_code}>
@@ -27,14 +27,10 @@ Edit Patch
         self.inc = 0
         super(CodePatchForm, self).__init__(self.form_code, {
             "patch_address": idaapi.Form.NumericInput(tp=idaapi.Form.FT_ADDR, value=address),
-            "patch_name": idaapi.Form.StringInput(value=name),
-            "patch_code": idaapi.Form.MultiLineTextControl(text=data,
+            "patch_name": idaapi.Form.StringInput(value=str(name)),
+            "patch_code": idaapi.Form.MultiLineTextControl(text=str(data),
                                                            flags=idaapi.Form.MultiLineTextControl.TXTF_FIXEDFONT),
-            "form_change_callback": idaapi.Form.FormChangeCb(self.on_form_change),
         })
-
-    def on_form_change(self, fid):
-        return 1
 
     def get_patch_address(self):
         return self.patch_address.value
@@ -47,20 +43,21 @@ Edit Patch
 
     @staticmethod
     def get_gui_format_of(patch_type, address, name, data):
+        if patch_type != "typeCode":
+            print "Got patch type", patch_type, ", expected \"typeCode\""
         new_patch_type = "Code"
         new_address = hex(long(address))[:-1]
         new_name = name
         new_data = data.split("\n")[0]
         if len(data.split("\n")) > 1:
             new_data = new_data + " . . ."
-        return [new_patch_type, new_address, new_name, new_data]
+        return map(str, [new_patch_type, new_address, new_name, new_data])
 
 
 class SaveForm(idaapi.Form):
 
     form_code = r"""STARTITEM 0
 Save Patch List
-{form_change_callback}
 <File:{file_opener}>
 """
 
@@ -68,14 +65,28 @@ Save Patch List
         self.inc = 0
         super(SaveForm, self).__init__(self.form_code, {
             "file_opener": idaapi.Form.FileInput(open=True),
-            "form_change_callback": idaapi.Form.FormChangeCb(self.on_form_change),
         })
-
-    def on_form_change(self, fid):
-        return 1
 
     def get_file_name(self):
         return self.file_opener.value
+
+
+class LoadForm(idaapi.Form):
+
+    form_code = r"""STARTITEM 0
+Load Patch List
+<File:{file_opener}>
+"""
+
+    def __init__(self):
+        self.inc = 0
+        super(LoadForm, self).__init__(self.form_code, {
+            "file_opener": idaapi.Form.FileInput(open=True),
+        })
+
+    def get_file_name(self):
+        return self.file_opener.value
+
 
 class PatchTypeForm(idaapi.Form):
 
