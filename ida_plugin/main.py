@@ -1,3 +1,4 @@
+#pylint: disable=import-error,wildcard-import,unused-wildcard-import,no-self-use,unused-argument
 import idaapi
 from idaapi import Choose2
 import json
@@ -57,11 +58,20 @@ class ItemManager(object):
         return self.internal_items[index]
 
     def set_item(self, index, updates):
+        if "name" in updates:
+            updates = dict(updates)
+            updates["name"] = self.gen_valid_name(updates["name"])
         self.internal_items[index].update(updates)
 
     def delete_item(self, index):
         del self.internal_items[index]
         return index
+
+    def get_serialized(self):
+        return json.dumps(self.internal_items)
+
+    def load_serialized(self, contents):
+        self.internal_items = json.loads(contents)
 
 class PatcherexWindow(Choose2):
     def __init__(self):
@@ -131,6 +141,12 @@ class PatcherexWindow(Choose2):
     def OnGetLineAttr(self, n): # Can be used to set line color, e.g. blue = [0xFF, 0]
         return None
 
+    def get_serialized_items(self):
+        return self.items.get_serialized()
+
+    def load_serialized_items(self, contents):
+        self.items.load_serialized(contents)
+        self.Refresh()
 
 class UnsupportedArchitectureException(Exception):
     pass
@@ -144,7 +160,35 @@ class SaveHandler(idaapi.action_handler_t):
         form.Compile()
         if form.Execute():
             file_name = form.get_file_name()
-            print patcherex_window
+            try:
+                out_file = open(file_name, "wb")
+            except IOError as e:
+                idaapi.warning("Unable to open %s (%s)" % (file_name, e.strerror))
+            else:
+                with out_file:
+                    out_file.write(patcherex_window.get_serialized_items())
+        form.Free()
+
+    def update(self, ctx):
+        return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
+
+class LoadHandler(idaapi.action_handler_t):
+    def __init__(self):
+        idaapi.action_handler_t.__init__(self)
+
+    def activate(self, ctx):
+        form = LoadForm()
+        form.Compile()
+        if form.Execute():
+            file_name = form.get_file_name()
+            try:
+                out_file = open(file_name, "rb")
+            except IOError as e:
+                idaapi.warning("Unable to open %s (%s)" % (file_name, e.strerror))
+            else:
+                with out_file:
+                    contents = out_file.read()
+                    patcherex_window.load_serialized_items(contents)
         form.Free()
 
     def update(self, ctx):
@@ -160,12 +204,13 @@ class PopHook(idaapi.UI_Hooks):
             for act in self.acts:
                 idaapi.attach_action_to_popup(form, popup, "patcherex:" + act, None)
 
-commands = [("save", "Save patches to file", SaveHandler)]
+commands = [("save", "Save patches to file", SaveHandler),
+            ("load", "Load patches from file", LoadHandler)]
 
 if __name__ == "__main__" or True:
     if idaapi.get_inf_structure().procName != "metapc":
         raise UnsupportedArchitectureException("Only x86 metapc is supported.")
-    if globals().get("patcherex_window") == None:
+    if globals().get("patcherex_window") is None:
         for command in commands:
             idaapi.register_action(
                 idaapi.action_desc_t(
@@ -177,6 +222,5 @@ if __name__ == "__main__" or True:
         print "Spawning new Patcherex"
         patcherex_window = PatcherexWindow()
         patcherex_window.Show()
-        form = idaapi.get_current_tform()
     else:
         patcherex_window.Show()
