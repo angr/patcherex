@@ -3,10 +3,14 @@ import idaapi
 from idaapi import Choose2
 import json
 import re
+import subprocess
+import threading
+import tempfile
+import sys
 from forms import *
 
 
-PATCH_TYPES = {"typeCode": {"desc": "Insert Assembly", "handler_form": CodePatchForm}}
+PATCH_TYPES = {"InsertCodePatch": {"desc": "Insert Assembly", "handler_form": InsertCodePatchForm}}
 
 class ItemManager(object):
     def __init__(self):
@@ -152,9 +156,6 @@ class UnsupportedArchitectureException(Exception):
     pass
 
 class SaveHandler(idaapi.action_handler_t):
-    def __init__(self):
-        idaapi.action_handler_t.__init__(self)
-
     def activate(self, ctx):
         form = SaveForm()
         form.Compile()
@@ -173,9 +174,6 @@ class SaveHandler(idaapi.action_handler_t):
         return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
 
 class LoadHandler(idaapi.action_handler_t):
-    def __init__(self):
-        idaapi.action_handler_t.__init__(self)
-
     def activate(self, ctx):
         form = LoadForm()
         form.Compile()
@@ -194,6 +192,45 @@ class LoadHandler(idaapi.action_handler_t):
     def update(self, ctx):
         return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
 
+class RunPatcherexHandler(idaapi.action_handler_t):
+    config = """
+techniques:
+    manualpatcher:
+        options:
+            patch_file: %s
+backend:
+    name: reassembler_backend
+    options:
+"""
+    def activate(self, ctx):
+        form = RunPatcherexForm()
+        form.Compile()
+        if form.Execute():
+            file_name = form.get_file_name()
+            patch_output_file = tempfile.NamedTemporaryFile(delete=False)
+            patch_output_file.write(patcherex_window.get_serialized_items())
+            patch_output_file.close()
+            config_file = tempfile.NamedTemporaryFile(delete=False)
+            config_file.write(self.config % patch_output_file.name) # TODO: Find better way to do this (can't import yaml)
+            config_file.close()
+            print "Calling patcherex . . ."
+            popen_and_call(RunPatcherexHandler.patcherex_finish,
+                           {"args": ["patcherex", "-c", config_file.name, "single", idaapi.get_input_file_path(), file_name]})
+
+    def update(self, ctx):
+        return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
+
+    @staticmethod
+    def patcherex_finish(proc):
+        if proc.returncode != 0:
+            idaapi.warning("Patcherex failed. See output window.")
+        else:
+            idaapi.info("Patcherex completed successfully.")
+
+    @staticmethod
+    def menu_activate():
+        RunPatcherexHandler().activate(None)
+
 class PopHook(idaapi.UI_Hooks):
     def __init__(self, actname_list):
         idaapi.UI_Hooks.__init__(self)
@@ -204,8 +241,27 @@ class PopHook(idaapi.UI_Hooks):
             for act in self.acts:
                 idaapi.attach_action_to_popup(form, popup, "patcherex:" + act, None)
 
-commands = [("save", "Save patches to file", SaveHandler),
-            ("load", "Load patches from file", LoadHandler)]
+# http://stackoverflow.com/questions/2581817/python-subprocess-callback-when-cmd-exits
+def popen_and_call(onExit, popenArgs):
+    """
+    Runs the given args in a subprocess.Popen, and then calls the function
+    onExit when the subprocess completes.
+    onExit is a callable object, and popenArgs is a list/tuple of args that
+    would give to subprocess.Popen.
+    """
+    def runInThread(onExit, popenArgs):
+        proc = subprocess.Popen(**popenArgs)
+        proc.wait()
+        onExit(proc)
+        return
+    thread = threading.Thread(target=runInThread, args=(onExit, popenArgs))
+    thread.start()
+    # returns immediately after the thread starts
+    return thread
+
+commands = [("save", "Save patches to file . . .", SaveHandler, None, None),
+            ("load", "Load patches from file . . .", LoadHandler, None, None),
+            ("run_patcherex", "Run Patcherex . . .", RunPatcherexHandler, "File/Produce file/", RunPatcherexHandler.menu_activate)]
 
 if __name__ == "__main__" or True:
     if idaapi.get_inf_structure().procName != "metapc":
@@ -217,6 +273,8 @@ if __name__ == "__main__" or True:
                     "patcherex:" + command[0],
                     command[1],
                     command[2]()))
+            if command[3] is not None:
+                idaapi.add_menu_item(command[3], command[1], "", 0, command[4], (None,))
         hooks = PopHook([command[0] for command in commands])
         hooks.hook()
         print "Spawning new Patcherex"
