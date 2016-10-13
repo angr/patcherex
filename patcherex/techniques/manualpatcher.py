@@ -14,9 +14,9 @@ class ManualPatcher(object):
     def get_patches(self):
         patches = []
         for patch in self.patches:
-            patcher = getattr(patcherex.patches, patch["type"])
+            patcher = getattr(patcherex.patches, patch["patch_type"])
             if patcher is None:
-                raise ValueError("Got unknown patch type %s" % patch["type"])
+                raise ValueError("Got unknown patch type %s" % patch["patch_type"])
             patches.append(patcher(**patch["data"]))
         return patches
 
