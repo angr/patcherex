@@ -97,11 +97,11 @@ class PatcherexWindow(Choose2):
     def OnEditLine(self, n):
         params = dict(self.items.get_item(n))
         patch_type = params["patch_type"]
-        PATCH_TYPES[patch_type]["handler_form"].on_pre_update(**params)
         del params["patch_type"]
         form = PATCH_TYPES[patch_type]["handler_form"](**params)
         form.Compile()
         if form.Execute():
+            PATCH_TYPES[patch_type]["handler_form"].on_pre_update(**self.items.get_item(n))
             updates = {}
             updates["address"] = form.get_patch_address()
             updates["name"] = form.get_patch_name()
