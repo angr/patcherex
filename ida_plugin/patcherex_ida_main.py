@@ -10,33 +10,30 @@ from patcherex_ida.forms import *
 from collections import namedtuple
 
 
-PATCH_TYPES = {"InsertCodePatch": {"desc": "Insert Assembly", "handler_form": InsertCodePatchForm}}
+PATCH_TYPES = {"InsertCodePatch": {"desc": "Insert Assembly", "handler_form": InsertCodePatchForm},
+               "AddRODataPatch": {"desc": "Insert Read Only Data", "handler_form": AddRODataPatchForm}}
 
 class ItemManager(object):
     def __init__(self):
         self.internal_items = []
 
     def __getitem__(self, index):
-        patch_type = self.internal_items[index]["patch_type"]
-        address = self.internal_items[index]["address"]
-        name = self.internal_items[index]["name"]
-        data = self.internal_items[index]["data"]
-        handler_form = PATCH_TYPES[self.internal_items[index]["patch_type"]]["handler_form"]
-        return handler_form.get_gui_format_of(patch_type, address, name, data)
+        return self.get_handler_for_item(index).get_gui_format_of(**self.get_item(index))
 
     def __len__(self):
         return len(self.internal_items)
 
-    def check_name_collisions(self, name):
-        for item in self.internal_items:
-            if item["name"] == name:
-                return item["name"]
+    def check_name_collisions(self, name, replacement_index):
+        for i, item in enumerate(self.internal_items):
+            if (replacement_index is None) or (replacement_index != i):
+                if item["name"] == name:
+                    return item["name"]
         return False
 
-    def gen_valid_name(self, start_name):
+    def gen_valid_name(self, start_name, replacement_index=None):
         alt_name = start_name
         while True:
-            conflict = self.check_name_collisions(alt_name)
+            conflict = self.check_name_collisions(alt_name, replacement_index=replacement_index)
             if conflict:
                 match = re.search(r"_[0-9]+\Z", conflict)
                 if match:
@@ -56,6 +53,8 @@ class ItemManager(object):
                                     "address": address,
                                     "name": valid_name,
                                     "data": data})
+        new_index = len(self.internal_items) - 1
+        self.get_handler_for_item(new_index).on_perform_post_operations(**self.get_item(new_index))
         return len(self.internal_items) - 1
 
     def get_item(self, index):
@@ -64,18 +63,29 @@ class ItemManager(object):
     def set_item(self, index, updates):
         if "name" in updates:
             updates = dict(updates)
-            updates["name"] = self.gen_valid_name(updates["name"])
+            updates["name"] = self.gen_valid_name(updates["name"], replacement_index=index)
+        self.get_handler_for_item(index).on_pre_update(**self.get_item(index))
         self.internal_items[index].update(updates)
+        self.get_handler_for_item(index).on_post_update(**self.get_item(index))
 
     def delete_item(self, index):
+        self.get_handler_for_item(index).on_delete(**self.get_item(index))
         del self.internal_items[index]
         return index
+
+    def get_handler_for_item(self, n):
+        return PATCH_TYPES[self.get_item(n)["patch_type"]]["handler_form"]
 
     def get_serialized(self):
         return json.dumps(self.internal_items)
 
     def load_serialized(self, contents):
-        self.internal_items = json.loads(contents)
+        for item in json.loads(contents):
+            self.add_item(**item)
+
+    def uninitialize_patches(self):
+        while len(self.internal_items) != 0:
+            self.delete_item(0)
 
 class PatcherexWindow(Choose2):
     def __init__(self):
@@ -101,12 +111,10 @@ class PatcherexWindow(Choose2):
         form = PATCH_TYPES[patch_type]["handler_form"](**params)
         form.Compile()
         if form.Execute():
-            PATCH_TYPES[patch_type]["handler_form"].on_pre_update(**self.items.get_item(n))
             updates = {}
             updates["address"] = form.get_patch_address()
             updates["name"] = form.get_patch_name()
             updates["data"] = form.get_patch_data()
-            form.on_perform_post_operations(patch_type, **updates)
             self.items.set_item(n, updates)
         form.Free()
         self.Refresh()
@@ -124,9 +132,9 @@ class PatcherexWindow(Choose2):
                 params["name"] = patch_form.get_patch_name()
                 params["address"] = patch_form.get_patch_address()
                 params["data"] = patch_form.get_patch_data()
-                patch_form.on_perform_post_operations(**params)
                 self.items.add_item(**params)
         form.Free()
+        self.Refresh()
 
     def OnSelectLine(self, n):
         self.OnEditLine(n)
@@ -138,7 +146,6 @@ class PatcherexWindow(Choose2):
         return len(self.items)
 
     def OnDeleteLine(self, n):
-        PATCH_TYPES[self.items.get_item(n)["patch_type"]]["handler_form"].on_delete(**self.items.get_item(n))
         return self.items.delete_item(n)
 
     def OnRefresh(self, n):
@@ -156,6 +163,9 @@ class PatcherexWindow(Choose2):
     def load_serialized_items(self, contents):
         self.items.load_serialized(contents)
         self.Refresh()
+
+    def uninitialize_patches(self):
+        self.items.uninitialize_patches()
 
 class UnsupportedArchitectureException(Exception):
     pass
@@ -216,9 +226,13 @@ backend:
     @staticmethod
     def patcherex_finish(proc):
         if proc.returncode != 0:
-            idaapi.warning("Patcherex failed. See output window.")
+            out_str = "Patcherex failed. See attached terminal."
+            idaapi.warning(out_str)
+            print out_str
         else:
-            idaapi.info("Patcherex completed successfully.")
+            out_str = "Patcherex completed successfully."
+            idaapi.info(out_str)
+            print out_str
 
     @staticmethod
     def menu_activate(arg):
@@ -310,6 +324,9 @@ commands.append(PatcherexCommand(**{"name": "add_patch",
 if globals().get("patcherex_window", None) is None:
     patcherex_window = None
 
+if globals().get("patcherex_hooks", None) is None:
+    patcherex_hooks = None
+
 class PatcherexPlugin(idaapi.plugin_t):
     flags = idaapi.PLUGIN_KEEP
     comment = "Patcherex plugin for IDA"
@@ -323,6 +340,7 @@ class PatcherexPlugin(idaapi.plugin_t):
 
     def init(self):
         global patcherex_window
+        global patcherex_hooks
         if idaapi.get_inf_structure().procName != "metapc":
             print "Only x86 metapc is supported by Patcherex"
             return idaapi.PLUGIN_SKIP
@@ -331,15 +349,16 @@ class PatcherexPlugin(idaapi.plugin_t):
                 idaapi.action_desc_t("patcherex:" + command.name,
                                      command.description,
                                      command.handler_class()))
-            if command[4] is not None:
+            if command.menu_path is not None:
                 idaapi.add_menu_item(command.menu_path,
                                      command.description,
                                      command.shortcut,
                                      0,
                                      command.handler_class.menu_activate,
                                      (None,))
-        hooks = PopHook([command[0] for command in commands])
-        hooks.hook()
+        if patcherex_hooks is None:
+            patcherex_hooks = PopHook([command.name for command in commands])
+            patcherex_hooks.hook()
         if patcherex_window is None:
             print "Patcherex starting"
             self.patcherex_window = PatcherexWindow()
@@ -352,6 +371,7 @@ class PatcherexPlugin(idaapi.plugin_t):
         self.patcherex_window.Show()
 
     def term(self):
+        self.patcherex_window.uninitialize_patches()
         self.patcherex_window.Close()
 
 def PLUGIN_ENTRY():
