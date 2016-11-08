@@ -34,6 +34,66 @@ class GenericPatchForm(idaapi.Form):
     def get_gui_format_of(cls, patch_type, address, name, data):
         return map(str, [patch_type, address, name, data])
 
+class AddLabelPatchForm(GenericPatchForm):
+    form_code = r"""STARTITEM 0
+Edit Label Patch
+<Address:{patch_address}>
+<Name:{patch_name}>
+"""
+    patch_type = "AddLabelPatch"
+    comment_format = "Patcherex patch to add a label '%s' at %#x"
+
+    def __init__(self, address=None, name="AddRODataPatch", data=None):
+        address = address if address else idc.ScreenEA()
+        super(AddLabelPatchForm, self).__init__(self.form_code, {
+            "patch_address": idaapi.Form.NumericInput(tp=idaapi.Form.FT_ADDR, value=address),
+            "patch_name": idaapi.Form.StringInput(value=str(name)),
+        })
+
+    def get_patch_address(self):
+        return self.patch_address.value
+
+    def get_patch_name(self):
+        return self.patch_name.value
+
+    def get_patch_data(self):
+        return {"addr": self.get_patch_address(), "name": self.get_patch_name(), "is_global": True}
+
+    @classmethod
+    def on_perform_post_operations(cls, patch_type, name, address, data):
+        original = idc.RptCmt(address)
+        if original is not None:
+            prefix = original + "\n"
+        else:
+            prefix = ""
+        idc.MakeRptCmt(address,
+                       str(prefix + cls.comment_format % (name, address)))
+
+    @classmethod
+    def on_pre_update(cls, patch_type, name, address, data):
+        added_comment = str(cls.comment_format % (name, address))
+        if idc.RptCmt(address) is not None and added_comment in idc.RptCmt(address):
+            idc.MakeRptCmt(address, idc.RptCmt(address).replace("\n" + added_comment, ""))
+            idc.MakeRptCmt(address, idc.RptCmt(address).replace(added_comment, ""))
+
+    @classmethod
+    def on_post_update(cls, patch_type, name, address, data):
+        cls.on_perform_post_operations(patch_type, name, address, data)
+
+    @classmethod
+    def on_delete(cls, patch_type, name, address, data):
+        cls.on_pre_update(patch_type, name, address, data)
+
+    @classmethod
+    def get_gui_format_of(cls, patch_type, name, address, data):
+        if patch_type != cls.patch_type:
+            print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
+        new_patch_type = "Add Label"
+        new_address = hex(long(address))[:-1]
+        new_name = name
+        new_data = ""
+        return map(str, [new_patch_type, new_address, new_name, new_data])
+
 class AddRODataPatchForm(GenericPatchForm):
     form_code = r"""STARTITEM 0
 Edit Read Only Data Insertion Patch
@@ -180,18 +240,23 @@ Load Patch List
 class RunPatcherexForm(idaapi.Form):
 
     form_code = r"""STARTITEM 0
-Patcherex Output File
+Patcherex Output Options
 <File:{file_opener}>
+<Compiler Options:{compiler_options}>
 """
 
     def __init__(self):
         self.inc = 0
         super(RunPatcherexForm, self).__init__(self.form_code, {
             "file_opener": idaapi.Form.FileInput(open=True),
+            "compiler_options": idaapi.Form.StringInput(),
         })
 
     def get_file_name(self):
         return self.file_opener.value
+
+    def get_compiler_options(self):
+        return self.compiler_options.value
 
 
 class PatchTypeForm(idaapi.Form):

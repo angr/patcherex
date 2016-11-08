@@ -31,7 +31,7 @@ class Backend(object):
         self.filename = filename
         self.try_pdf_removal = try_pdf_removal
         self.pdf_removed = False # has the pdf actually been removed?
-        self.project = angr.Project(filename)
+        self.project = angr.Project(filename, load_options={"auto_load_libs": False})
         self._identifer = None
         with open(filename, "rb") as f:
             self.ocontent = f.read()
