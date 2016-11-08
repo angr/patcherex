@@ -2,6 +2,7 @@
 
 from importlib import import_module
 import yaml
+import json
 import argparse
 import sys
 import logging
@@ -70,6 +71,8 @@ if __name__ == "__main__":
     cfggrp.add_argument("-c", "--config", help="yaml config specifying techniques and their options")
     cfggrp.add_argument("-e", "--editor", action="store_true", help="launch $EDITOR with a temporary file to hold a config")
 
+    parser.add_argument("--json", action="store_true", help="parse config as JSON instead of yaml")
+
     subparsers = parser.add_subparsers(dest="mode", help="run patcherex on a single binary, multiple binaries, or an entire directory")
 
     single = subparsers.add_parser("single", help="run on a single binary")
@@ -112,11 +115,14 @@ if __name__ == "__main__":
         config_file = open(args.config, "rb")
 
     if config_file:
-        config = yaml.safe_load(config_file.read())
+        if not args.json:
+            config = yaml.safe_load(config_file.read())
+        else:
+            config = json.load(config_file)
         config_file.close()
         if backend == None and config.get("backend") != None:
             backend = {}
-            backend["name"] = config["backend"]["name"]
+            backend["name"] = str(config["backend"]["name"])
             backend["options"] = config["backend"].get("options") or {}
             if not isinstance(backend["name"], str):
                 raise ConfigFormatError("backend.name must be a string")
@@ -124,7 +130,7 @@ if __name__ == "__main__":
                 raise ConfigFormatError("backend.options must be a dictionary")
         if config.get("techniques") != None:
             for technique in config["techniques"]:
-                techniques[technique] = {"options": config["techniques"][technique]["options"] or {}}
+                techniques[str(technique)] = {"options": config["techniques"][str(technique)]["options"] or {}}
 
     if args.mode == "single":
         process_file(os.path.abspath(args.program), backend, techniques, os.path.abspath(args.output))

@@ -20,7 +20,7 @@ from ..utils import bytes_overwrite
 from .misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
 
 class ReassemblerBackend(Backend):
-    def __init__(self, filename, debugging=False, try_pdf_removal=True):
+    def __init__(self, filename, debugging=False, try_pdf_removal=True, extra_compiler_options=None):
 
         super(ReassemblerBackend, self).__init__(filename, try_pdf_removal=try_pdf_removal)
 
@@ -33,6 +33,7 @@ class ReassemblerBackend(Backend):
 
         self._compiler_stdout = None
         self._compiler_stderr = None
+        self.extra_compile_options = extra_compiler_options
 
         self._raw_file_patches = [ ]
         self._add_segment_patches = [ ]
@@ -56,13 +57,15 @@ class ReassemblerBackend(Backend):
         entry_point_asm_before_restore = [ ]
         entry_point_asm_after_restore = [ ]
 
-
+        syntax = compilerex.get_preferred_syntax(self.filename)
         for p in patches:
             if isinstance(p, InsertCodePatch):
-                self._binary.insert_asm(p.addr, p.att_asm())
+                code = p.att_asm() if syntax == "at&t" else p.intel_asm()
+                self._binary.insert_asm(p.addr, code)
 #
             elif isinstance(p, AddCodePatch):
-                self._binary.append_procedure(p.name, p.att_asm())
+                code = p.att_asm() if syntax == "at&t" else p.intel_asm()
+                self._binary.append_procedure(p.name, code)
 #
             elif isinstance(p, AddRODataPatch):
                 self._binary.append_data(p.name, p.data, len(p.data), readonly=True)
@@ -71,10 +74,11 @@ class ReassemblerBackend(Backend):
                 self._binary.append_data(p.name, None, p.len, readonly=False)
 
             elif isinstance(p, AddEntryPointPatch):
+                code = p.att_asm() if syntax == "at&t" else p.intel_asm()
                 if p.after_restore:
-                    entry_point_asm_after_restore.append(p.att_asm())
+                    entry_point_asm_after_restore.append(code)
                 else:
-                    entry_point_asm_before_restore.append(p.att_asm())
+                    entry_point_asm_before_restore.append(code)
 
             elif isinstance(p, PointerArrayPatch):
                 self._binary.append_data(p.name, p.data, len(p.data), readonly=False, sort='pointer-array')
@@ -86,7 +90,7 @@ class ReassemblerBackend(Backend):
                 self._add_segment_patches.append(p)
 
             elif isinstance(p, AddLabelPatch):
-                self._binary.add_label(p.name, p.addr)
+                self._binary.add_label(p.name, p.addr, is_global=p.is_global)
 
             elif isinstance(p, RemoveInstructionPatch):
                 self._binary.remove_instruction(p.ins_addr)
@@ -130,7 +134,10 @@ class ReassemblerBackend(Backend):
 
         # compile it
         #res = compilerex.assemble([ tmp_file_path, '-mllvm', '--x86-asm-syntax=intel', '-o', filename ])
-        retcode, res = compilerex.assemble([ tmp_file_path, '-o', filename ])
+        #base_args = compilerex.get_clang_args(self.filename)
+        #retcode, res = compilerex.assemble(base_args + [ tmp_file_path, '-o', filename ])
+        retcode, res = compilerex.auto_assemble(self.filename, tmp_file_path, filename,
+                                                self.extra_compile_options)
 
         self._compiler_stdout, self._compiler_stderr = res
 
@@ -291,10 +298,11 @@ class ReassemblerBackend(Backend):
         """
         Load and disassemble the binary.
         """
-
+        syntax = compilerex.get_preferred_syntax(self.filename)
         try:
-            self._binary = self.project.analyses.Reassembler(syntax='at&t', remove_cgc_attachments=self.try_pdf_removal)
+            self._binary = self.project.analyses.Reassembler(syntax=syntax, remove_cgc_attachments=self.try_pdf_removal)
             self._binary.symbolize()
+            self._binary.remove_unnecessary_stuff()
         except BinaryError as ex:
             raise ReassemblerError('Reassembler failed to load the binary. Here is the exception we caught: %s' %
                                    str(ex)

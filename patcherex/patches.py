@@ -55,9 +55,10 @@ class AddRWInitDataPatch(Patch):
 
 
 class AddLabelPatch(Patch):
-    def __init__(self, addr, name=None):
+    def __init__(self, addr, name=None, is_global=True):
         super(AddLabelPatch, self).__init__(name)
         self.addr = addr
+        self.is_global = is_global
 
     def __repr__(self):
         return "AddLabelPatch [%s] (%#8x)" % (self.name,self.addr)
@@ -91,6 +92,21 @@ class CodePatch(Patch):
             asm_str = ".byte " + ", ".join([hex(b) for b in code])
             return asm_str
 
+    def intel_asm(self):
+        """
+        Get the intel style assembly code
+        :return: The asm code in intel style
+        :rtype: str
+        """
+
+        if self.is_att:
+            raise NotImplementedError("Conversion of Intel to ATT syntax not supported")
+        elif not self.is_c:
+            return self.asm_code
+        else:
+            code = utils.compile_c(self.asm_code, optimization=self.optimization)
+            asm_str = ".byte " + ", ".join([hex(b) for b in code])
+            return asm_str
 
 class AddCodePatch(CodePatch):
     def __init__(self, asm_code, name=None, is_c=False, is_att=False, optimization="-Oz"):

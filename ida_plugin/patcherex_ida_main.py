@@ -6,12 +6,14 @@ import re
 import subprocess
 import threading
 import tempfile
+import shlex
 from patcherex_ida.forms import *
 from collections import namedtuple
 
 
 PATCH_TYPES = {"InsertCodePatch": {"desc": "Insert Assembly", "handler_form": InsertCodePatchForm},
-               "AddRODataPatch": {"desc": "Insert Read Only Data", "handler_form": AddRODataPatchForm}}
+               "AddRODataPatch": {"desc": "Insert Read Only Data", "handler_form": AddRODataPatchForm},
+               "AddLabelPatch": {"desc": "Add a Label", "handler_form": AddLabelPatchForm}}
 
 class ItemManager(object):
     def __init__(self):
@@ -208,15 +210,7 @@ class LoadHandler(idaapi.action_handler_t):
         return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
 
 class RunPatcherexHandler(idaapi.action_handler_t):
-    config = """
-techniques:
-    manualpatcher:
-        options:
-            patch_file: %s
-backend:
-    name: reassembler_backend
-    options:
-"""
+    config = """{"techniques": {"manualpatcher": {"options": {"patch_file": null}}}, "backend": {"name": "reassembler_backend", "options": {"extra_compiler_options": []}}}"""
     def activate(self, ctx):
         RunPatcherexHandler.menu_activate(None)
 
@@ -244,11 +238,14 @@ backend:
             patch_output_file.write(patcherex_window.get_serialized_items())
             patch_output_file.close()
             config_file = tempfile.NamedTemporaryFile(delete=False)
-            config_file.write(RunPatcherexHandler.config % patch_output_file.name) # TODO: Find better way to do this (can't import yaml)
+            p_config = json.loads(RunPatcherexHandler.config)
+            p_config["techniques"]["manualpatcher"]["options"]["patch_file"] = patch_output_file.name
+            p_config["backend"]["options"]["extra_compiler_options"] = shlex.split(form.get_compiler_options())
+            config_file.write(json.dumps(p_config))
             config_file.close()
             print "Calling patcherex . . ."
             popen_and_call(RunPatcherexHandler.patcherex_finish,
-                           {"args": ["patcherex", "-c", config_file.name, "single", idaapi.get_input_file_path(), file_name]})
+                           {"args": ["patcherex", "-c", config_file.name, "--json", "single", idaapi.get_input_file_path(), file_name]})
 
 
 class AddPatchHandler(idaapi.action_handler_t):
