@@ -7,6 +7,7 @@ import subprocess
 import threading
 import tempfile
 import shlex
+import os
 from patcherex_ida.forms import *
 from collections import namedtuple
 
@@ -103,6 +104,9 @@ class PatcherexWindow(Choose2):
         self.items = ItemManager()
         self.popup_names = ["Add Patch", "Remove Patch", "Edit Patch", "Refresh"]
 
+    def load_saved_patches(self):
+        SaveLoadHook.loading()
+
     def OnClose(self):
         pass
 
@@ -169,6 +173,9 @@ class PatcherexWindow(Choose2):
     def uninitialize_patches(self):
         self.items.uninitialize_patches()
 
+    def is_used(self):
+        return len(self.items) != 0
+
 class UnsupportedArchitectureException(Exception):
     pass
 
@@ -178,14 +185,18 @@ class SaveHandler(idaapi.action_handler_t):
         form.Compile()
         if form.Execute():
             file_name = form.get_file_name()
-            try:
-                out_file = open(file_name, "wb")
-            except IOError as e:
-                idaapi.warning("Unable to open %s (%s)" % (file_name, e.strerror))
-            else:
-                with out_file:
-                    out_file.write(patcherex_window.get_serialized_items())
+            self.do_save(file_name)
         form.Free()
+
+    @classmethod
+    def do_save(cls, file_name):
+        try:
+            out_file = open(file_name, "wb")
+        except IOError as e:
+            idaapi.warning("Unable to open %s for saving (%s)" % (file_name, e.strerror))
+        else:
+            with out_file:
+                out_file.write(patcherex_window.get_serialized_items())
 
     def update(self, ctx):
         return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
@@ -196,15 +207,19 @@ class LoadHandler(idaapi.action_handler_t):
         form.Compile()
         if form.Execute():
             file_name = form.get_file_name()
-            try:
-                out_file = open(file_name, "rb")
-            except IOError as e:
-                idaapi.warning("Unable to open %s (%s)" % (file_name, e.strerror))
-            else:
-                with out_file:
-                    contents = out_file.read()
-                    patcherex_window.load_serialized_items(contents)
+            self.do_load(file_name)
         form.Free()
+
+    @classmethod
+    def do_load(cls, file_name):
+        try:
+            out_file = open(file_name, "rb")
+        except IOError as e:
+            idaapi.warning("Unable to open %s for loading (%s)" % (file_name, e.strerror))
+        else:
+            with out_file:
+                contents = out_file.read()
+                patcherex_window.load_serialized_items(contents)
 
     def update(self, ctx):
         return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
@@ -268,6 +283,25 @@ class PopHook(idaapi.UI_Hooks):
         if idaapi.get_tform_title(form) == "Patcherex":
             for act in self.acts:
                 idaapi.attach_action_to_popup(form, popup, "patcherex:" + act, None)
+
+class SaveLoadHook(idaapi.UI_Hooks):
+    def saving(self):
+        if patcherex_window.is_used():
+            save_path = self.get_preferred_path()
+            SaveHandler.do_save(save_path)
+
+    # Not a real idaapi hook; called from PatcherexWindow.load_saved_patches
+    @classmethod
+    def loading(cls):
+        if os.path.exists(cls.get_preferred_path()):
+            LoadHandler.do_load(cls.get_preferred_path())
+
+    @staticmethod
+    def get_preferred_path():
+        idb_path = os.path.abspath(idc.GetIdbPath())
+        no_idb_ext = os.path.splitext(os.path.basename(idb_path))[0]
+        save_path = os.path.join(os.path.split(idb_path)[0], no_idb_ext + "_patcherex.json")
+        return save_path
 
 # http://stackoverflow.com/questions/2581817/python-subprocess-callback-when-cmd-exits
 def popen_and_call(onExit, popenArgs):
@@ -354,14 +388,16 @@ class PatcherexPlugin(idaapi.plugin_t):
                                      command.handler_class.menu_activate,
                                      (None,))
         if patcherex_hooks is None:
-            patcherex_hooks = PopHook([command.name for command in commands])
-            patcherex_hooks.hook()
+            patcherex_hooks = [PopHook([command.name for command in commands]), SaveLoadHook()]
+            for hook in patcherex_hooks:
+                hook.hook()
         if patcherex_window is None:
             print "Patcherex starting"
             self.patcherex_window = PatcherexWindow()
             patcherex_window = self.patcherex_window
         else:
             self.patcherex_window = patcherex_window
+            patcherex_window.load_saved_patches()
         return idaapi.PLUGIN_OK
 
     def run(self, arg):
