@@ -41,7 +41,7 @@ Edit Label Patch
 <Name:{patch_name}>
 """
     patch_type = "AddLabelPatch"
-    comment_format = "Patcherex patch to add a label '%s' at %#x"
+    comment_format = "Add label '%s' at %#x"
 
     def __init__(self, address=None, name="AddRODataPatch", data=None):
         address = address if address else idc.ScreenEA()
@@ -136,6 +136,43 @@ Edit Read Only Data Insertion Patch
         new_data = cls.format_byte_string(str(data["data"].encode("latin1")))
         return map(str, [new_patch_type, new_address, new_name, new_data])
 
+class AddRWDataPatchForm(GenericPatchForm):
+    form_code = r"""STARTITEM 0
+Edit Read/Write Data Addition Patch
+<Name:{patch_name}>
+<Size:{patch_size}>
+"""
+    patch_type = "AddRWDataPatch"
+
+    def __init__(self, address=None, name="AddRWDataPatch", data={"tlen": 0}):
+        init_len = data["tlen"]
+        super(AddRWDataPatchForm, self).__init__(self.form_code, {
+            "patch_name": idaapi.Form.StringInput(value=str(name)),
+            "patch_size": idaapi.Form.NumericInput(value=init_len, tp=idaapi.Form.FT_HEX),
+            })
+
+    def get_patch_address(self):
+        return ""
+
+    def get_patch_name(self):
+        return self.patch_name.value
+
+    def get_patch_length(self):
+        return self.patch_size.value
+
+    def get_patch_data(self):
+        return {"tlen": self.get_patch_length(), "name": self.get_patch_name()}
+
+    @classmethod
+    def get_gui_format_of(cls, patch_type, name, address, data):
+        if patch_type != cls.patch_type:
+            print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
+        new_patch_type = "Insert RW Data"
+        new_address = ""
+        new_name = name
+        new_data = "Length: %#x" % data["tlen"]
+        return map(str, [new_patch_type, new_address, new_name, new_data])
+
 class InsertCodePatchForm(GenericPatchForm):
 
     form_code = r"""STARTITEM 0
@@ -145,7 +182,7 @@ Edit Code Insertion Patch
 <Code:{patch_code}>
 """
     patch_type = "InsertCodePatch"
-    comment_format = "Patcherex patch '%s' to insert code at %#x:\n%s"
+    comment_format = "'%s': Insert code at %#x:\n%s"
 
     def __init__(self, address=None, name="InsertCodePatch", data={"code": ""}):
         address = address if address else idc.ScreenEA()
@@ -201,6 +238,67 @@ Edit Code Insertion Patch
         if len(data["code"].split("\n")) > 1:
             new_data = new_data + " . . ."
         return map(str, [new_patch_type, new_address, new_name, new_data])
+
+class RemoveInstructionPatchForm(GenericPatchForm):
+    form_code = r"""STARTITEM 0
+Edit Remove Instruction Patch
+<Address:{patch_address}>
+<Name:{patch_name}>
+"""
+    patch_type = "RemoveInstructionPatch"
+    comment_format = "'%s': Remove instruction at %#x"
+
+    def __init__(self, address=None, name="RemoveInstructionPatch", data=None):
+        address = address if address else idc.ScreenEA()
+        super(RemoveInstructionPatchForm, self).__init__(self.form_code, {
+            "patch_address": idaapi.Form.NumericInput(tp=idaapi.Form.FT_ADDR, value=address),
+            "patch_name": idaapi.Form.StringInput(value=str(name)),
+        })
+
+    def get_patch_address(self):
+        return self.patch_address.value
+
+    def get_patch_name(self):
+        return self.patch_name.value
+
+    def get_patch_data(self):
+        return {"ins_addr": self.get_patch_address(), "ins_size": None, "name": self.get_patch_name()}
+
+    @classmethod
+    def on_perform_post_operations(cls, patch_type, name, address, data):
+        original = idc.RptCmt(address)
+        if original is not None:
+            prefix = original + "\n"
+        else:
+            prefix = ""
+        idc.MakeRptCmt(address,
+                       str(prefix + cls.comment_format % (name, address)))
+
+    @classmethod
+    def on_pre_update(cls, patch_type, name, address, data):
+        added_comment = str(cls.comment_format % (name, address))
+        if idc.RptCmt(address) is not None and added_comment in idc.RptCmt(address):
+            idc.MakeRptCmt(address, idc.RptCmt(address).replace("\n" + added_comment, ""))
+            idc.MakeRptCmt(address, idc.RptCmt(address).replace(added_comment, ""))
+
+    @classmethod
+    def on_post_update(cls, patch_type, name, address, data):
+        cls.on_perform_post_operations(patch_type, name, address, data)
+
+    @classmethod
+    def on_delete(cls, patch_type, name, address, data):
+        cls.on_pre_update(patch_type, name, address, data)
+
+    @classmethod
+    def get_gui_format_of(cls, patch_type, name, address, data):
+        if patch_type != cls.patch_type:
+            print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
+        new_patch_type = "Remove Instruction"
+        new_address = hex(long(address))[:-1]
+        new_name = name
+        new_data = ""
+        return map(str, [new_patch_type, new_address, new_name, new_data])
+
 
 
 class SaveForm(idaapi.Form):

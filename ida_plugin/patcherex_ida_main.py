@@ -14,7 +14,9 @@ from collections import namedtuple
 
 PATCH_TYPES = {"InsertCodePatch": {"desc": "Insert Assembly", "handler_form": InsertCodePatchForm},
                "AddRODataPatch": {"desc": "Insert Read Only Data", "handler_form": AddRODataPatchForm},
-               "AddLabelPatch": {"desc": "Add a Label", "handler_form": AddLabelPatchForm}}
+               "AddLabelPatch": {"desc": "Add a Label", "handler_form": AddLabelPatchForm},
+               "RemoveInstructionPatch": {"desc": "Remove an instruction", "handler_form": RemoveInstructionPatchForm},
+               "AddRWDataPatch": {"desc": "Add Space for Read/Write Data", "handler_form": AddRWDataPatchForm}}
 
 class ItemManager(object):
     def __init__(self):
