@@ -89,7 +89,7 @@ Edit Label Patch
         if patch_type != cls.patch_type:
             print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
         new_patch_type = "Add Label"
-        new_address = hex(long(address))[:-1]
+        new_address = "%#x" % address
         new_name = name
         new_data = ""
         return map(str, [new_patch_type, new_address, new_name, new_data])
@@ -232,12 +232,57 @@ Edit Code Insertion Patch
         if patch_type != cls.patch_type:
             print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
         new_patch_type = "Insert Code"
-        new_address = hex(long(address))[:-1]
+        new_address = "%#x" % address
         new_name = name
         new_data = data["code"].split("\n")[0]
         if len(data["code"].split("\n")) > 1:
             new_data = new_data + " . . ."
         return map(str, [new_patch_type, new_address, new_name, new_data])
+
+
+class AddCodePatchForm(GenericPatchForm):
+
+    form_code = r"""STARTITEM 0
+Edit Code Addition Patch
+<Name:{patch_name}>
+<Assembly Code:{rASMCode}>
+<C Code:{rCCode}>{type_group}>
+<Code:{patch_code}>
+"""
+    patch_type = "AddCodePatch"
+
+    def __init__(self, address=None, name="AddCodePatch", data={"asm_code": "", "is_c": False}):
+        super(AddCodePatchForm, self).__init__(self.form_code, {
+            "patch_name": idaapi.Form.StringInput(value=str(name)),
+            "type_group": idaapi.Form.RadGroupControl(("rASMCode", "rCCode"), value=(1 if data["is_c"] else 0)),
+            "patch_code": idaapi.Form.MultiLineTextControl(text=str(data["asm_code"]),
+                                                           flags=idaapi.Form.MultiLineTextControl.TXTF_FIXEDFONT),
+        })
+
+    def get_patch_address(self):
+        return ""
+
+    def get_patch_name(self):
+        return self.patch_name.value
+
+    def get_patch_data(self):
+        info = idaapi.get_inf_structure()
+        flags = ("-m64" if info.is_64bit() else "-m32")
+        return {"asm_code": self.patch_code.value, "is_c": self.rCCode.selected,
+                "name": self.get_patch_name(), "compiler_flags": flags}
+
+    @classmethod
+    def get_gui_format_of(cls, patch_type, address, name, data):
+        if patch_type != cls.patch_type:
+            print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
+        new_patch_type = "Add Code"
+        new_address = ""
+        new_name = name
+        new_data = data["asm_code"].split("\n")[0]
+        if len(data["asm_code"].split("\n")) > 1:
+            new_data = new_data + " . . ."
+        return map(str, [new_patch_type, new_address, new_name, new_data])
+
 
 class RemoveInstructionPatchForm(GenericPatchForm):
     form_code = r"""STARTITEM 0
@@ -294,7 +339,7 @@ Edit Remove Instruction Patch
         if patch_type != cls.patch_type:
             print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
         new_patch_type = "Remove Instruction"
-        new_address = hex(long(address))[:-1]
+        new_address = "%#x" % address
         new_name = name
         new_data = ""
         return map(str, [new_patch_type, new_address, new_name, new_data])
