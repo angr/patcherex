@@ -98,15 +98,18 @@ class AddRODataPatchForm(GenericPatchForm):
     form_code = r"""STARTITEM 0
 Edit Read Only Data Insertion Patch
 <Name:{patch_name}>
+<Hex:{rHex}>
+<Raw Bytes:{rRaw}>{type_group}>
 <Data (hexidecimal, non hex characters ignored):{ro_data}>
 """
     patch_type = "AddRODataPatch"
 
-    def __init__(self, address=None, name="AddRODataPatch", data={"data": u""}):
+    def __init__(self, address=0, name="AddRODataPatch", data={"data": u""}):
         init_bytes = str(data["data"].encode("latin1"))
-        formatted = self.format_byte_string(init_bytes)
+        formatted = (self.format_byte_string(init_bytes) if address == 0 else init_bytes)
         super(AddRODataPatchForm, self).__init__(self.form_code, {
             "patch_name": idaapi.Form.StringInput(value=str(name)),
+            "type_group": idaapi.Form.RadGroupControl(("rHex", "rRaw"), value=address),
             "ro_data": idaapi.Form.MultiLineTextControl(text=str(formatted),
                                                         flags=idaapi.Form.MultiLineTextControl.TXTF_FIXEDFONT)
             })
@@ -115,15 +118,18 @@ Edit Read Only Data Insertion Patch
     def format_byte_string(byte_string):
         return ' '.join(byte.encode("hex") for byte in byte_string)
 
-    def get_patch_address(self):
-        return ""
+    def get_patch_address(self): # Use the address to store whether or not it's raw
+        return self.type_group.value
 
     def get_patch_name(self):
         return self.patch_name.value
 
     def get_patch_data(self):
-        stripped = ''.join(char for char in self.ro_data.value if char in string.hexdigits)
-        final = stripped.decode("hex").decode("latin1")
+        if self.rHex.selected:
+            stripped = ''.join(char for char in self.ro_data.value if char in string.hexdigits)
+            final = stripped.decode("hex").decode("latin1")
+        else:
+            final = self.ro_data.value
         return {"data": final, "name": self.get_patch_name()}
 
     @classmethod
@@ -133,7 +139,8 @@ Edit Read Only Data Insertion Patch
         new_patch_type = "Insert RO Data"
         new_address = ""
         new_name = name
-        new_data = cls.format_byte_string(str(data["data"].encode("latin1")))
+        new_data = (cls.format_byte_string(str(data["data"].encode("latin1"))) if address == 0
+                    else str(data["data"].encode("latin1")))
         return map(str, [new_patch_type, new_address, new_name, new_data])
 
 class AddRWDataPatchForm(GenericPatchForm):

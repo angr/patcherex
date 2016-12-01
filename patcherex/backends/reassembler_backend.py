@@ -220,29 +220,36 @@ class ReassemblerBackend(Backend):
 
         l.info("Before stripping: %d bytes", len(data))
 
-        cgc_header = data[ : len(elf_header) ]
+        if data.startswith("\x7fCGC"):
+            cgc_header = data[ : len(elf_header) ]
 
-        data = elf_header + data[ len(elf_header) : ]
+            data = elf_header + data[ len(elf_header) : ]
 
-        with open(tmp_path, "wb") as f:
-            f.write(data)
+            with open(tmp_path, "wb") as f:
+                f.write(data)
 
-        r = subprocess.call(['strip', tmp_path])
+            r = subprocess.call(['strip', tmp_path])
 
-        if r != 0:
-            l.error("Stripping failed with exit code %d", r)
-            return
+            if r != 0:
+                l.error("Stripping failed with exit code %d", r)
+                return
 
-        with open(tmp_path, "rb") as f1:
-            with open(path, "wb") as f2:
-                data = f1.read()
+            with open(tmp_path, "rb") as f1:
+                with open(path, "wb") as f2:
+                    data = f1.read()
 
-                l.info("After stripping: %d bytes", len(data))
+                    l.info("After stripping: %d bytes", len(data))
 
-                data = cgc_header + data[ len(cgc_header) : ]
-                f2.write(data)
+                    data = cgc_header + data[ len(cgc_header) : ]
+                    f2.write(data)
 
-        os.remove(tmp_path)
+            os.remove(tmp_path)
+        else:
+            r = subprocess.call(["strip", path])
+            if r != 0:
+                l.error("Stripping failed with exit code %d", r)
+                return
+
 
     def _apply_raw_file_patches(self, filename):
         """
