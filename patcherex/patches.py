@@ -3,6 +3,7 @@ import struct
 
 from . import utils
 from .utils import ASMConverter
+import compilerex
 
 
 class Patch(object):
@@ -68,15 +69,16 @@ class CodePatch(Patch):
     """
     Base class for all code patches
     """
-    def __init__(self, name, asm_code, is_c=False, is_att=False, optimization="-Oz"):
+    def __init__(self, name, asm_code, is_c=False, is_att=False, optimization="-Oz", compiler_flags="-m32"):
         super(CodePatch, self).__init__(name)
 
         self.asm_code = asm_code
         self.is_c = is_c
         self.optimization = optimization
         self.is_att = is_att
+        self.compiler_flags = compiler_flags
 
-    def att_asm(self):
+    def att_asm(self, c_as_asm=False):
         """
         Get the AT&T style assembly code
         :return: The asm code in AT&T style
@@ -88,11 +90,15 @@ class CodePatch(Patch):
         if not self.is_c:
             return ASMConverter.intel_to_att(self.asm_code)
         else:
-            code = utils.compile_c(self.asm_code, optimization=self.optimization)
-            asm_str = ".byte " + ", ".join([hex(b) for b in code])
-            return asm_str
+            if not c_as_asm:
+                code = utils.compile_c(self.asm_code, optimization=self.optimization,
+                                       compiler_flags=self.compiler_flags)
+                asm_str = ".byte " + ", ".join([hex(b) for b in code])
+                return asm_str
+            else:
+                return compilerex.c_to_asm(self.asm_code, [self.compiler_flags], syntax="att")
 
-    def intel_asm(self):
+    def intel_asm(self, c_as_asm=False):
         """
         Get the intel style assembly code
         :return: The asm code in intel style
@@ -104,14 +110,19 @@ class CodePatch(Patch):
         elif not self.is_c:
             return self.asm_code
         else:
-            code = utils.compile_c(self.asm_code, optimization=self.optimization)
-            asm_str = ".byte " + ", ".join([hex(b) for b in code])
-            return asm_str
+            if not c_as_asm:
+                code = utils.compile_c(self.asm_code, optimization=self.optimization,
+                                       compiler_flags=self.compiler_flags)
+                asm_str = ".byte " + ", ".join([hex(b) for b in code])
+                return asm_str
+            else:
+                return compilerex.c_to_asm(self.asm_code, [self.compiler_flags], syntax="intel")
+
 
 class AddCodePatch(CodePatch):
-    def __init__(self, asm_code, name=None, is_c=False, is_att=False, optimization="-Oz"):
+    def __init__(self, asm_code, name=None, is_c=False, is_att=False, optimization="-Oz", compiler_flags="-m32"):
         super(AddCodePatch, self).__init__(name, asm_code, is_c=is_c, is_att=is_att,
-                optimization=optimization)
+                                           optimization=optimization, compiler_flags=compiler_flags)
 
     def __repr__(self):
         return "AddCodePatch [%s] (%d) %s %s" % (self.name,len(self.asm_code),self.is_c,self.optimization)

@@ -60,11 +60,11 @@ class ReassemblerBackend(Backend):
         syntax = compilerex.get_preferred_syntax(self.filename)
         for p in patches:
             if isinstance(p, InsertCodePatch):
-                code = p.att_asm() if syntax == "at&t" else p.intel_asm()
+                code = p.att_asm(c_as_asm=True) if syntax == "at&t" else p.intel_asm(c_as_asm=True)
                 self._binary.insert_asm(p.addr, code)
 #
             elif isinstance(p, AddCodePatch):
-                code = p.att_asm() if syntax == "at&t" else p.intel_asm()
+                code = p.att_asm(c_as_asm=True) if syntax == "at&t" else p.intel_asm(c_as_asm=True)
                 self._binary.append_procedure(p.name, code)
 #
             elif isinstance(p, AddRODataPatch):
@@ -74,7 +74,7 @@ class ReassemblerBackend(Backend):
                 self._binary.append_data(p.name, None, p.len, readonly=False)
 
             elif isinstance(p, AddEntryPointPatch):
-                code = p.att_asm() if syntax == "at&t" else p.intel_asm()
+                code = p.att_asm(c_as_asm=True) if syntax == "at&t" else p.intel_asm(c_as_asm=True)
                 if p.after_restore:
                     entry_point_asm_after_restore.append(code)
                 else:

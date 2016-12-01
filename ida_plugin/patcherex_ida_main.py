@@ -16,7 +16,8 @@ PATCH_TYPES = {"InsertCodePatch": {"desc": "Insert Assembly", "handler_form": In
                "AddRODataPatch": {"desc": "Insert Read Only Data", "handler_form": AddRODataPatchForm},
                "AddLabelPatch": {"desc": "Add a Label", "handler_form": AddLabelPatchForm},
                "RemoveInstructionPatch": {"desc": "Remove an instruction", "handler_form": RemoveInstructionPatchForm},
-               "AddRWDataPatch": {"desc": "Add Space for Read/Write Data", "handler_form": AddRWDataPatchForm}}
+               "AddRWDataPatch": {"desc": "Add Space for Read/Write Data", "handler_form": AddRWDataPatchForm},
+               "AddCodePatch": {"desc": "Add assembly or C code into the binary", "handler_form": AddCodePatchForm}}
 
 class ItemManager(object):
     def __init__(self):
@@ -105,6 +106,8 @@ class PatcherexWindow(Choose2):
             ])
         self.items = ItemManager()
         self.popup_names = ["Add Patch", "Remove Patch", "Edit Patch", "Refresh"]
+        self.node = idaapi.netnode()
+        self.node.create("$ patcherex")
 
     def load_saved_patches(self):
         SaveLoadHook.loading()
@@ -192,13 +195,17 @@ class SaveHandler(idaapi.action_handler_t):
 
     @classmethod
     def do_save(cls, file_name):
-        try:
-            out_file = open(file_name, "wb")
-        except IOError as e:
-            idaapi.warning("Unable to open %s for saving (%s)" % (file_name, e.strerror))
+        contents = patcherex_window.get_serialized_items()
+        if file_name is not None:
+            try:
+                out_file = open(file_name, "wb")
+            except IOError as e:
+                idaapi.warning("Unable to open %s for saving (%s)" % (file_name, e.strerror))
+            else:
+                with out_file:
+                    out_file.write(contents)
         else:
-            with out_file:
-                out_file.write(patcherex_window.get_serialized_items())
+            patcherex_window.node.setblob(contents, 0, "I")
 
     def update(self, ctx):
         return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
@@ -214,14 +221,19 @@ class LoadHandler(idaapi.action_handler_t):
 
     @classmethod
     def do_load(cls, file_name):
-        try:
-            out_file = open(file_name, "rb")
-        except IOError as e:
-            idaapi.warning("Unable to open %s for loading (%s)" % (file_name, e.strerror))
+        if file_name is not None:
+            try:
+                out_file = open(file_name, "rb")
+            except IOError as e:
+                idaapi.warning("Unable to open %s for loading (%s)" % (file_name, e.strerror))
+            else:
+                with out_file:
+                    contents = out_file.read()
         else:
-            with out_file:
-                contents = out_file.read()
-                patcherex_window.load_serialized_items(contents)
+            contents = patcherex_window.node.getblob(0, "I")
+            if contents is None:
+                return
+        patcherex_window.load_serialized_items(contents)
 
     def update(self, ctx):
         return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
@@ -289,14 +301,12 @@ class PopHook(idaapi.UI_Hooks):
 class SaveLoadHook(idaapi.UI_Hooks):
     def saving(self):
         if patcherex_window.is_used():
-            save_path = self.get_preferred_path()
-            SaveHandler.do_save(save_path)
+            SaveHandler.do_save(None)
 
     # Not a real idaapi hook; called from PatcherexWindow.load_saved_patches
     @classmethod
     def loading(cls):
-        if os.path.exists(cls.get_preferred_path()):
-            LoadHandler.do_load(cls.get_preferred_path())
+        LoadHandler.do_load(None)
 
     @staticmethod
     def get_preferred_path():
