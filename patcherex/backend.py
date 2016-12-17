@@ -94,7 +94,7 @@ class Backend(object):
         # 1) ida-like cfg
         # 2) with some strategies we don't need the cfg, we should be able to apply those strategies even if the cfg fails
         l.info("CFG start...")
-        cfg = self.project.analyses.CFGFast(normalize=True,collect_data_reference=True)
+        cfg = self.project.analyses.CFGFast(normalize=True, collect_data_references=True)
         l.info("... CFG end")
 
         return cfg
