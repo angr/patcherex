@@ -15,12 +15,12 @@ cd patcherex
 pip install -e .
 ```
 
+## Usage
+
 There are three fundamental concepts in *patcherex*:
 * patches
 * techniques
 * backends
-
-## Usage
 
 ### patches
 A patch is a single modification to a binary.
