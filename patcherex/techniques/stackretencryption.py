@@ -263,6 +263,8 @@ class StackRetEncryption(object):
 
             if self.patcher.project.is_hooked(n.addr):
                 continue
+            if self.patcher.project._simos.syscall_table.get_by_addr(n.addr) is not None:
+                continue
 
             try:
                 bl = self.patcher.project.factory.block(n.addr, max_size=n.size)
@@ -409,6 +411,8 @@ class StackRetEncryption(object):
                 return str(instr.mnemonic+" "+instr.op_str)
 
             if self.patcher.project.is_hooked(ff.addr):
+                return False
+            if self.patcher.project._simos.syscall_table.get_by_addr(ff.addr) is not None:
                 return False
 
             instructions = self.patcher.project.factory.fresh_block(ff.addr, size=ff.startpoint.size).capstone.insns
