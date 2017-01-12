@@ -66,7 +66,6 @@ def test_simple_inline():
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
 
 
-@add_fallback_strategy
 def test_added_code():
     filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
@@ -90,7 +89,6 @@ def test_added_code():
         nose.tools.assert_equal(p.returncode == 0x32, True)
 
 
-@add_fallback_strategy
 def test_added_code_and_data():
     filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
@@ -132,12 +130,12 @@ def test_rw_memory():
     lenlist = []
     lenlist.append(0)
     lenlist.append(1)
-    lenlist.append(4)
-    lenlist.append(5)
-    lenlist.append(0x501)
-    lenlist.append(0x1000)
-    lenlist.append(0x1000-1)
-    lenlist.append(0x1000+1)
+    #lenlist.append(4)
+    #lenlist.append(5)
+    #lenlist.append(0x501)
+    #lenlist.append(0x1000)
+    #lenlist.append(0x1000-1)
+    #lenlist.append(0x1000+1)
     lenlist.append(0x2000+1)
 
     for tlen in lenlist:
@@ -212,7 +210,6 @@ def test_rw_memory():
         nose.tools.assert_true(res[0].startswith("00000000"))
 
 
-@add_fallback_strategy
 def test_ro_memory():
     filepath = os.path.join(bin_location, "CROMU_00070")
     pipe = subprocess.PIPE
@@ -221,12 +218,12 @@ def test_ro_memory():
     lenlist = []
     lenlist.append(0)
     lenlist.append(1)
-    lenlist.append(4)
-    lenlist.append(5)
-    lenlist.append(0x501)
-    lenlist.append(0x1000)
-    lenlist.append(0x1000-1)
-    lenlist.append(0x1000+1)
+    #lenlist.append(4)
+    #lenlist.append(5)
+    #lenlist.append(0x501)
+    #lenlist.append(0x1000)
+    #lenlist.append(0x1000-1)
+    #lenlist.append(0x1000+1)
     lenlist.append(0x2000+1)
 
     for tlen in lenlist:
@@ -303,7 +300,6 @@ def test_ro_memory():
         nose.tools.assert_true(res[0].startswith(expected))
 
 
-@add_fallback_strategy
 def test_rwinit_memory():
     filepath = os.path.join(bin_location, "CROMU_00070")
     pipe = subprocess.PIPE
@@ -312,12 +308,12 @@ def test_rwinit_memory():
     lenlist = []
     lenlist.append(0)
     lenlist.append(1)
-    lenlist.append(4)
-    lenlist.append(5)
-    lenlist.append(0x501)
-    lenlist.append(0x1000)
-    lenlist.append(0x1000-1)
-    lenlist.append(0x1000+1)
+    #lenlist.append(4)
+    #lenlist.append(5)
+    #lenlist.append(0x501)
+    #lenlist.append(0x1000)
+    #lenlist.append(0x1000-1)
+    #lenlist.append(0x1000+1)
     lenlist.append(0x2000+1)
 
     for tlen in lenlist:
@@ -394,7 +390,6 @@ def test_rwinit_memory():
         nose.tools.assert_true(res[0].startswith(expected))
 
 
-@add_fallback_strategy
 def test_added_code_and_data_complex():
     filepath = os.path.join(bin_location, "CROMU_00070")
     pipe = subprocess.PIPE
@@ -523,7 +518,6 @@ def test_added_code_and_data_complex():
             nose.tools.assert_equal(expected == res[0] and p.returncode == -11, True)
 
 
-@add_fallback_strategy
 def test_added_code_and_data_big():
     filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
@@ -556,7 +550,6 @@ def test_added_code_and_data_big():
         nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
 
 
-@add_fallback_strategy
 def test_detour():
     filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
@@ -586,7 +579,6 @@ def test_detour():
         nose.tools.assert_equal(res[0], expected)
 
 
-@add_fallback_strategy
 def test_single_entry_point_patch():
     filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
@@ -612,7 +604,6 @@ def test_single_entry_point_patch():
         nose.tools.assert_equal("\n\nEASTER EGG!\n\n" in res[0] and p.returncode == 0, True)
 
 
-@add_fallback_strategy
 def test_complex1():
     filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
@@ -659,7 +650,6 @@ def test_complex1():
         nose.tools.assert_equal("\n\nEASTER EGG!\n\n"+test_str in res[0] and p.returncode == 52, True)
 
 
-@add_fallback_strategy
 def test_double_patch_collision():
     filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
@@ -760,7 +750,6 @@ def test_double_patch_collision():
         nose.tools.assert_equal(res[0], expected)
 
 
-@add_fallback_strategy
 def test_conflicting_symbols():
     filepath = os.path.join(bin_location, "0b32aa01_01_2")
 
@@ -798,7 +787,6 @@ def test_conflicting_symbols():
     nose.tools.assert_true(exc)
 
 
-@add_fallback_strategy
 def test_random_canary():
     def check_output(tstr):
         expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: canary failure: 00000000 vs "
@@ -952,7 +940,6 @@ def test_random_canary():
         nose.tools.assert_equal(check_output(res[0]) and p.returncode == 0x44, True)
 
 
-@add_fallback_strategy
 def test_patch_conflicts():
     def create_dpatch(tstr,addr,p):
         code = '''
@@ -1090,7 +1077,6 @@ def test_patch_conflicts():
         estr = expected_str([p11,p21,p41])
         print repr(estr)
         nose.tools.assert_true(res[0].startswith(estr))
-        '''
 
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
@@ -1159,7 +1145,6 @@ def test_patch_conflicts():
         print repr(estr)
         nose.tools.assert_true(res[0].startswith(estr))
 
-        '''
         p11,p12,p21,p22,p31,p32,p41,p42 = create_patches()
         tmp_file = os.path.join(td, "patched")
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -1273,7 +1258,6 @@ def test_patch_conflicts():
         nose.tools.assert_true(res[0].startswith(estr))
 
 
-@add_fallback_strategy
 def test_c_compilation():
     filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
@@ -1416,7 +1400,6 @@ def test_c_compilation():
         nose.tools.assert_equal(res[0],expected)
 
 
-@add_fallback_strategy
 def test_entrypointpatch_restore():
     filepath = os.path.join(bin_location, "0b32aa01_01_2")
 
@@ -1453,7 +1436,6 @@ def test_entrypointpatch_restore():
         nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
 
 
-@add_fallback_strategy
 def test_piling():
     filepath = os.path.join(bin_location, "0b32aa01_01_2")
 
