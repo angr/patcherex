@@ -122,6 +122,20 @@ def add_fallback_strategy(f):
         f()
     return wrapper
 
+
+def reassembler_only(f):
+    @wraps(f)
+    def wrapper():
+        global global_BackendClass
+
+        global_BackendClass = ReassemblerBackend
+        if global_BackendClass.__init__.im_func.func_name != "args_eat":
+            global_BackendClass.__oldinit__ = global_BackendClass.__init__
+            global_BackendClass.__init__ = args_eat
+        f()
+    return wrapper
+
+
 @add_fallback_strategy
 def test_shadowstack():
     logging.getLogger("patcherex.techniques.ShadowStack").setLevel("DEBUG")
@@ -296,7 +310,7 @@ def test_cpuid():
         nose.tools.assert_equal(p.returncode == -11, True)
 
 
-@try_reassembler_and_detour
+@reassembler_only
 def test_stackretencryption():
     logging.getLogger("patcherex.techniques.StackRetEncryption").setLevel("DEBUG")
     from patcherex.techniques.stackretencryption import StackRetEncryption
@@ -431,7 +445,7 @@ def test_stackretencryption():
         '''
 
 
-@try_reassembler_and_detour
+@reassembler_only
 def test_indirectcfi():
     logging.getLogger("patcherex.techniques.IndirectCFI").setLevel("DEBUG")
     from patcherex.techniques.indirectcfi import IndirectCFI
@@ -675,7 +689,7 @@ def test_freeregs():
     #import IPython; IPython.embed()
 
 
-@try_reassembler_and_detour
+@reassembler_only
 def test_transmitprotection():
     def check_test(test):
         values,expected_crash = test
@@ -791,7 +805,7 @@ def test_transmitprotection():
                 check_test(test)
 
 
-@try_reassembler_and_detour
+@reassembler_only
 def test_shiftstack():
     logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
     from patcherex.techniques.shiftstack import ShiftStack
@@ -980,7 +994,7 @@ def test_adversarial():
         nose.tools.assert_true(original_res[1] != patched_res[1])
 
 
-@try_reassembler_and_detour
+@reassembler_only
 def test_backdoor():
     def solution_to_str(l):
         # deal with endianness craziness
@@ -1096,7 +1110,7 @@ def test_backdoor():
             '''
 
 
-@try_reassembler_and_detour
+@reassembler_only
 def test_bitflip():
     all_chars = [chr(c) for c in xrange(256)]
     pipe = subprocess.PIPE
@@ -1156,7 +1170,7 @@ def test_bitflip():
                 print test, tlen
                 nose.tools.assert_equal(expected,patched)
 
-@try_reassembler_and_detour
+@reassembler_only
 def test_uninitialized():
     filepath = os.path.join(bin_location, "CROMU_00070")
     from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
@@ -1199,14 +1213,14 @@ def test_uninitialized():
         res = p.communicate(poll_input)
         nose.tools.assert_equal(expected_output, res[0])
 
-@try_reassembler_and_detour
+@reassembler_only
 def test_malloc_patcher():
     from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
     filepath = os.path.join(bin_location, "NRFIN_00078")
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = global_BackendClass(filepath)
+        backend = DetourBackend(filepath)
         cp = MallocExtPatcher(filepath, backend)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -1235,7 +1249,7 @@ def test_malloc_patcher():
         '''
 
 
-@try_reassembler_and_detour
+@reassembler_only
 def test_no_flag_printf():
     from patcherex.techniques.noflagprintf import NoFlagPrintfPatcher
     filepath1 = os.path.join(bin_location, "PIZZA_00002")
