@@ -16,6 +16,11 @@ class NxStack(object):
     def get_patches(self):
         cfg = self.patcher.cfg
         for k,ff in cfg.functions.iteritems():
+
+            if ff.is_syscall or ff.is_simprocedure:
+                # don't patch syscalls or SimProcedures
+                continue
+
             if not ff.is_syscall and ff.startpoint != None and ff.endpoints != None and \
                     cfg_utils.detect_syscall_wrapper(self.patcher,ff) == None and \
                     not cfg_utils.is_floatingpoint_function(self.patcher,ff):

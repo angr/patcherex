@@ -1,9 +1,7 @@
-import patcherex
-import angr
+
 import logging
-import networkx
 from collections import defaultdict
-from angr.lifter import AngrMemoryError,AngrTranslationError
+from simuvex.s_errors import SimEngineError, SimMemoryError
 
 import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
@@ -75,10 +73,12 @@ class UninitializedPatcher(object):
 
             if self.patcher.project.is_hooked(n.addr):
                 continue
+            elif self.patcher.project._simos.syscall_table.get_by_addr(n.addr) is not None:
+                continue
 
             try:
                 bl = self.patcher.project.factory.block(n.addr, max_size=n.size)
-            except (AngrTranslationError, AngrMemoryError):
+            except (SimEngineError, SimMemoryError):
                 bl = None
 
             # no weird or duplicate nodes

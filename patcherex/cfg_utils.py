@@ -72,6 +72,9 @@ def detect_syscall_wrapper(backend, ff):
     if backend.project.is_hooked(ff.addr):
         # don't mess with already hooked functions, like SimProcedures
         return None
+    elif backend.project._simos.syscall_table.get_by_addr(ff.addr) is not None:
+        # don't mess with syscalls, either
+        return None
 
     try:
         succ = ff.startpoint.successors()
