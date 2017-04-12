@@ -20,7 +20,7 @@ from tracer import Runner
 from povsim import CGCPovSimulator
 
 l = logging.getLogger("patcherex.test.test_techniques_detourbackend")
-logging.getLogger("reassembler").setLevel("DEBUG")
+logging.getLogger("patcherex.backends.reassembler_backend").setLevel("DEBUG")
 
 # TODO ideally these tests should be run in the vm
 

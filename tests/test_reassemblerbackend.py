@@ -34,7 +34,7 @@ def set_proc_name(procname):
     libc.prctl(15, byref(buff), 0, 0, 0)
 
 def enable_logging():
-    logging.getLogger('reassembler').setLevel(logging.DEBUG)
+    logging.getLogger('patcherex.backends.reassembler_backend').setLevel(logging.DEBUG)
     logging.getLogger('binary').setLevel(logging.DEBUG)
     logging.getLogger('angr.analyses.binary_optimizer').setLevel(logging.DEBUG)
     logging.getLogger('techniques.binary_optimization').setLevel(logging.DEBUG)

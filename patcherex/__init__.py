@@ -1,3 +1,5 @@
+import logging
+logging.getLogger('patcherex').addHandler(logging.NullHandler())
 
 def get_backdoorpov():
     import os
@@ -7,4 +9,3 @@ def get_backdoorpov():
     with open(backdoorpov_fname) as fp:
         content = fp.read()
     return content
-

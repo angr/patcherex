@@ -13,7 +13,7 @@ from ..errors import ReassemblerError, CompilationError, ReassemblerNotImplement
 from ..utils import str_overwrite
 from .misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
 
-l = logging.getLogger('reassembler')
+l = logging.getLogger('patcherex.backends.reassembler_backend')
 
 class ReassemblerBackend(Backend):
     def __init__(self, filename, debugging=False, try_pdf_removal=True):
