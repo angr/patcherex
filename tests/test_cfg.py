@@ -332,17 +332,22 @@ def test_is_floatingpoint_function():
 
 
 def test_fullcfg_properties():
-    binaries = ["KPRCA_00009","KPRCA_00025","NRFIN_00004","CROMU_00071",
-            "CADET_00003","CROMU_00070","EAGLE_00005","KPRCA_00019"]
+    binaries = [ "KPRCA_00009","KPRCA_00025","NRFIN_00004","CROMU_00071", "CADET_00003",
+                 # "CROMU_00070",
+                 "EAGLE_00005","KPRCA_00019"
+                 ]
 
     # these are either "slides" into a call or jump to the beginning of a call
     # ("KPRCA_00025",0x804b041) is a very weird case, but Fish convinced me that it is correct
     legittimate_jumpouts = [("KPRCA_00025",0x80480bf),("KPRCA_00025",0x804b041),
-            ("KPRCA_00025",0x804bd85),("KPRCA_00025",0x804c545),("KPRCA_00025",0x804c5b5),("KPRCA_00019",0x8048326),
+            ("KPRCA_00025",0x804bd85),("KPRCA_00025",0x804c545),("KPRCA_00025",0x804c5b5), ("KPRCA_00025", 0x804c925),
+            ("KPRCA_00019",0x8048326),
             ("KPRCA_00019",0x8048b41),("KPRCA_00019",0x804882e),("KPRCA_00019",0x8048cd1),
             ("KPRCA_00019",0x8048cca),("KPRCA_00019",0x8049408),
             ("KPRCA_00019", 0x8048846), ("KPRCA_00019", 0x804884b), ("KPRCA_00019", 0x804885f),
-            ("KPRCA_00019", 0x804886f), ("KPRCA_00019", 0x8048877)]
+            ("KPRCA_00019", 0x804886f), ("KPRCA_00019", 0x8048877),
+            ("CROMU_00071", 0x804d77d), ("CROMU_00071", 0x804d783),
+                            ]
 
     for binary in binaries:
         print "testing",binary,"..."
