@@ -334,7 +334,8 @@ def test_is_floatingpoint_function():
 def test_fullcfg_properties():
     binaries = [ "KPRCA_00009","KPRCA_00025","NRFIN_00004","CROMU_00071", "CADET_00003",
                  # "CROMU_00070",
-                 "EAGLE_00005","KPRCA_00019"
+                 "EAGLE_00005",
+                 # "KPRCA_00019"
                  ]
 
     # these are either "slides" into a call or jump to the beginning of a call
