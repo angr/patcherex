@@ -7,7 +7,7 @@ from collections import defaultdict
 import networkx
 
 import pyvex
-from simuvex import SimConstantVariable, SimRegisterVariable, SimMemoryVariable
+from angr.sim_variable import SimConstantVariable, SimRegisterVariable, SimMemoryVariable
 from angr import KnowledgeBase
 from ..backends import ReassemblerBackend
 from ..errors import SimplePtrEncError

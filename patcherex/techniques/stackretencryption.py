@@ -1,7 +1,7 @@
 
 import logging
 from collections import defaultdict
-from simuvex.s_errors import SimEngineError, SimMemoryError
+from angr.errors import SimEngineError, SimMemoryError
 
 import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
