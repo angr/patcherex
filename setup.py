@@ -15,6 +15,5 @@ setup(
         'povsim',
         'shellphish-qemu',
         'fidget',
-        'identifier',
    ],
 )
