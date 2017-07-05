@@ -2,7 +2,7 @@ from distutils.core import setup
 
 setup(
     name='patcherex',
-    version='1.1',
+    version='1.2',
     description='The patcherex',
     packages=['patcherex'],
     install_requires=[
