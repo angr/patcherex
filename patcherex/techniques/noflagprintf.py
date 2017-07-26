@@ -58,7 +58,7 @@ class NoFlagPrintfPatcher(object):
     def ro_segments(self):
         if self._ro_segments is None:
             self._ro_segments = tuple(
-                seg for seg in self.patcher.project.loader.main_bin.segments if seg.is_readable and not seg.is_writable
+                seg for seg in self.patcher.project.loader.main_object.segments if seg.is_readable and not seg.is_writable
             )
 
         return self._ro_segments

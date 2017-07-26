@@ -42,7 +42,7 @@ class Packer(object):
                 found = True
                 # we have two problems to deal with:
                 # we must not xor the elf header and we must not xor past this segment
-                elf_header_vaddr = self.patcher.project.loader.main_bin.offset_to_addr(0x40)
+                elf_header_vaddr = self.patcher.project.loader.main_object.offset_to_addr(0x40)
                 start = max(oep_page,elf_header_vaddr)
                 pend = oep_page+self.plen
                 oend = p_vaddr + p_memsz

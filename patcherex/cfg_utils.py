@@ -32,8 +32,8 @@ def is_floatingpoint_function(backend,ff):
             backend.mem_start = None
             backend.mem_end = None
         else:
-            backend.mem_start = backend.project.loader.main_bin.offset_to_addr(file_start)
-            backend.mem_end = backend.project.loader.main_bin.offset_to_addr(file_end)
+            backend.mem_start = backend.project.loader.main_object.offset_to_addr(file_start)
+            backend.mem_end = backend.project.loader.main_object.offset_to_addr(file_end)
 
     if backend.mem_start == None or backend.mem_end == None:
         return False

@@ -651,7 +651,7 @@ class DetourBackend(Backend):
             if isinstance(patch, InlinePatch):
                 new_code = utils.compile_asm(patch.new_asm, patch.instruction_addr, self.name_map)
                 assert len(new_code) == self.project.factory.block(patch.instruction_addr, num_inst=1).size
-                file_offset = self.project.loader.main_bin.addr_to_offset(patch.instruction_addr)
+                file_offset = self.project.loader.main_object.addr_to_offset(patch.instruction_addr)
                 self.ncontent = utils.str_overwrite(self.ncontent, new_code, file_offset)
                 self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
@@ -769,7 +769,7 @@ class DetourBackend(Backend):
         if addr >= self.max_convertible_address:
             msg = "%08x higher than max_convertible_address (%08x)" % (addr,self.max_convertible_address)
             raise InvalidVAddrException(msg)
-        baddr = self.project.loader.main_bin.addr_to_offset(addr)
+        baddr = self.project.loader.main_object.addr_to_offset(addr)
         if baddr is None:
             raise InvalidVAddrException(hex(addr))
         else:

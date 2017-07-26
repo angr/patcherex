@@ -921,7 +921,7 @@ class DefUseGraph(object):
 
         # Generate a CFG of the current function with the base graph
         cfg = self.project.analyses.CFGAccurate(
-            kb=KnowledgeBase(self.project, self.project.loader.main_bin),
+            kb=KnowledgeBase(self.project, self.project.loader.main_object),
             starts=(self.function.addr,),
             keep_state=True,
             base_graph=self.function.graph,
