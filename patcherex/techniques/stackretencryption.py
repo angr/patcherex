@@ -349,9 +349,9 @@ class StackRetEncryption(object):
                 # we say the rx_bytes arg is okay
                 if not rx_arg.symbolic:
                     if func_info.bp_based:
-                        rx_bytes_off = 0-succ.se.any_int(s.regs.bp-rx_arg)
+                        rx_bytes_off = 0-succ.se.eval(s.regs.bp-rx_arg)
                     else:
-                        rx_bytes_off = succ.se.any_int(rx_arg-s.regs.sp) - (func_info.frame_size + 4) + 4
+                        rx_bytes_off = succ.se.eval(rx_arg-s.regs.sp) - (func_info.frame_size + 4) + 4
                     if rx_bytes_off == var:
                         return True
 

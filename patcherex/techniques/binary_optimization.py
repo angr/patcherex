@@ -98,7 +98,7 @@ class BinaryOptimization(Technique):
                 op_0 = angr.analyses.reassembler.Operand(self.backend._binary, ins_addr, insn.size, insn.operands[0],
                                                 operands[0], insn.mnemonic, syntax='intel'
                                                 )
-                operands[0] = op_0.assembly()
+                operands[0] = op_0.assembly(insn)
 
 
             if isinstance(operands[1], (int, long)):

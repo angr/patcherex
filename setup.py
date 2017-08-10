@@ -13,6 +13,7 @@ setup(
         'subprocess32',
         'tracer',
         'povsim',
+        'compilerex',
         'shellphish-qemu',
         'fidget',
    ],
