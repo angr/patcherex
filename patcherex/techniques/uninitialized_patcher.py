@@ -73,7 +73,7 @@ class UninitializedPatcher(object):
 
             if self.patcher.project.is_hooked(n.addr):
                 continue
-            elif self.patcher.project._simos.syscall_table.get_by_addr(n.addr) is not None:
+            elif self.patcher.project._simos.is_syscall_addr(n.addr):
                 continue
 
             try:

@@ -340,10 +340,10 @@ class StackRetEncryption(object):
             s.regs.ip = block.addr
             if func_info.bp_based:
                 s.regs.bp = s.regs.sp + func_info.bp_sp_diff
-            p = self.patcher.project.factory.path(s)
-            p.step()
-            if len(p.successors + p.unconstrained_successors) > 0:
-                succ = (p.successors + p.unconstrained_successors)[0].state
+            simgr = self.patcher.project.factory.simulation_manager(s, save_unconstrained=True)
+            simgr.step()
+            if len(simgr.active + simgr.unconstrained) > 0:
+                succ = (simgr.active + simgr.unconstrained)[0]
                 rx_arg = succ.mem[succ.regs.sp+16].dword.resolved
                 size_arg = succ.mem[succ.regs.sp+12].dword.resolved
                 # we say the rx_bytes arg is okay
@@ -412,7 +412,7 @@ class StackRetEncryption(object):
 
             if self.patcher.project.is_hooked(ff.addr):
                 return False
-            if self.patcher.project._simos.syscall_table.get_by_addr(ff.addr) is not None:
+            if self.patcher.project._simos.is_syscall_addr(ff.addr) is not None:
                 return False
 
             instructions = self.patcher.project.factory.fresh_block(ff.addr, size=ff.startpoint.size).capstone.insns
