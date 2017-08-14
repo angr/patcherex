@@ -77,7 +77,7 @@ class UninitializedPatcher(object):
                 continue
 
             try:
-                bl = self.patcher.project.factory.block(n.addr, max_size=n.size)
+                bl = self.patcher.project.factory.block(n.addr, size=n.size)
             except (SimEngineError, SimMemoryError):
                 bl = None
 

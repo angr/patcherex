@@ -230,7 +230,7 @@ class BlockTraverser(object):
 
                 self.last_instr = None  # type: DerefInstruction
 
-                vex_block_noopt = self.cfg.project.factory.block(block.addr, opt_level=0, max_size=block.size).vex
+                vex_block_noopt = self.cfg.project.factory.block(block.addr, opt_level=0, size=block.size).vex
 
                 self.ins_addr = None
                 self.tmps = {}

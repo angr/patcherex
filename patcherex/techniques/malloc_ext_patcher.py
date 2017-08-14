@@ -75,11 +75,11 @@ class MallocExtPatcher(object):
 
             if self.patcher.project.is_hooked(n.addr):
                 continue
-            if self.patcher.project._simos.syscall_table.get_by_addr(n.addr) is not None:
+            if self.patcher.project._simos.syscall_from_addr(n.addr) is not None:
                 continue
 
             try:
-                bl = self.patcher.project.factory.block(n.addr, max_size=n.size)
+                bl = self.patcher.project.factory.block(n.addr, size=n.size)
             except angr.AngrTranslationError:
                 l.warning("angr translation at block %#x", n.addr)
                 continue

@@ -203,9 +203,9 @@ class IndirectCFI(object):
 
         allocate_callers = self.inv_callsites[allocate_wrapper_addr]
         for bb_addr in allocate_callers:
-            path = self.patcher.project.factory.path(mode="fastpath",addr=bb_addr)
-            path.step()
-            all_succ = (path.successors+path.unconstrained_successors)
+            state = self.patcher.project.factory.entry_state(mode="fastpath",addr=bb_addr)
+            successors = state.step()
+            all_succ = (successors.successors+successors.unconstrained_successors)
             if len(all_succ) != 1:
                 continue
             succ = all_succ[0]
