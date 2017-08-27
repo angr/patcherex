@@ -4,7 +4,13 @@ import os
 import tempfile
 import subprocess
 
-import compilerex
+l = logging.getLogger('patcherex.backends.reassembler_backend')
+
+try:
+    import compilerex
+except ImportError:
+    l.warning('Cannot import compilerex. Reassembler backend will not be able to recompile assembly files.')
+
 from angr.analyses.reassembler import BinaryError
 
 from ..patches import *
@@ -12,8 +18,6 @@ from ..backend import Backend
 from ..errors import ReassemblerError, CompilationError, ReassemblerNotImplementedError
 from ..utils import str_overwrite
 from .misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
-
-l = logging.getLogger('patcherex.backends.reassembler_backend')
 
 class ReassemblerBackend(Backend):
     def __init__(self, filename, debugging=False, try_pdf_removal=True):
