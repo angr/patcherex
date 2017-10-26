@@ -1411,7 +1411,7 @@ def test_entrypointpatch_restore():
         patches.append(InsertCodePatch(0x80480a0, "jmp 0x4567890", "goto_crash"))
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        res = QEMURunner(tmp_file, "00000001\n", record_stdout=True)
+        res = QEMURunner(tmp_file, "00000001\n", record_stdout=True, record_core=True)
         original_reg_value = res.reg_vals
         nose.tools.assert_equal(original_reg_value['eip'], 0x4567890)
 
@@ -1421,7 +1421,7 @@ def test_entrypointpatch_restore():
         patches.append(AddEntryPointPatch("mov eax, 0x34567890", name="entry_patch1"))
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        res = QEMURunner(tmp_file, "00000001\n", record_stdout=True)
+        res = QEMURunner(tmp_file, "00000001\n", record_stdout=True, record_core=True)
         nose.tools.assert_equal(original_reg_value, res.reg_vals)
 
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -1430,7 +1430,7 @@ def test_entrypointpatch_restore():
         patches.append(AddEntryPointPatch("mov eax, 0x34567890", after_restore=True, name="entry_patch2"))
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        res = QEMURunner(tmp_file, "00000001\n", record_stdout=True)
+        res = QEMURunner(tmp_file, "00000001\n", record_stdout=True, record_core=True)
         original_reg_value_mod = dict(original_reg_value)
         original_reg_value_mod['eax'] = 0x34567890
         nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
