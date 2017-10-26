@@ -533,7 +533,10 @@ def test_indirectcfi():
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
 
             if i==0:
-                res = QEMURunner(patched_fname1,"00000001\n23456789\n",record_stdout=True)
+                res = QEMURunner(patched_fname1,
+                                 "00000001\n23456789\n",
+                                 record_stdout=True,
+                                 record_core=True)
                 nose.tools.assert_equal(res.stdout,"hello\nCGC")
                 print hex(res.reg_vals['eip'])
                 nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
@@ -545,24 +548,36 @@ def test_indirectcfi():
                 # nose.tools.assert_equal(res.stdout,"hello\nCGC")
                 # print hex(res.reg_vals['eip'])
                 # nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
-                res = QEMURunner(patched_fname1,"00000004\n23456789\n",record_stdout=True)
+                res = QEMURunner(patched_fname1,
+                                 "00000004\n23456789\n",
+                                 record_stdout=True,
+                                 record_core=True)
                 nose.tools.assert_equal(res.stdout,"hello\n")
                 print hex(res.reg_vals['eip'])
                 nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
 
             #main: 08048620, stack: baaaa000, heap: "+addr_str+"
             #main -> heap
-            res = QEMURunner(patched_fname1,"00000001\n"+addr_str+"\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,
+                             "00000001\n"+addr_str+"\n",
+                             record_stdout=True,
+                             record_core=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
             print hex(res.reg_vals['eip'])
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             #main -> stack
-            res = QEMURunner(patched_fname1,"00000001\nbaaaa000\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,
+                             "00000001\nbaaaa000\n",
+                             record_stdout=True,
+                             record_core=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
             print hex(res.reg_vals['eip'])
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             #main -> main
-            res = QEMURunner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,
+                             "00000001\n08048000\n",
+                             record_stdout=True,
+                             record_core=True)
             nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
 
             #stack -> main
@@ -606,7 +621,10 @@ def test_indirectcfi():
             '''
 
             #unknown -> main
-            res = QEMURunner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,
+                             "00000001\n08048000\n",
+                             record_stdout=True,
+                             record_core=True)
             nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
 
             '''
@@ -701,7 +719,7 @@ def test_transmitprotection():
         tinput += "08048000\n00000005\n"
         #print repr(tinput)
         #open("../../vm/shared/input","wb").write(tinput)
-        res = QEMURunner(patched_fname1,tinput,record_stdout=True)
+        res = QEMURunner(patched_fname1, tinput, record_stdout=True, record_core=True)
         if expected_crash:
             nose.tools.assert_true(res.reg_vals!=None)
             nose.tools.assert_equal(res.reg_vals['eip'],0x8047ffb)
@@ -745,14 +763,20 @@ def test_transmitprotection():
 
             res = QEMURunner(patched_fname1,"08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
-            res = QEMURunner(patched_fname1,base+"4347c000\n0000000a\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,
+                             base+"4347c000\n0000000a\n",
+                             record_stdout=True,
+                             record_core=True)
             nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
             nose.tools.assert_equal(len(res.stdout),11)
             nose.tools.assert_equal(res.reg_vals['eip'],0x08047ffc)
 
             res = QEMURunner(patched_fname2,"08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
-            res = QEMURunner(patched_fname2,base+"4347c000\n0000000a\n",record_stdout=True)
+            res = QEMURunner(patched_fname2,
+                             base+"4347c000\n0000000a\n",
+                             record_stdout=True,
+                             record_core=True)
             nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
             nose.tools.assert_equal(len(res.stdout),11)
             nose.tools.assert_equal(res.reg_vals['eip'],0x08047ffc)
@@ -831,7 +855,7 @@ def test_shiftstack():
         backend.apply_patches([InsertCodePatch(0x80487d0,"jmp 0x11223344")])
         backend.save(tmp_file)
         #backend.save("/tmp/aaa")
-        res = QEMURunner(tmp_file,tinput,record_stdout=True)
+        res = QEMURunner(tmp_file,tinput, record_stdout=True, record_core=True)
         original_reg_value = res.reg_vals
         nose.tools.assert_equal(original_reg_value['eip'], 0x11223344)
 
@@ -842,7 +866,11 @@ def test_shiftstack():
             patches = cp.get_patches()
             backend.apply_patches(patches+[InsertCodePatch(0x80487d0,"jmp 0x11223344")])
             backend.save(tmp_file)
-            res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+            res = QEMURunner(tmp_file,
+                             tinput,
+                             record_stdout=True,
+                             record_core=True,
+                             seed=random.randint(1,1000000000))
             oesp = original_reg_value['esp']
             nesp = res.reg_vals['esp']
             random_stack_pos.add(nesp)
@@ -917,8 +945,12 @@ def test_nxstack():
             backend.save(tmp_file)
             # backend.save("/tmp/aaa")
             # see: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/5
-            res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000),\
-                    qemu=shellphish_qemu.qemu_path("cgc-nxtracer"))
+            res = QEMURunner(tmp_file,
+                             tinput,
+                             record_stdout=True,
+                             record_core=True,
+                             seed=random.randint(1,1000000000),
+                             qemu=shellphish_qemu.qemu_path("cgc-nxtracer"))
             if res.reg_vals == None:
                 nose.tools.assert_equal(res.returncode,46)
             else:
@@ -1062,7 +1094,12 @@ def test_backdoor():
                 # fp = open("/tmp/tinput","wb")
                 # fp.write(tinput)
                 # fp.close()
-                res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=seed,bitflip=bitflip)
+                res = QEMURunner(tmp_file,
+                                 tinput,
+                                 record_stdout=True,
+                                 record_core=True,
+                                 seed=seed,
+                                 bitflip=bitflip)
                 if index != len(tests)-1:
                     nose.tools.assert_equal(res.reg_vals['eip'],eip)
                     nose.tools.assert_equal(res.reg_vals['ebx'],ebx)
@@ -1271,7 +1308,7 @@ deliver
 hello
 %s %s
         """
-        res = QEMURunner(tmp_file, crash_test, record_stdout=True)
+        res = QEMURunner(tmp_file, crash_test, record_stdout=True, record_core=True)
         nose.tools.assert_not_equal(res.returncode, 0)
         # shutil.copy(tmp_file, "/tmp/aaa")
         nose.tools.assert_equal(res.reg_vals['eip'], 0x41414141)
