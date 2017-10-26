@@ -16,7 +16,7 @@ from patcherex.patch_master import PatchMaster
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.backends.reassembler_backend import ReassemblerBackend
 from patcherex.patches import *
-from tracer import Runner
+from tracer import QEMURunner
 from povsim import CGCPovSimulator
 
 l = logging.getLogger("patcherex.test.test_techniques_detourbackend")
@@ -459,65 +459,65 @@ def test_indirectcfi():
     for i,(tbin,addr_str) in enumerate(tests):
         vulnerable_fname1 = os.path.join(bin_location, tbin)
         if i==0: #do this only the first time
-            res = Runner(vulnerable_fname1,"00000001\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000001\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            res = Runner(vulnerable_fname1,"00000002\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000002\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            res = Runner(vulnerable_fname1,"00000003\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000003\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
 
             '''
-            res = Runner(vulnerable_fname1,"00000001\n23456789\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000001\n23456789\n",record_stdout=True)
             nose.tools.assert_equal(res.reg_vals['eip'],0x23456789)
-            res = Runner(vulnerable_fname1,"00000002\n43456789\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000002\n43456789\n",record_stdout=True)
             nose.tools.assert_equal(res.reg_vals['eip'],0x43456789)
-            res = Runner(vulnerable_fname1,"00000003\n53456789\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000003\n53456789\n",record_stdout=True)
             nose.tools.assert_equal(res.reg_vals['eip'],0x53456789)
-            res = Runner(vulnerable_fname1,"00000004\n63456789\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000004\n63456789\n",record_stdout=True)
             nose.tools.assert_equal(res.reg_vals['eip'],0x63456789)
 
-            res = Runner(vulnerable_fname1,"00000001\n08048640\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000001\n08048640\n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
             nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
             nose.tools.assert_equal(res.reg_vals['eip'],0x0)
-            res = Runner(vulnerable_fname1,"00000002\n08048640\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000002\n08048640\n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
             nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
             nose.tools.assert_equal(res.reg_vals['eip'],0x0)
-            res = Runner(vulnerable_fname1,"00000003\n08048640\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000003\n08048640\n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
             nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
             nose.tools.assert_equal(res.reg_vals['eip'],0x0)
-            res = Runner(vulnerable_fname1,"00000004\n08048640  \n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000004\n08048640  \n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
             nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
             nose.tools.assert_equal(res.reg_vals['eip'],0x30303030)
             '''
 
-            res = Runner(vulnerable_fname1,"00000001\n"+addr_str+"\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000001\n"+addr_str+"\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            res = Runner(vulnerable_fname1,"00000001\nbaaaa000\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000001\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            res = Runner(vulnerable_fname1,"00000001\n"+addr_str+"\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000001\n"+addr_str+"\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            res = Runner(vulnerable_fname1,"00000002\nbaaaa000\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000002\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
             '''
-            res = Runner(vulnerable_fname1,"00000002\n"+addr_str+"\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000002\n"+addr_str+"\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            res = Runner(vulnerable_fname1,"00000002\nbaaaa000\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000002\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            res = Runner(vulnerable_fname1,"00000003\n"+addr_str+"\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000003\n"+addr_str+"\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            res = Runner(vulnerable_fname1,"00000003\nbaaaa000\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000003\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            res = Runner(vulnerable_fname1,"00000003\n"+addr_str+"\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000003\n"+addr_str+"\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            res = Runner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            res = Runner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            res = Runner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
+            res = QEMURunner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
             '''
 
@@ -529,95 +529,95 @@ def test_indirectcfi():
             backend.apply_patches(patches)
             backend.save(patched_fname1)
             # backend.save("/tmp/aaa")
-            res = Runner(patched_fname1,"00000001\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000001\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
 
             if i==0:
-                res = Runner(patched_fname1,"00000001\n23456789\n",record_stdout=True)
+                res = QEMURunner(patched_fname1,"00000001\n23456789\n",record_stdout=True)
                 nose.tools.assert_equal(res.stdout,"hello\nCGC")
                 print hex(res.reg_vals['eip'])
                 nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
-                # res = Runner(patched_fname1,"00000002\n23456789\n",record_stdout=True)
+                # res = QEMURunner(patched_fname1,"00000002\n23456789\n",record_stdout=True)
                 # nose.tools.assert_equal(res.stdout,"hello\nCGC")
                 # print hex(res.reg_vals['eip'])
                 # nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
-                # res = Runner(patched_fname1,"00000003\n23456789\n",record_stdout=True)
+                # res = QEMURunner(patched_fname1,"00000003\n23456789\n",record_stdout=True)
                 # nose.tools.assert_equal(res.stdout,"hello\nCGC")
                 # print hex(res.reg_vals['eip'])
                 # nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
-                res = Runner(patched_fname1,"00000004\n23456789\n",record_stdout=True)
+                res = QEMURunner(patched_fname1,"00000004\n23456789\n",record_stdout=True)
                 nose.tools.assert_equal(res.stdout,"hello\n")
                 print hex(res.reg_vals['eip'])
                 nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
 
             #main: 08048620, stack: baaaa000, heap: "+addr_str+"
             #main -> heap
-            res = Runner(patched_fname1,"00000001\n"+addr_str+"\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000001\n"+addr_str+"\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
             print hex(res.reg_vals['eip'])
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             #main -> stack
-            res = Runner(patched_fname1,"00000001\nbaaaa000\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000001\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
             print hex(res.reg_vals['eip'])
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             #main -> main
-            res = Runner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
             nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
 
             #stack -> main
             '''
-            res = Runner(patched_fname1,"00000002\n08048620\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000002\n08048620\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
             print hex(res.reg_vals['eip'])
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             '''
             '''
             #stack -> heap
-            res = Runner(patched_fname1,"00000002\n"+addr_str+"\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000002\n"+addr_str+"\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
             print hex(res.reg_vals['eip'])
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             #stack -> stack
-            res = Runner(patched_fname1,"00000002\nbaaaa000\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000002\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
             nose.tools.assert_true(res.reg_vals == None)
             '''
 
             #heap -> main
             '''
-            res = Runner(patched_fname1,"00000003\n08048620\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000003\n08048620\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
             print hex(res.reg_vals['eip'])
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             '''
             '''
             #heap -> stack
-            res = Runner(patched_fname1,"00000003\nbaaaa000\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000003\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
             print hex(res.reg_vals['eip'])
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             '''
             #heap -> heap
             '''
-            res = Runner(patched_fname1,"00000003\n"+addr_str+"\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000003\n"+addr_str+"\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
             nose.tools.assert_true(res.reg_vals == None)
             '''
 
             #unknown -> main
-            res = Runner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000001\n08048000\n",record_stdout=True)
             nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
 
             '''
             #unknown -> stack
-            res = Runner(patched_fname1,"00000004\nbaaaa000\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000004\nbaaaa000\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
             nose.tools.assert_true(res.reg_vals == None)
             '''
             #unknown -> heap
             '''
-            res = Runner(patched_fname1,"00000004\n"+addr_str+"\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"00000004\n"+addr_str+"\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
             nose.tools.assert_true(res.reg_vals == None)
             '''
@@ -626,13 +626,13 @@ def test_indirectcfi():
             '''
             if i == 0 and global_BackendClass != ReassemblerBackend:
                 gadget_addr = "08048971"
-                res = Runner(patched_fname1,"00000001\n"+gadget_addr+"\n",record_stdout=True)
+                res = QEMURunner(patched_fname1,"00000001\n"+gadget_addr+"\n",record_stdout=True)
                 nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
-                # res = Runner(patched_fname1,"00000002\n08048640\n",record_stdout=True)
+                # res = QEMURunner(patched_fname1,"00000002\n08048640\n",record_stdout=True)
                 # nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
-                # res = Runner(patched_fname1,"00000003\n08048640\n",record_stdout=True)
+                # res = QEMURunner(patched_fname1,"00000003\n08048640\n",record_stdout=True)
                 # nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
-                res = Runner(patched_fname1,"00000004\n"+gadget_addr+"\n",record_stdout=True)
+                res = QEMURunner(patched_fname1,"00000004\n"+gadget_addr+"\n",record_stdout=True)
                 nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
 
                 patched_fname2 = os.path.join(td, "patched2")
@@ -644,9 +644,9 @@ def test_indirectcfi():
                 backend.save(patched_fname2)
                 # backend.save("/tmp/aaa")
 
-                res = Runner(patched_fname1,"00000001\n"+"b7fff000"+"\n",record_stdout=True)
+                res = QEMURunner(patched_fname1,"00000001\n"+"b7fff000"+"\n",record_stdout=True)
                 nose.tools.assert_true(res.reg_vals['eip'] != 0xb7fff000)
-                res = Runner(patched_fname2,"00000001\n"+"b7fff000"+"\n",record_stdout=True)
+                res = QEMURunner(patched_fname2,"00000001\n"+"b7fff000"+"\n",record_stdout=True)
                 nose.tools.assert_true(res.reg_vals['eip'] == 0xb7fff000) #because we detect executable allocate memory
             '''
 
@@ -701,7 +701,7 @@ def test_transmitprotection():
         tinput += "08048000\n00000005\n"
         #print repr(tinput)
         #open("../../vm/shared/input","wb").write(tinput)
-        res = Runner(patched_fname1,tinput,record_stdout=True)
+        res = QEMURunner(patched_fname1,tinput,record_stdout=True)
         if expected_crash:
             nose.tools.assert_true(res.reg_vals!=None)
             nose.tools.assert_equal(res.reg_vals['eip'],0x8047ffb)
@@ -716,9 +716,9 @@ def test_transmitprotection():
     vulnerable_fname1 = os.path.join(bin_location, "patchrex/arbitrary_transmit_O0")
     vulnerable_fname2 = os.path.join(bin_location, "patchrex/arbitrary_transmit_stdin_O0")
 
-    res = Runner(vulnerable_fname1,"08048000\n00000005\n",record_stdout=True)
+    res = QEMURunner(vulnerable_fname1,"08048000\n00000005\n",record_stdout=True)
     nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
-    res = Runner(vulnerable_fname1,"08048000\n00000005\n4347c000\n0000000a\n",record_stdout=True)
+    res = QEMURunner(vulnerable_fname1,"08048000\n00000005\n4347c000\n0000000a\n",record_stdout=True)
     nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
     nose.tools.assert_equal(len(res.stdout),15+4+2)
 
@@ -743,41 +743,41 @@ def test_transmitprotection():
             #backend.save("../../vm/shared/patched")
             base = "08048000\n00000005\n"
 
-            res = Runner(patched_fname1,"08048000\n00000005\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,"08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
-            res = Runner(patched_fname1,base+"4347c000\n0000000a\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,base+"4347c000\n0000000a\n",record_stdout=True)
             nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
             nose.tools.assert_equal(len(res.stdout),11)
             nose.tools.assert_equal(res.reg_vals['eip'],0x08047ffc)
 
-            res = Runner(patched_fname2,"08048000\n00000005\n",record_stdout=True)
+            res = QEMURunner(patched_fname2,"08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01")
-            res = Runner(patched_fname2,base+"4347c000\n0000000a\n",record_stdout=True)
+            res = QEMURunner(patched_fname2,base+"4347c000\n0000000a\n",record_stdout=True)
             nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
             nose.tools.assert_equal(len(res.stdout),11)
             nose.tools.assert_equal(res.reg_vals['eip'],0x08047ffc)
 
-            res = Runner(patched_fname1,base+"4347bfff\n00000004\n08048000\n00000005\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,base+"4347bfff\n00000004\n08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01\x7fCGC\x01")
-            res = Runner(patched_fname1,base+"4347bfff\n00000001\n08048000\n00000005\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,base+"4347bfff\n00000001\n08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01\x7fCGC\x01")
-            res = Runner(patched_fname1,base+"4347d000\n00000005\n08048000\n00000005\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,base+"4347d000\n00000005\n08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_equal(res.stdout,"hello\n\x7fCGC\x01\x7fCGC\x01")
 
-            res = Runner(patched_fname1,base+"4347c000\n00000004\n08048000\n00000005\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,base+"4347c000\n00000004\n08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
             nose.tools.assert_equal(len(res.stdout),11)
 
-            res = Runner(patched_fname1,base+"4347c000\n00000000\n08048000\n00000005\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,base+"4347c000\n00000000\n08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
             nose.tools.assert_equal(len(res.stdout),16+0)
-            res = Runner(patched_fname1,base+"4347c000\n00000001\n08048000\n00000005\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,base+"4347c000\n00000001\n08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
             nose.tools.assert_equal(len(res.stdout),16+1)
-            res = Runner(patched_fname1,base+"4347c000\n00000002\n08048000\n00000005\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,base+"4347c000\n00000002\n08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
             nose.tools.assert_equal(len(res.stdout),16+2)
-            res = Runner(patched_fname1,base+"4347c000\n00000003\n08048000\n00000005\n",record_stdout=True)
+            res = QEMURunner(patched_fname1,base+"4347c000\n00000003\n08048000\n00000005\n",record_stdout=True)
             nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
             nose.tools.assert_equal(len(res.stdout),16+3)
 
@@ -812,7 +812,7 @@ def test_shiftstack():
     filepath = os.path.join(bin_location, "CROMU_00044")
     tinput = "1\n"*50+"2\n"*50
 
-    res = Runner(filepath,tinput,record_stdout=True)
+    res = QEMURunner(filepath,tinput,record_stdout=True)
     original_output = res.stdout
 
     with patcherex.utils.tempdir() as td:
@@ -823,7 +823,7 @@ def test_shiftstack():
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        res = Runner(tmp_file,tinput,record_stdout=True)
+        res = QEMURunner(tmp_file,tinput,record_stdout=True)
         nose.tools.assert_equal(original_output, res.stdout)
 
         backend = global_BackendClass(filepath,global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -831,7 +831,7 @@ def test_shiftstack():
         backend.apply_patches([InsertCodePatch(0x80487d0,"jmp 0x11223344")])
         backend.save(tmp_file)
         #backend.save("/tmp/aaa")
-        res = Runner(tmp_file,tinput,record_stdout=True)
+        res = QEMURunner(tmp_file,tinput,record_stdout=True)
         original_reg_value = res.reg_vals
         nose.tools.assert_equal(original_reg_value['eip'], 0x11223344)
 
@@ -842,7 +842,7 @@ def test_shiftstack():
             patches = cp.get_patches()
             backend.apply_patches(patches+[InsertCodePatch(0x80487d0,"jmp 0x11223344")])
             backend.save(tmp_file)
-            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+            res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
             oesp = original_reg_value['esp']
             nesp = res.reg_vals['esp']
             random_stack_pos.add(nesp)
@@ -865,7 +865,7 @@ def test_nxstack():
     from patcherex.techniques.shiftstack import ShiftStack
     filepath = os.path.join(bin_location, "CROMU_00044")
     tinput = "login\n"*50+"2\n"*50
-    res = Runner(filepath,tinput,record_stdout=True)
+    res = QEMURunner(filepath,tinput,record_stdout=True)
     original_output = res.stdout
 
     with_stack_randomization = [False,True]
@@ -884,7 +884,7 @@ def test_nxstack():
             backend.save(tmp_file)
             # backend.save("/tmp/aaa")
             # test that behaves like the original
-            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+            res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
             nose.tools.assert_equal(original_output, res.stdout)
 
             # check if the stack is where we expect
@@ -896,7 +896,7 @@ def test_nxstack():
                 patches += cp.get_patches()
             backend.apply_patches(patches+[InsertCodePatch(0x80487d0,"jmp 0x11223344")])
             backend.save(tmp_file)
-            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+            res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
             nesp = res.reg_vals['esp']
             nose.tools.assert_true(0xbaaab000 < nesp < 0xbaaac000)
             '''
@@ -917,7 +917,7 @@ def test_nxstack():
             backend.save(tmp_file)
             # backend.save("/tmp/aaa")
             # see: https://git.seclab.cs.ucsb.edu/cgc/qemu/issues/5
-            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000),\
+            res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000),\
                     qemu=shellphish_qemu.qemu_path("cgc-nxtracer"))
             if res.reg_vals == None:
                 nose.tools.assert_equal(res.returncode,46)
@@ -944,7 +944,7 @@ def test_nxstack():
             backend.apply_patches(patches+[InsertCodePatch(0x80487d0,code)])
             backend.save(tmp_file)
             # backend.save("/tmp/aaa")
-            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+            res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
             nose.tools.assert_equal(res.reg_vals['eax'],0x000000ab)
 
             # check read write on stack to the expanded one and autogrow
@@ -961,7 +961,7 @@ def test_nxstack():
             backend.apply_patches(patches)
             backend.save(tmp_file)
             # backend.save("/tmp/aaa")
-            res = Runner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
+            res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
             nose.tools.assert_equal(original_output, res.stdout)
             '''
 
@@ -1035,9 +1035,9 @@ def test_backdoor():
             tests = ["A","A"*10,real_backdoor_enter[:3],real_backdoor_enter[:3]+"A"*10,
                     "\n"*10,real_backdoor_enter[:3]+"A"*10,real_backdoor_enter+"\n"*10]
             for index,tinput in enumerate(tests):
-                res = Runner(filepath,tinput,record_stdout=True)
+                res = QEMURunner(filepath,tinput,record_stdout=True)
                 original_behavior = res.stdout, res.returncode
-                res = Runner(tmp_file,tinput,record_stdout=True,bitflip=bitflip)
+                res = QEMURunner(tmp_file,tinput,record_stdout=True,bitflip=bitflip)
                 patched_behavior = res.stdout, res.returncode
                 if index != len(tests)-1:
                     nose.tools.assert_equal(original_behavior,patched_behavior)
@@ -1062,7 +1062,7 @@ def test_backdoor():
                 # fp = open("/tmp/tinput","wb")
                 # fp.write(tinput)
                 # fp.close()
-                res = Runner(tmp_file,tinput,record_stdout=True,seed=seed,bitflip=bitflip)
+                res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=seed,bitflip=bitflip)
                 if index != len(tests)-1:
                     nose.tools.assert_equal(res.reg_vals['eip'],eip)
                     nose.tools.assert_equal(res.reg_vals['ebx'],ebx)
@@ -1081,7 +1081,7 @@ def test_backdoor():
                 # fp = open("../../vm/shared/tinput","wb")
                 # fp.write(tinput)
                 # fp.close()
-                res = Runner(tmp_file,tinput,record_stdout=True,seed=index,bitflip=bitflip)
+                res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=index,bitflip=bitflip)
                 eip_vals.add(res.reg_vals['eip'])
                 ebx_vals.add(res.reg_vals['ebx'])
             # check that ebx and eip are actually randomized by the fake backdoor
@@ -1271,7 +1271,7 @@ deliver
 hello
 %s %s
         """
-        res = Runner(tmp_file, crash_test, record_stdout=True)
+        res = QEMURunner(tmp_file, crash_test, record_stdout=True)
         nose.tools.assert_not_equal(res.returncode, 0)
         # shutil.copy(tmp_file, "/tmp/aaa")
         nose.tools.assert_equal(res.reg_vals['eip'], 0x41414141)
@@ -1284,10 +1284,10 @@ deliver
 two MILLION dollars
 nick stephens
         """
-        res = Runner(filepath1, ok_test, record_stdout=True)
+        res = QEMURunner(filepath1, ok_test, record_stdout=True)
         expected_ret = res.returncode
         expected_stdout = res.stdout
-        res = Runner(tmp_file, ok_test, record_stdout=True)
+        res = QEMURunner(tmp_file, ok_test, record_stdout=True)
         actual_ret = res.returncode
         actual_stdout = res.stdout
         nose.tools.assert_equal(expected_ret, actual_ret)
@@ -1300,10 +1300,10 @@ nick stephens
         backend.apply_patches(patches)
         backend.save(tmp_file)
         # shutil.copy(tmp_file,"/tmp/aaa")
-        res = Runner(filepath2, ok_test, record_stdout=True)
+        res = QEMURunner(filepath2, ok_test, record_stdout=True)
         expected_ret = res.returncode
         expected_stdout = res.stdout
-        res = Runner(tmp_file, ok_test, record_stdout=True)
+        res = QEMURunner(tmp_file, ok_test, record_stdout=True)
         actual_ret = res.returncode
         actual_stdout = res.stdout
         nose.tools.assert_equal(expected_ret, actual_ret)
