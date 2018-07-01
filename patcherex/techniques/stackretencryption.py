@@ -1,6 +1,8 @@
 
 import logging
 from collections import defaultdict
+from itertools import chain
+
 from angr.errors import SimEngineError, SimMemoryError
 
 import patcherex.cfg_utils as cfg_utils
@@ -279,7 +281,7 @@ class StackRetEncryption(object):
             free_regs = set()
 
             for s in bl.vex.statements:
-                for e in [s] + s.expressions:
+                for e in chain([s], s.expressions):
                     if e.tag == "Iex_Get":
                         reg = self.get_reg_name(self.patcher.project.arch, e.offset)
                         if reg not in free_regs:
@@ -433,38 +435,43 @@ class StackRetEncryption(object):
                 state = 'find_ebp'
                 for s in vex.statements:
                     if state == 'find_ebp':
-                        if len(s.expressions)==1 and (s.tag=='Ist_Put' or s.tag=='IstStore') and\
+                        exprs = list(s.expressions)
+                        if len(exprs)==1 and (s.tag=='Ist_Put' or s.tag=='IstStore') and\
                                 s.offset==vex.arch.registers['ebp'][0]:
-                            if hasattr(s.expressions[0],"tmp"):
-                                ebp_tmp = s.expressions[0].tmp
+                            if hasattr(exprs[0],"tmp"):
+                                ebp_tmp = exprs[0].tmp
                                 state = 'deref_ebp'
                     elif state == 'deref_ebp':
-                        if len(s.expressions)==2 and s.tag=='Ist_WrTmp':
-                            if hasattr(s.expressions[1],"tmp"):
-                                if s.expressions[1].tmp == ebp_tmp:
+                        exprs = list(s.expressions)
+                        if len(exprs)==2 and s.tag=='Ist_WrTmp':
+                            if hasattr(exprs[1],"tmp"):
+                                if exprs[1].tmp == ebp_tmp:
                                     deref_tmp = s.tmp
                                     state = 'deref_ebp2'
                     elif state == 'deref_ebp2':
-                        if len(s.expressions)==3 and s.tag=='Ist_WrTmp' and 4 in [v.value for v in s.constants]:
+                        exprs = list(s.expressions)
+                        if len(exprs)==3 and s.tag=='Ist_WrTmp' and 4 in {v.value for v in s.constants}:
                             plus4_tmp = s.tmp
                             state = 'deref_plus4'
                     elif state == 'deref_plus4':
-                        if len(s.expressions)==2 and s.tag=='Ist_WrTmp':
-                            if hasattr(s.expressions[1],"tmp"):
-                                if s.expressions[1].tmp == plus4_tmp:
+                        exprs = list(s.expressions)
+                        if len(exprs)==2 and s.tag=='Ist_WrTmp':
+                            if hasattr(exprs[1],"tmp"):
+                                if exprs[1].tmp == plus4_tmp:
                                     deref_tmp2 = s.tmp
                                     state = 'found_access'
                     elif state == 'found_access':
-                        if len(s.expressions)==2 and s.tag=='Ist_Store':
+                        exprs = list(s.expressions)
+                        if len(exprs)==2 and s.tag=='Ist_Store':
                             # print s
-                            if hasattr(s.expressions[1],"tmp"):
-                                if s.expressions[1].tmp == deref_tmp2:
+                            if hasattr(exprs[1],"tmp"):
+                                if exprs[1].tmp == deref_tmp2:
                                     state = "found"
                                     break
-                        elif len(s.expressions)==1 and s.tag=='Ist_Put':
+                        elif len(exprs)==1 and s.tag=='Ist_Put':
                             #print s
-                            if hasattr(s.expressions[0],"tmp"):
-                                if s.expressions[0].tmp == deref_tmp2:
+                            if hasattr(exprs[0],"tmp"):
+                                if exprs[0].tmp == deref_tmp2:
                                     state = 'found'
                                     break
                 else:

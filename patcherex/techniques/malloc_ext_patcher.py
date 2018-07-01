@@ -2,6 +2,7 @@ import patcherex
 import angr
 import logging
 from collections import defaultdict
+from itertools import chain
 
 import patcherex.cfg_utils as cfg_utils
 from patcherex.patches import *
@@ -87,7 +88,7 @@ class MallocExtPatcher(object):
             free_regs = set()
 
             for s in bl.vex.statements:
-                for e in [s] + s.expressions:
+                for e in chain([s], s.expressions):
                     if e.tag == "Iex_Get":
                         reg = self.get_reg_name(self.patcher.project.arch, e.offset)
                         if reg not in free_regs:
