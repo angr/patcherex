@@ -567,9 +567,9 @@ def exec_cmd(args, cwd=None, shell=False, debug=False):
     return res
 
 
-def compile_asm_template(template_name, substitution_dict):
+def compile_asm_template(template_name, substitution_dict, bits=32):
     formatted_template_content = get_asm_template(template_name, substitution_dict)
-    return compile_asm(formatted_template_content)
+    return compile_asm(formatted_template_content, bits=bits)
 
 
 def get_asm_template(template_name, substitution_dict):
@@ -606,8 +606,13 @@ def bytes_to_asm(in_str, comment=None):
         return tstr
 
 
-def disassemble(code, offset=0x0):
-    md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+def disassemble(code, offset=0x0, bits=32):
+    if bits == 32:
+        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+    elif bits == 64:
+        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
+    else:
+        raise Exception("disassemble(): Unsupported bits %d." % bits)
     md.detail = True
     if isinstance(code, str):
         code = bytes(map(ord, code))
@@ -637,7 +642,7 @@ def get_multiline_str():
     return "\n".join(input_list)
 
 
-def compile_asm(code, base=None, name_map=None):
+def compile_asm(code, base=None, name_map=None, bits=32):
     #print "=" * 10
     #print code
     #if base != None: print hex(base)
@@ -653,7 +658,7 @@ def compile_asm(code, base=None, name_map=None):
         bin_fname = os.path.join(td, "bin.o")
 
         fp = open(asm_fname, 'wb')
-        fp.write(b"bits 32\n")
+        fp.write(b"bits %d\n" % bits)
         if base is not None:
             fp.write(bytes("org %#x\n" % base, "utf-8"))
         fp.write(bytes(code, "utf-8"))
@@ -677,7 +682,7 @@ def compile_asm(code, base=None, name_map=None):
     return compiled
 
 
-def compile_asm_fake_symbol(code, base=None, ):
+def compile_asm_fake_symbol(code, base=None, bits=32):
     code = re.subn(r'{.*?}', "0x41414141", code)[0]
 
     with tempdir() as td:
@@ -685,7 +690,7 @@ def compile_asm_fake_symbol(code, base=None, ):
         bin_fname = os.path.join(td, "bin.o")
 
         fp = open(asm_fname, "wb")
-        fp.write(b"bits 32\n")
+        fp.write(b"bits %d\n" % bits)
         if base is not None:
             fp.write(bytes("org %#x\n" % base, "utf-8"))
         fp.write(bytes(code, "utf-8"))
@@ -732,7 +737,7 @@ def get_nasm_c_wrapper_code(function_symbol, get_return=False, debug=False):
     return "\n".join(wcode)
 
 
-def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
+def compile_c(code, optimization='-Oz', name_map=None, bits=32):
     # TODO symbol support in c code
     with tempdir() as td:
         c_fname = os.path.join(td, "code.c")
@@ -743,7 +748,8 @@ def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
         fp.write(code)
         fp.close()
 
-        res = exec_cmd("clang %s -nostdlib -mno-sse -ffreestanding %s -o %s -c %s" % (compiler_flags, optimization, object_fname, c_fname), shell=True)
+        res = exec_cmd("clang -m%d -nostdlib -mno-sse -ffreestanding %s -o %s -c %s" \
+                       % (bits, optimization, object_fname, c_fname), shell=True)
         if res[2] != 0:
             print("CLang error:")
             print(res[0])

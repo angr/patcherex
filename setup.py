@@ -20,5 +20,6 @@ setup(
         'python-resources',
         'identifier',
         'pyyaml',
+        'pyelftools',
    ],
 )
