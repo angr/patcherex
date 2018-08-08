@@ -100,7 +100,7 @@ class ItemManager(object):
 
     def delete_item(self, index):
         self.pre_sync()
-        self._delete_item()
+        self._delete_item(index)
         self.post_sync()
         return index
 
