@@ -3,9 +3,13 @@ Patcherex is the component used to create patched binaries in our CRS.
 
 The code has been tested on Ubuntu 16.04 64bit, using PyPy as the Python interpreter.
 
-# PLAYING AT DEFCON and want to use the IDA plugin?
+# Playing at DEFCON and want to use the IDA plugin? Need the quick setup guide? Go read DEFCON.md
 
-Need the quick setup guide? Go read DEFCON.md
+---
+
+---
+
+# If you AREN'T trying to use the IDA plugin:
 
 ## Installation
 
