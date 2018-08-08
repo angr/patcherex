@@ -274,9 +274,9 @@ Edit Code Addition Patch
 
     def get_patch_data(self):
         info = idaapi.get_inf_structure()
-        flags = ("-m64" if info.is_64bit() else "-m32")
+        flags = "-m64" if info.is_64bit() else "-m32"
         return {"asm_code": self.patch_code.value, "is_c": self.rCCode.selected,
-                "name": self.get_patch_name(), "compiler_flags": flags}
+                "name": self.get_patch_name(), "compiler_flags": (flags,)}
 
     @classmethod
     def get_gui_format_of(cls, patch_type, address, name, data):

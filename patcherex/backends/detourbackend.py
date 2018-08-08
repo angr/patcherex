@@ -669,7 +669,7 @@ class DetourBackend(Backend):
                 if patch.is_c:
                     code_len = len(utils.compile_c(patch.asm_code,
                                                    optimization=patch.optimization,
-                                                   bits=self.structs.elfclass))
+                                                   compiler_flags=patch.compiler_flags))
                 else:
                     code_len = len(utils.compile_asm_fake_symbol(patch.asm_code,
                                                                  current_symbol_pos,
@@ -683,7 +683,7 @@ class DetourBackend(Backend):
                 if patch.is_c:
                     new_code = utils.compile_c(patch.asm_code,
                                                optimization=patch.optimization,
-                                               bits=self.structs.elfclass)
+                                               compiler_flags=patch.compiler_flags)
                 else:
                     new_code = utils.compile_asm(patch.asm_code,
                                                  self.get_current_code_position(),

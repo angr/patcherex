@@ -3,6 +3,10 @@ Patcherex is the component used to create patched binaries in our CRS.
 
 The code has been tested on Ubuntu 16.04 64bit, using PyPy as the Python interpreter.
 
+# PLAYING AT DEFCON and want to use the IDA plugin?
+
+Need the quick setup guide? Go read DEFCON.md
+
 ## Installation
 
 ```bash
@@ -128,4 +132,3 @@ def generate_stackretencryption_binary(self, test_bin=None):
  ```
 
 patch_master.py contains also methods to patch multiple binaries in parallel and quickly test them.
-
