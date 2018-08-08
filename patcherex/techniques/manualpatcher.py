@@ -6,9 +6,8 @@ l = logging.getLogger("patcherex.techniques.ManualPatcher")
 
 class ManualPatcher(object):
     def __init__(self, binary_fname, backend, patch_file):
-        patch_file_obj = open(patch_file, "rb")
-        self.patches = json.load(patch_file_obj)
-        patch_file_obj.close()
+        with open(patch_file, "rb") as patch_file_obj:
+            self.patches = json.load(patch_file_obj)
         self.binary_fname = binary_fname
         self.backend = backend
 

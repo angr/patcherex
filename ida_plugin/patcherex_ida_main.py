@@ -20,11 +20,21 @@ PATCH_TYPES = {"InsertCodePatch": {"desc": "Insert Assembly", "handler_form": In
                "AddCodePatch": {"desc": "Add assembly or C code into the binary", "handler_form": AddCodePatchForm}}
 
 class ItemManager(object):
-    def __init__(self):
-        self.internal_items = []
+    def __init__(self, get_items, set_items):
+        self.get_items = get_items
+        self.set_items = set_items
+        self.internal_items = None
+        self.internal_items = self.load_serialized(self.get_items())
+
+    def pre_sync(self):
+        self._load_serialized(self.get_items())
+
+    def post_sync(self):
+        s = self._get_serialized()
+        self.set_items(s)
 
     def __getitem__(self, index):
-        return self.get_handler_for_item(index).get_gui_format_of(**self.get_item(index))
+        return self._get_handler_for_item(index).get_gui_format_of(**self.get_item(index))
 
     def __len__(self):
         return len(self.internal_items)
@@ -54,44 +64,80 @@ class ItemManager(object):
         return alt_name
 
     def add_item(self, patch_type, address, name, data):
+        self.pre_sync()
+        self._add_item(patch_type, address, name, data)
+        self.post_sync()
+
+    def _add_item(self, patch_type, address, name, data):
         valid_name = self.gen_valid_name(name)
         self.internal_items.append({"patch_type": patch_type,
                                     "address": address,
                                     "name": valid_name,
                                     "data": data})
         new_index = len(self.internal_items) - 1
-        self.get_handler_for_item(new_index).on_perform_post_operations(**self.get_item(new_index))
+        self._get_handler_for_item(new_index).on_perform_post_operations(**self._get_item(new_index))
         return len(self.internal_items) - 1
 
     def get_item(self, index):
+        self.pre_sync()
+        return self._get_item(index)
+
+    def _get_item(self, index):
         return self.internal_items[index]
 
     def set_item(self, index, updates):
+        self.pre_sync()
+        self._set_item(index, updates)
+        self.post_sync()
+
+    def _set_item(self, index, updates):
         if "name" in updates:
             updates = dict(updates)
             updates["name"] = self.gen_valid_name(updates["name"], replacement_index=index)
-        self.get_handler_for_item(index).on_pre_update(**self.get_item(index))
+        self._get_handler_for_item(index).on_pre_update(**self._get_item(index))
         self.internal_items[index].update(updates)
-        self.get_handler_for_item(index).on_post_update(**self.get_item(index))
+        self._get_handler_for_item(index).on_post_update(**self._get_item(index))
 
     def delete_item(self, index):
-        self.get_handler_for_item(index).on_delete(**self.get_item(index))
-        del self.internal_items[index]
+        self.pre_sync()
+        self._delete_item()
+        self.post_sync()
         return index
 
-    def get_handler_for_item(self, n):
-        return PATCH_TYPES[self.get_item(n)["patch_type"]]["handler_form"]
+    def _delete_item(self, index):
+        self._get_handler_for_item(index).on_delete(**self._get_item(index))
+        del self.internal_items[index]
 
-    def get_serialized(self):
+    def _get_handler_for_item(self, n):
+        return PATCH_TYPES[self._get_item(n)["patch_type"]]["handler_form"]
+
+    def _get_serialized(self):
         return json.dumps(self.internal_items)
 
+    def _load_serialized(self, contents):
+        if self.internal_items is not None:
+            self._uninitialize_patches()
+        self.internal_items = []
+        stuff = json.loads(contents) if contents else None
+        if stuff is not None:
+            for item in stuff:
+                self._add_item(**item)
+
+    def get_serialized(self):
+        self.pre_sync()
+        return self._get_serialized()
+
     def load_serialized(self, contents):
-        for item in json.loads(contents):
-            self.add_item(**item)
+        self._load_serialized(contents)
+        self.post_sync()
 
     def uninitialize_patches(self):
+        self.pre_sync()
+        self._uninitialize_patches()
+
+    def _uninitialize_patches(self):
         while len(self.internal_items) != 0:
-            self.delete_item(0)
+            self._delete_item(0)
 
 class PatcherexWindow(Choose2):
     def __init__(self):
@@ -104,10 +150,11 @@ class PatcherexWindow(Choose2):
                 ["Name", 30 | Choose2.CHCOL_PLAIN],
                 ["Data", 30 | Choose2.CHCOL_FORMAT]
             ])
-        self.items = ItemManager()
-        self.popup_names = ["Add Patch", "Remove Patch", "Edit Patch", "Refresh"]
         self.node = idaapi.netnode()
         self.node.create("$ patcherex")
+        self.items = ItemManager(lambda: self.node.getblob(0, "I"),
+                                 lambda x: self.node.setblob(x, 0, "I"))
+        self.popup_names = ["Add Patch", "Remove Patch", "Edit Patch", "Refresh"]
 
     def load_saved_patches(self):
         SaveLoadHook.loading()
@@ -208,7 +255,7 @@ class SaveHandler(idaapi.action_handler_t):
             patcherex_window.node.setblob(contents, 0, "I")
 
     def update(self, ctx):
-        return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
+        return idaapi.AST_ENABLE_FOR_FORM if ctx.widget_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
 
 class LoadHandler(idaapi.action_handler_t):
     def activate(self, ctx):
@@ -239,12 +286,12 @@ class LoadHandler(idaapi.action_handler_t):
         return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
 
 class RunPatcherexHandler(idaapi.action_handler_t):
-    config = """{"techniques": {"manualpatcher": {"options": {"patch_file": null}}}, "backend": {"name": "reassembler_backend", "options": {"extra_compiler_options": []}}}"""
+    config = """{"techniques": {"manualpatcher": {"options": {"patch_file": null}}}, "backend": {"name": "detourbackend", "options": {"base_address": 0}}}"""
     def activate(self, ctx):
         RunPatcherexHandler.menu_activate(None)
 
     def update(self, ctx):
-        return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
+        return idaapi.AST_ENABLE_FOR_FORM
 
     @staticmethod
     def patcherex_finish(proc):
@@ -269,7 +316,7 @@ class RunPatcherexHandler(idaapi.action_handler_t):
             config_file = tempfile.NamedTemporaryFile(delete=False)
             p_config = json.loads(RunPatcherexHandler.config)
             p_config["techniques"]["manualpatcher"]["options"]["patch_file"] = patch_output_file.name
-            p_config["backend"]["options"]["extra_compiler_options"] = shlex.split(form.get_compiler_options())
+            p_config["backend"]["options"]["base_address"] = idaapi.get_imagebase()
             config_file.write(json.dumps(p_config))
             config_file.close()
             print "Calling patcherex . . ."
@@ -282,7 +329,7 @@ class AddPatchHandler(idaapi.action_handler_t):
         AddPatchHandler.menu_activate(None)
 
     def update(self, ctx):
-        return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
+        return idaapi.AST_ENABLE_FOR_FORM
 
     @staticmethod
     def menu_activate(arg):
@@ -388,17 +435,14 @@ class PatcherexPlugin(idaapi.plugin_t):
             print "Only x86 metapc is supported by Patcherex"
             return idaapi.PLUGIN_SKIP
         for command in commands:
+            name = "patcherex:" + command.name
             idaapi.register_action(
-                idaapi.action_desc_t("patcherex:" + command.name,
+                idaapi.action_desc_t(name,
                                      command.description,
-                                     command.handler_class()))
-            if command.menu_path is not None:
-                idaapi.add_menu_item(command.menu_path,
-                                     command.description,
-                                     command.shortcut,
-                                     0,
-                                     command.handler_class.menu_activate,
-                                     (None,))
+                                     command.handler_class(),
+                                     command.shortcut))
+            if command.menu_path:
+                idaapi.attach_action_to_menu(command.menu_path, name, idaapi.SETMENU_APP)
         if patcherex_hooks is None:
             patcherex_hooks = [PopHook([command.name for command in commands]), SaveLoadHook()]
             for hook in patcherex_hooks:

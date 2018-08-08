@@ -737,7 +737,7 @@ def get_nasm_c_wrapper_code(function_symbol, get_return=False, debug=False):
     return "\n".join(wcode)
 
 
-def compile_c(code, optimization='-Oz', name_map=None, bits=32):
+def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
     # TODO symbol support in c code
     with tempdir() as td:
         c_fname = os.path.join(td, "code.c")
@@ -748,8 +748,8 @@ def compile_c(code, optimization='-Oz', name_map=None, bits=32):
         fp.write(code)
         fp.close()
 
-        res = exec_cmd("clang -m%d -nostdlib -mno-sse -ffreestanding %s -o %s -c %s" \
-                       % (bits, optimization, object_fname, c_fname), shell=True)
+        res = exec_cmd(("clang -nostdlib -mno-sse -ffreestanding %s -o %s -c %s" \
+                        % (optimization, object_fname, c_fname)) + " ".join(compiler_flags), shell=True)
         if res[2] != 0:
             print("CLang error:")
             print(res[0])

@@ -155,6 +155,7 @@ class InsertCodePatch(CodePatch):
 
 
 class RawFilePatch(Patch):
+
     def __init__(self, file_addr, data, name=None):
         super(RawFilePatch, self).__init__(name)
         self.file_addr = file_addr
@@ -213,4 +214,5 @@ class RemoveInstructionPatch(Patch):
         self.ins_size = ins_size
 
     def __repr__(self):
-        return "RemoveInstructionPatch @ %#x, %d bytes" % (self.ins_addr, self.ins_size)
+        size = str(self.ins_size) if self.ins_size else "(unknown)"
+        return "RemoveInstructionPatch @ %#x, %s bytes" % (self.ins_addr, size)

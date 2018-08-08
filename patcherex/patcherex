@@ -7,7 +7,6 @@ import argparse
 import sys
 import logging
 import os
-import angr.log
 from tempfile import NamedTemporaryFile
 from subprocess import call
 

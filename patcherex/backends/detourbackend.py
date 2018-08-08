@@ -55,9 +55,9 @@ class DuplicateLabelsException(PatchingException):
 
 class DetourBackend(Backend):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, data_fallback=None):
+    def __init__(self, filename, data_fallback=None, base_address=None):
 
-        super(DetourBackend, self).__init__(filename)
+        super(DetourBackend, self).__init__(filename, project_options={"main_opts": {"custom_base_addr": base_address}})
 
         self.modded_segments = self.dump_segments()
 
@@ -554,6 +554,17 @@ class DetourBackend(Backend):
                 self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
 
+        for patch in patches:
+            if isinstance(patch, RemoveInstructionPatch):
+                if patch.ins_size is None:
+                    ins = self.read_mem_from_file(patch.ins_addr, 16)
+                    size = list(self.project.arch.capstone.disasm(ins, 0))[0].size
+                else:
+                    size = patch.ins_size
+                self.patch_bin(patch.ins_addr, "\x90" * size)
+                self.added_patches.append(patch)
+                l.info("Added patch: " + str(patch))
+
         if self.data_fallback:
             # 1)
             self.added_data_file_start = len(self.ncontent)
@@ -625,14 +636,24 @@ class DetourBackend(Backend):
 
         # add PIE thunk
         self.name_map["pie_thunk"] = self.get_current_code_position()
-        pie_thunk = """
-        _patcherex_begin_patch:
-        call $+5
-        here:
-        pop rax
-        sub rax, (here - _patcherex_begin_patch + {pie_thunk})
-        ret
-        """
+        if self.structs.elfclass == 64:
+            pie_thunk = """
+            _patcherex_begin_patch:
+            call $+5
+            here:
+            pop rax
+            sub rax, (here - _patcherex_begin_patch + {pie_thunk})
+            ret
+            """
+        else:
+            pie_thunk = """
+            _patcherex_begin_patch:
+            call $+5
+            here:
+            pop eax
+            sub eax, (here - _patcherex_begin_patch + {pie_thunk})
+            ret
+            """
         new_code = utils.compile_asm(pie_thunk,
                                      self.get_current_code_position(),
                                      self.name_map,
@@ -996,7 +1017,8 @@ class DetourBackend(Backend):
         # TODO allow special case to patch syscall wrapper epilogue
         # (not that important since we do not want to patch epilogue in syscall wrapper)
         block_addr = self.get_block_containing_inst(patch.addr)
-        block = self.project.factory.block(block_addr)
+        mem = self.read_mem_from_file(block_addr, self.project.factory.block(block_addr).size)
+        block = self.project.factory.block(block_addr, byte_string=mem)
 
         l.debug("inserting detour for patch: %s" % (map(hex, (block_addr, block.size, patch.addr))))
 

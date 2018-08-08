@@ -73,8 +73,8 @@ Edit Label Patch
     def on_pre_update(cls, patch_type, name, address, data):
         added_comment = str(cls.comment_format % (name, address))
         if idc.RptCmt(address) is not None and added_comment in idc.RptCmt(address):
-            idc.MakeRptCmt(address, idc.RptCmt(address).replace("\n" + added_comment, ""))
-            idc.MakeRptCmt(address, idc.RptCmt(address).replace(added_comment, ""))
+            comment = idc.RptCmt(address).replace("\n" + added_comment, "").replace(added_comment, "")
+            idc.MakeRptCmt(address, comment)
 
     @classmethod
     def on_post_update(cls, patch_type, name, address, data):
@@ -223,8 +223,8 @@ Edit Code Insertion Patch
     def on_pre_update(cls, patch_type, name, address, data):
         added_comment = str(cls.comment_format % (name, address, data["code"]))
         if idc.RptCmt(address) is not None and added_comment in idc.RptCmt(address):
-            idc.MakeRptCmt(address, idc.RptCmt(address).replace("\n" + added_comment, ""))
-            idc.MakeRptCmt(address, idc.RptCmt(address).replace(added_comment, ""))
+            comment = idc.RptCmt(address).replace("\n" + added_comment, "").replace(added_comment, "")
+            idc.MakeRptCmt(address, comment)
 
     @classmethod
     def on_post_update(cls, patch_type, name, address, data):
@@ -330,8 +330,8 @@ Edit Remove Instruction Patch
     def on_pre_update(cls, patch_type, name, address, data):
         added_comment = str(cls.comment_format % (name, address))
         if idc.RptCmt(address) is not None and added_comment in idc.RptCmt(address):
-            idc.MakeRptCmt(address, idc.RptCmt(address).replace("\n" + added_comment, ""))
-            idc.MakeRptCmt(address, idc.RptCmt(address).replace(added_comment, ""))
+            comment = idc.RptCmt(address).replace("\n" + added_comment, "").replace(added_comment, "")
+            idc.MakeRptCmt(address, comment)
 
     @classmethod
     def on_post_update(cls, patch_type, name, address, data):
@@ -391,22 +391,17 @@ class RunPatcherexForm(idaapi.Form):
 
     form_code = r"""STARTITEM 0
 Patcherex Output Options
-<File:{file_opener}>
-<Compiler Options:{compiler_options}>
+<Output file:{file_opener}>
 """
 
     def __init__(self):
         self.inc = 0
         super(RunPatcherexForm, self).__init__(self.form_code, {
             "file_opener": idaapi.Form.FileInput(open=True),
-            "compiler_options": idaapi.Form.StringInput(),
         })
 
     def get_file_name(self):
         return self.file_opener.value
-
-    def get_compiler_options(self):
-        return self.compiler_options.value
 
 
 class PatchTypeForm(idaapi.Form):

@@ -18,7 +18,6 @@ setup(
         'shellphish-qemu',
         'fidget',
         'python-resources',
-        'identifier',
         'pyyaml',
         'pyelftools',
    ],
