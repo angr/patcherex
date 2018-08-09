@@ -283,7 +283,7 @@ class LoadHandler(idaapi.action_handler_t):
         patcherex_window.load_serialized_items(contents)
 
     def update(self, ctx):
-        return idaapi.AST_ENABLE_FOR_FORM if ctx.form_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
+        return idaapi.AST_ENABLE_FOR_FORM if ctx.widget_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
 
 class RunPatcherexHandler(idaapi.action_handler_t):
     config = """{"techniques": {"manualpatcher": {"options": {"patch_file": null}}}, "backend": {"name": "detourbackend", "options": {"base_address": 0}}}"""
