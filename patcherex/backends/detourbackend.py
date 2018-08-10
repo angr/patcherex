@@ -291,16 +291,6 @@ class DetourBackend(Backend):
         if self.is_patched():
             return
 
-        # align size of the entire ELF
-        self.ncontent = utils.pad_bytes(self.ncontent, 0x1000)
-        # change pointer to program headers to point at the end of the elf
-        current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
-        old_phoff = current_hdr["e_phoff"]
-        current_hdr["e_phoff"] = len(self.ncontent)
-        self.ncontent = utils.bytes_overwrite(self.ncontent,
-                                              self.structs.Elf_Ehdr.build(current_hdr),
-                                              0)
-
         # copying original program headers (potentially modified by patches and/or pdf removal)
         # in the new place (at the  end of the file)
         self.first_load = None
@@ -309,17 +299,63 @@ class DetourBackend(Backend):
                 self.first_load = segment
                 break
 
-        self.phdr_start = len(self.ncontent)
         for segment in segments:
             if segment["p_type"] == "PT_PHDR":
                 if self.phdr_segment is not None:
                     raise ValueError("Multiple PHDR segments!")
                 self.phdr_segment = segment
+
+                segment["p_filesz"] += self.additional_headers_size
+                segment["p_memsz"]  += self.additional_headers_size
+
+                phdr_size = max(segment["p_filesz"], segment["p_memsz"])
+
+                blah = sorted(((s.vaddr - self.project.loader.main_object.mapped_base, s.vaddr + s.memsize - self.project.loader.main_object.mapped_base) for s in self.project.loader.main_object.segments), key=lambda x: x[0])
+                while True:
+                    stuff = []
+                    i = 0
+                    while i < len(blah) - 1:
+                        thing1 = blah[i]
+                        thing2 = blah[i + 1]
+                        if thing1[1] > thing2[0]:
+                            stuff.append((thing1[0], thing2[1]))
+                            i += 2
+                        else:
+                            stuff.append(thing1)
+                            i += 1
+                    if i == len(blah) - 1:
+                        stuff.append(blah[i])
+                    if stuff == blah:
+                        break
+                    blah = stuff
+
+                for prev_seg, next_seg in zip(blah[:-1], blah[1:]):
+                    potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xF) & ~0xF)
+                    if next_seg[0] - potential_base > phdr_size:
+                        self.phdr_start = potential_base
+                        break
+                else:
+                    self.phdr_start = blah[-1][1]
+
                 segment["p_offset"]  = self.phdr_start
                 segment["p_vaddr"]   = self.phdr_start + self.first_load["p_vaddr"]
                 segment["p_paddr"]   = self.phdr_start + self.first_load["p_vaddr"]
-                segment["p_filesz"] += self.additional_headers_size
-                segment["p_memsz"]  += self.additional_headers_size
+
+        self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
+
+        # change pointer to program headers to point at the end of the elf
+        current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
+        old_phoff = current_hdr["e_phoff"]
+        current_hdr["e_phoff"] = len(self.ncontent)
+        self.ncontent = utils.bytes_overwrite(self.ncontent,
+                                            self.structs.Elf_Ehdr.build(current_hdr),
+                                            0)
+
+        print("putting them at %#x" % self.phdr_start)
+        print("current len: %#x" % len(self.ncontent))
+        for segment in segments:
+            if segment["p_type"] == "PT_PHDR":
+                segment = self.phdr_segment
             self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(segment))
         self.original_header_end = len(self.ncontent)
 
@@ -659,7 +695,7 @@ class DetourBackend(Backend):
                                      self.name_map,
                                      bits=self.structs.elfclass)
         self.added_code += new_code
-        self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+        self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
 
         # 2) AddCodePatch
         # resolving symbols
