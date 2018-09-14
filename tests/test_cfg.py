@@ -32,7 +32,7 @@ def map_callsites(cfg):
 
     # create inverse callsite map
     inv_callsites = defaultdict(set)
-    for c, f in callsites.iteritems():
+    for c, f in callsites.items():
         inv_callsites[f].add(c)
     return inv_callsites
 
@@ -84,19 +84,19 @@ def test_EAGLE_00005_bb():
     for b,clist in caller_map:
         nose.tools.assert_true(is_last_returning_block(b,cfg,backend.project))
         node_addresses = set([n.addr for n in last_block_to_callers(b,cfg,inv_callsites)])
-        print hex(b),"<--",map(hex,node_addresses)
+        print(hex(b), "<--", map(hex, node_addresses))
         nose.tools.assert_equal(clist,node_addresses)
 
 
 def test_CADET_00003():
-    print "Testing test_CADET_00003..."
+    print("Testing test_CADET_00003...")
     filepath = os.path.join(bin_location, "CADET_00003")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
 
     #how to get the list of functions from the IDA list:
     #print "["+",\n".join(map(hex,hex,[int(l.split()[2],16) for l in a.split("\n") if l.strip()]))+"]"
-    legitimate_functions = set([
+    legitimate_functions = {
         0x80480a0,
         0x8048230,
         0x8048400,
@@ -107,25 +107,26 @@ def test_CADET_00003():
         0x804863a,
         0x8048705,
         0x8048735,
-        0x8048680L,
-        0x80486e3L,
-        0x80486c8L,
-        0x80486aeL,
-        0x8048618L,
-        0x804865aL,
-        0x804869aL])
+        0x8048680,
+        0x80486e3,
+        0x80486c8,
+        0x80486ae,
+        0x8048618,
+        0x804865a,
+        0x804869a,
+    }
 
-    non_syscall_functions = [v for k,v in cfg.functions.iteritems() if not v.is_syscall]
+    non_syscall_functions = [v for k,v in cfg.functions.items() if not v.is_syscall]
     #check startpoints, I know that sometimes they could be None, but this should not happen in CADET_00003
     function_entrypoints = set([f.startpoint.addr for f in non_syscall_functions])
-    print "additional:",map(hex,function_entrypoints-legitimate_functions)
-    print "skipped:",map(hex,legitimate_functions-function_entrypoints)
+    print("additional:", map(hex, function_entrypoints-legitimate_functions))
+    print("skipped:", map(hex, legitimate_functions-function_entrypoints))
     nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
 
-    sane_functions = [v for k,v in cfg.functions.iteritems() if is_sane_function(v)]
+    sane_functions = [v for k,v in cfg.functions.items() if is_sane_function(v)]
     function_entrypoints = set([f.startpoint.addr for f in sane_functions])
-    print "additional:",map(hex,function_entrypoints-legitimate_functions)
-    print "skipped:",map(hex,legitimate_functions-function_entrypoints)
+    print("additional:", map(hex, function_entrypoints-legitimate_functions))
+    print("skipped:", map(hex, legitimate_functions-function_entrypoints))
     nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
 
     #something which was wrong in the past
@@ -152,7 +153,7 @@ def test_CADET_00003():
             last_instruction = bb.capstone.insns[-1]
             nose.tools.assert_equal(last_instruction.mnemonic == u"ret", True) 
 
-    syscalls = [v for k,v in cfg.functions.iteritems() if v.is_syscall]
+    syscalls = [v for k,v in cfg.functions.items() if v.is_syscall]
 
     for ff in syscalls:
         bb1 = cfg.get_any_node(ff.addr)
@@ -178,12 +179,12 @@ def test_CADET_00003():
 
 
 def test_0b32aa01_01():
-    print "Testing test_0b32aa01_01..."
+    print("Testing test_0b32aa01_01...")
     filepath = os.path.join(bin_location, "0b32aa01_01_2")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
 
-    legitimate_functions = set([
+    legitimate_functions = {
         0x80480a0,
         0x8048230,
         0x8048400,
@@ -193,24 +194,25 @@ def test_0b32aa01_01():
         0x8048615,
         0x8048635,
         0x80486c3,
-        0x80486a9L,
-        0x8048613L,
-        0x8048655L,
-        0x804867bL,
-        0x80486deL,
-        0x8048695L])
+        0x80486a9,
+        0x8048613,
+        0x8048655,
+        0x804867b,
+        0x80486de,
+        0x8048695
+    }
 
-    non_syscall_functions = [v for k,v in cfg.functions.iteritems() if not v.is_syscall]
+    non_syscall_functions = [v for k,v in cfg.functions.items() if not v.is_syscall]
     #check startpoints, I know that sometimes they could be None, but this should not happen in CADET_00003
     function_entrypoints = set([f.startpoint.addr for f in non_syscall_functions])
-    print "additional:",map(hex,function_entrypoints-legitimate_functions)
-    print "skipped:",map(hex,legitimate_functions-function_entrypoints)
+    print("additional:", map(hex,function_entrypoints-legitimate_functions))
+    print("skipped:", map(hex,legitimate_functions-function_entrypoints))
     nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
 
-    sane_functions = [v for k,v in cfg.functions.iteritems() if is_sane_function(v)]
+    sane_functions = [v for k,v in cfg.functions.items() if is_sane_function(v)]
     function_entrypoints = set([f.startpoint.addr for f in sane_functions])
-    print "additional:",map(hex,function_entrypoints-legitimate_functions)
-    print "skipped:",map(hex,legitimate_functions-function_entrypoints)
+    print("additional:", map(hex,function_entrypoints-legitimate_functions))
+    print("skipped:", map(hex,legitimate_functions-function_entrypoints))
     nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
 
     #all sane functions ends with ret in CADET_00003
@@ -232,7 +234,7 @@ def test_0b32aa01_01():
             last_instruction = bb.capstone.insns[-1]
             nose.tools.assert_equal(last_instruction.mnemonic == u"ret", True) 
 
-    syscalls = [v for k,v in cfg.functions.iteritems() if v.is_syscall]
+    syscalls = [v for k,v in cfg.functions.items() if v.is_syscall]
 
     for ff in syscalls:
         bb1 = cfg.get_any_node(ff.addr)
@@ -247,7 +249,7 @@ def test_detect_syscall_wrapper():
     filepath = os.path.join(bin_location, "CROMU_00071")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
-    legitimate_syscall_wrappers = set([
+    legitimate_syscall_wrappers = {
         (0x804d483,1),
         (0x804d491,2),
         (0x804d4b1,3),
@@ -255,18 +257,18 @@ def test_detect_syscall_wrapper():
         (0x804d4f7,5),
         (0x804d511,6),
         (0x804d525,7)
-    ])
+    }
 
     syscall_wrappers = set([(ff.addr,cfg_utils.detect_syscall_wrapper(backend,ff)) \
             for ff in cfg.functions.values() if cfg_utils.detect_syscall_wrapper(backend,ff)!=None])
-    print "syscall wrappers in CROMU_00071:"
-    print map(lambda x:(hex(x[0]),x[1]),syscall_wrappers)
+    print("syscall wrappers in CROMU_00071:")
+    print(map(lambda x:(hex(x[0]),x[1]),syscall_wrappers))
     nose.tools.assert_equal(syscall_wrappers,legitimate_syscall_wrappers)
 
     filepath = os.path.join(bin_location, "CROMU_00070")
     backend = DetourBackend(filepath)
     cfg = backend.cfg
-    legitimate_syscall_wrappers = set([
+    legitimate_syscall_wrappers = {
         (0x804d690, 5),
         (0x804d66a, 4),
         (0x804d6be, 7),
@@ -274,12 +276,12 @@ def test_detect_syscall_wrapper():
         (0x804d61c, 1),
         (0x804d64a, 3),
         (0x804d62a, 2)
-    ])
+    }
 
     syscall_wrappers = set([(ff.addr,cfg_utils.detect_syscall_wrapper(backend,ff)) \
             for ff in cfg.functions.values() if cfg_utils.detect_syscall_wrapper(backend,ff)!=None])
-    print "syscall wrappers in CROMU_00070:"
-    print map(lambda x:(hex(x[0]),x[1]),syscall_wrappers)
+    print("syscall wrappers in CROMU_00070:")
+    print(map(lambda x:(hex(x[0]),x[1]),syscall_wrappers))
     nose.tools.assert_equal(syscall_wrappers,legitimate_syscall_wrappers)
 
 
@@ -300,7 +302,7 @@ def test_is_floatingpoint_function():
             last = ff.addr
         else:
             last = max([e.addr for e in ff.blocks])
-    print hex(first),hex(last)
+    print(hex(first),hex(last))
     real_start = 0x804d5c6
     real_end = 0x0804D78b
     nose.tools.assert_true(first == real_start)
@@ -323,7 +325,7 @@ def test_is_floatingpoint_function():
             last = ff.addr
         else:
             last = max([e.addr for e in ff.blocks])
-    print hex(first),hex(last)
+    print(hex(first),hex(last))
     real_start = 0x0804D75f
     real_end = 0x0804D924
     nose.tools.assert_true(first == real_start)
@@ -332,9 +334,10 @@ def test_is_floatingpoint_function():
 
 
 def test_fullcfg_properties():
-    binaries = [ "KPRCA_00009","KPRCA_00025","NRFIN_00004","CROMU_00071", "CADET_00003",
+    binaries = [ #"CROMU_00071",
+                 "KPRCA_00009", #"KPRCA_00025","NRFIN_00004","CROMU_00071", "CADET_00003",
                  # "CROMU_00070",
-                 "EAGLE_00005",
+                 # "EAGLE_00005",
                  # "KPRCA_00019"
                  ]
 
@@ -351,13 +354,13 @@ def test_fullcfg_properties():
                             ]
 
     for binary in binaries:
-        print "testing",binary,"..."
+        print("testing", binary, "...")
         filepath = os.path.join(bin_location, binary)
         backend = DetourBackend(filepath)
         cfg = backend.cfg
 
         node_addrs_dict = defaultdict(set)
-        for k,ff in cfg.functions.iteritems():
+        for k,ff in cfg.functions.items():
             for node_addr in ff.block_addrs_set:
                 node_addrs_dict[node_addr].add(ff)
             # check that endpoints are the union of callouts, rets, and jumpouts
@@ -372,13 +375,14 @@ def test_fullcfg_properties():
                         unexpected_jumpout = [(binary,int(jo.addr)) for jo in ff.jumpout_sites \
                                 if (binary,int(jo.addr)) not in legittimate_jumpouts]
                         if len(unexpected_jumpout)>0:
-                            print "unexpected jumpouts in",binary,map(lambda x:hex(x[1]),unexpected_jumpout)
+                            print("unexpected jumpouts in", binary, map(lambda x: hex(x[1]), unexpected_jumpout))
+                            import ipdb; ipdb.set_trace()
                         nose.tools.assert_equal(len(unexpected_jumpout),0)
 
         # check that every node only belongs to a single function
-        for k,v in node_addrs_dict.iteritems():
+        for k,v in node_addrs_dict.items():
             if len(v)>1:
-                print "found node in multiple functions:",hex(k),repr(v)
+                print("Found node in multiple functions:", hex(k), repr(v))
             nose.tools.assert_equal(len(v),1)
 
         # check that every node only appears once in the cfg
@@ -436,7 +440,7 @@ def test_setlongjmp_detection():
         backend = DetourBackend(filepath)
         cfg = backend.cfg
 
-        for k,ff in cfg.functions.iteritems():
+        for k,ff in cfg.functions.items():
             msg = "detection failure in %s (%#x vs %#x)"
             if cfg_utils.is_setjmp(backend,ff):
                 nose.tools.assert_equal(setjmp,ff.addr,"setjmp " + msg %(tbin,setjmp,ff.addr))
@@ -446,7 +450,7 @@ def test_setlongjmp_detection():
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    all_functions = dict(filter((lambda x: x[0].startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], '__call__'):
             all_functions[f]()
@@ -458,4 +462,3 @@ if __name__ == "__main__":
         globals()['test_' + sys.argv[1]]()
     else:
         run_all()
-

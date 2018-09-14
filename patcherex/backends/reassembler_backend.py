@@ -124,7 +124,7 @@ class ReassemblerBackend(Backend):
 
         dirpath = os.path.dirname(filename)
         try:
-            os.makedirs(dirpath, 0755)
+            os.makedirs(dirpath, 0o755)
         except OSError:
             pass
 
@@ -154,7 +154,7 @@ class ReassemblerBackend(Backend):
         return True
 
     def _add_segments(self, filename, patches):
-        fp = open(filename)
+        fp = open(filename, "rb")
         content = fp.read()
         fp.close()
 
@@ -170,7 +170,7 @@ class ReassemblerBackend(Backend):
         assert cgcef_phentsize == phent_size
         pt_types = {0: "NULL", 1: "LOAD", 6: "PHDR", 0x60000000+0x474e551: "GNU_STACK", 0x6ccccccc: "CGCPOV2"}
         segments = []
-        for i in xrange(0, cgcef_phnum):
+        for i in range(0, cgcef_phnum):
             hdr = content[cgcef_phoff + phent_size * i:cgcef_phoff + phent_size * i + phent_size]
             (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align) = struct.unpack("<IIIIIIII", hdr)
             assert p_type in pt_types
@@ -210,7 +210,7 @@ class ReassemblerBackend(Backend):
 
         tmp_path = path + ".tmp"
 
-        elf_header = "\177ELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00"
+        elf_header = b"\177ELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00"
 
         with open(path, "rb") as f:
             data = f.read()

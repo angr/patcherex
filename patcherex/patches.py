@@ -1,7 +1,7 @@
 
 import struct
 
-import utils
+from . import utils
 from .utils import ASMConverter
 
 

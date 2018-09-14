@@ -29,8 +29,8 @@ class UndefinedSymbolException(Exception):
     pass
 
 
-ELF_HEADER = "7f45 4c46 0101 0100 0000 0000 0000".replace(" ", "").decode('hex')
-CGC_HEADER = "7f43 4743 0101 0143 014d 6572 696e".replace(" ", "").decode('hex')
+ELF_HEADER = b"\x7f\x45\x4c\x46\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00"
+CGC_HEADER = b"\x7f\x43\x47\x43\x01\x01\x01\x43\x01\x4d\x65\x72\x69\x6e"
 
 
 class ASMConverter(object):
@@ -552,7 +552,7 @@ def tempdir(prefix='/tmp/python_tmp', delete=True):
 def exec_cmd(args, cwd=None, shell=False, debug=False):
     # debug = True
     if debug:
-        print "EXECUTING:", repr(args), cwd, shell
+        print("EXECUTING:", repr(args), cwd, shell)
 
     pipe = subprocess.PIPE
     p = subprocess.Popen(args, cwd=cwd, shell=shell, stdout=pipe, stderr=pipe)
@@ -561,7 +561,7 @@ def exec_cmd(args, cwd=None, shell=False, debug=False):
     res = (std[0], std[1], retcode)
     
     if debug:
-        print "RESULT:", repr(res)
+        print("RESULT:", repr(res))
 
     return res
 
@@ -621,15 +621,15 @@ def compile_jmp(origin, target):
 
 
 def get_multiline_str():
-    print "[press Ctrl+C to exit]"
+    print("[press Ctrl+C to exit]")
     input_list = []
     try:
         while True:
-            input_str = raw_input()
+            input_str = input()
             input_list.append(input_str)
     except KeyboardInterrupt:
         pass
-    print ""
+    print("")
     return "\n".join(input_list)
 
 
@@ -657,13 +657,13 @@ def compile_asm(code, base=None, name_map=None):
         
         res = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)
         if res[2] != 0:
-            print "NASM error:"
-            print res[0]
-            print res[1]
+            print("NASM error:")
+            print(res[0])
+            print(res[1])
             fp = open(asm_fname, 'r')
             fcontent = fp.read()
             fp.close()
-            print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))])
+            print("\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))]))
             raise NasmException
 
         fp = open(bin_fname)
@@ -674,7 +674,7 @@ def compile_asm(code, base=None, name_map=None):
 
 
 def compile_asm_fake_symbol(code, base=None, ):
-    code = re.subn('\{.*?\}', "0x41414141", code)[0]
+    code = re.subn(r'{.*?}', "0x41414141", code)[0]
 
     with tempdir() as td:
         asm_fname = os.path.join(td, "asm.s")
@@ -689,13 +689,13 @@ def compile_asm_fake_symbol(code, base=None, ):
 
         res = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)
         if res[2] != 0:
-            print "NASM error:"
-            print res[0]
-            print res[1]
+            print("NASM error:")
+            print(res[0])
+            print(res[1])
             fp = open(asm_fname, 'r')
             fcontent = fp.read()
             fp.close()
-            print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))])
+            print("\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))]))
             raise NasmException
 
         fp = open(bin_fname)
@@ -741,19 +741,19 @@ def compile_c(code, optimization='-Oz', name_map=None):
 
         res = exec_cmd("clang -m32 -nostdlib -mno-sse -ffreestanding %s -o %s -c %s" % (optimization, object_fname, c_fname), shell=True)
         if res[2] != 0:
-            print "CLang error:"
-            print res[0]
-            print res[1]
+            print("CLang error:")
+            print(res[0])
+            print(res[1])
             fp = open(c_fname, 'r')
             fcontent = fp.read()
             fp.close()
-            print "\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))])
+            print("\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))]))
             raise CLangException
         res = exec_cmd("objcopy -O binary %s %s" % (object_fname, bin_fname), shell=True)
         if res[2] != 0:
-            print "objcopy error:"
-            print res[0]
-            print res[1]
+            print("objcopy error:")
+            print(res[0])
+            print(res[1])
             raise ObjcopyException
         fp = open(bin_fname)
         compiled = fp.read()

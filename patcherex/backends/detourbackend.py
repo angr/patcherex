@@ -1,13 +1,10 @@
-import angr
+
 import os
-import struct
 import bisect
 import logging
 from collections import OrderedDict
 from collections import defaultdict
 
-import patcherex
-from patcherex import utils
 from patcherex.patches import *
 
 from ..backend import Backend
@@ -146,9 +143,9 @@ class DetourBackend(Backend):
 
     def find_pdf(self):
         # 1) check if the pdf string is there and get the length
-        pdf_string = " byte CGC Extended Application follows. Each team participating in CGC must " \
-                "have submitted this completed agreement including the Team Information, the Liabi" \
-                "lity Waiver, the Site Visit Information Sheet and the Event Participation agreement.\n"
+        pdf_string = b" byte CGC Extended Application follows. Each team participating in CGC must " \
+                b"have submitted this completed agreement including the Team Information, the Liabi" \
+                b"lity Waiver, the Site Visit Information Sheet and the Event Participation agreement.\n"
         pdf_string_pos = self.ocontent.find(pdf_string)
         if pdf_string_pos == -1:
             l.warning("pdf string not found")
@@ -327,7 +324,7 @@ class DetourBackend(Backend):
 
         pt_types = {0: "NULL", 1: "LOAD", 6: "PHDR", 0x60000000+0x474e551: "GNU_STACK", 0x6ccccccc: "CGCPOV2"}
         segments = []
-        for i in xrange(0, cgcef_phnum):
+        for i in range(0, cgcef_phnum):
             hdr = self.ncontent[cgcef_phoff + phent_size * i:cgcef_phoff + phent_size * i + phent_size]
             (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align) = struct.unpack("<IIIIIIII", hdr)
 
@@ -337,13 +334,13 @@ class DetourBackend(Backend):
             segments.append((p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align))
 
             if tprint:
-                print "---"
-                print "Loc:" + hex(cgcef_phoff + phent_size * i)
-                print "Type: %s" % ptype_str
-                print "Permissions: %s" % self.pflags_to_perms(p_flags)
-                print "Memory: 0x%x + 0x%x" % (p_vaddr, p_memsz)
-                print "File: 0x%x + 0x%x" % (p_offset, p_filesz)
-                print map(hex,(p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align))
+                print("---")
+                print("Loc:" + hex(cgcef_phoff + phent_size * i))
+                print("Type: %s" % ptype_str)
+                print("Permissions: %s" % self.pflags_to_perms(p_flags))
+                print("Memory: 0x%x + 0x%x" % (p_vaddr, p_memsz))
+                print("File: 0x%x + 0x%x" % (p_offset, p_filesz))
+                print(map(hex,(p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align)))
 
         self.segments = segments
         return segments
@@ -922,7 +919,7 @@ class DetourBackend(Backend):
         # replace overwritten instructions with nops
         for i in movable_instructions:
             if i.overwritten != "out":
-                for b in xrange(i.address, i.address+len(i.bytes)):
+                for b in range(i.address, i.address+len(i.bytes)):
                     if b in self.touched_bytes:
                         raise DoubleDetourException("byte has been already touched: %08x" % b)
                     else:
@@ -953,4 +950,4 @@ class DetourBackend(Backend):
         with open(filename, "wb") as f:
             f.write(final_content)
 
-        os.chmod(filename, 0755)
+        os.chmod(filename, 0o755)
