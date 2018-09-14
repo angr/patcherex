@@ -211,7 +211,7 @@ class IndirectCFI(object):
             succ = all_succ[0]
             isx_flag = succ.state.mem[succ.state.regs.esp+8].dword.resolved
             if not isx_flag.symbolic:
-                if succ.state.se.eval(isx_flag) == 1:
+                if succ.state.solver.eval(isx_flag) == 1:
                     l.warning("found executable allocation, at %#8x" % bb_addr)
                     return True
         return False

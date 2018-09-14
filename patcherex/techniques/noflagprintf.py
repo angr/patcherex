@@ -31,7 +31,7 @@ class NoFlagPrintfPatcher(object):
         string_references = []
         for v in self.patcher.cfg._memory_data.values():
             if v.sort == "string" and v.size > 1:
-                st = state.se.eval(state.memory.load(v.address, v.size), cast_to=str)
+                st = state.solver.eval(state.memory.load(v.address, v.size), cast_to=str)
                 string_references.append((v.address, st))
         return [] if len(string_references) == 0 else zip(*string_references)[1]
 
