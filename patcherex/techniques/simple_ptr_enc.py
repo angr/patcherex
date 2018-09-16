@@ -180,7 +180,7 @@ class BlockTraverser(object):
                 # using a constant as the address
                 return []
 
-        print "Unresolved AST", ast
+        print("Unresolved AST", ast)
         import ipdb; ipdb.set_trace()
 
     def _ast_to_indir_memrefs(self, ast):
@@ -214,7 +214,7 @@ class BlockTraverser(object):
                 reg_offset = ast.args[0]
                 return 'dword ptr [%s]' % (self.cfg.project.arch.register_names[reg_offset])
             else:
-                print "Unresolved AST", ast
+                print("Unresolved AST", ast)
                 import ipdb; ipdb.set_trace()
 
     def _filter_instrs(self):
@@ -672,7 +672,7 @@ class MemDerefDepGraph(object):
         while graph.number_of_edges():
             nodes_merged = False
             # merge all nodes that can be merged
-            for src, dst in graph.edges_iter():
+            for src, dst in graph.edges():
                 if src.status == dst.status:
                     cluster = Cluster(src.ins_addr, dst.end_addr, (src, dst), src.status)
                     self._replace_nodes(graph, [ src, dst ], cluster)
@@ -724,7 +724,7 @@ class MemDerefDepGraph(object):
         # D--E
         decryption_locations = set()
         encryption_locations = set()
-        for src, dst in graph.edges_iter():
+        for src, dst in graph.edges():
             if src.status == 'encrypted' and dst.status == 'decrypted':
                 decryption_locations.add(src.end_addr)
             elif src.status == 'decrypted' and dst.status == 'encrypted':
@@ -994,8 +994,8 @@ class SimplePointerEncryption(Technique):
         patches.append(patch)
 
         # insert the pointer encryption code at the entry point
-        begin_label = "".join(random.choice(string.lowercase) for _ in xrange(10))
-        end_label = "".join(random.choice(string.lowercase) for _ in xrange(10))
+        begin_label = "".join(random.choice(string.ascii_lowercase) for _ in range(10))
+        end_label = "".join(random.choice(string.ascii_lowercase) for _ in range(10))
 
         encrypt_pointers = """
             push eax
@@ -1138,13 +1138,13 @@ class SimplePointerEncryption(Technique):
             'fdwait': ([1, 2, 3, 4], [ ]),
             'random': ([0, 2], [ ]),
         }
-        for syscall_name, (argument_indices_in, argument_indices_out) in syscalls.iteritems():
+        for syscall_name, (argument_indices_in, argument_indices_out) in syscalls.items():
             syscall_patches = self._generate_syscall_patches(cfg, syscall_name, argument_indices_in,
                                                              argument_indices_out
                                                              )
             patches.extend(syscall_patches)
 
-        l.debug("Generated %d mem-ref patches, %d mem-deref decryption patches, and %d mem-deref encryption patches.", \
+        l.debug("Generated %d mem-ref patches, %d mem-deref decryption patches, and %d mem-deref encryption patches.",
                 mem_ref_patch_count,
                 mem_deref_decryption_patch_count,
                 mem_deref_encryption_patch_count
@@ -1182,7 +1182,7 @@ class SimplePointerEncryption(Technique):
 
             for index in argument_indices_in:
                 reg = SYSCALL_ARGUMENTS[index]
-                lbl_name = "".join([random.choice(string.lowercase) for _ in xrange(10)])
+                lbl_name = "".join([random.choice(string.ascii_lowercase) for _ in range(10)])
 
                 asm = """
                     cmp {reg}, 0
@@ -1195,7 +1195,7 @@ class SimplePointerEncryption(Technique):
 
             for index in argument_indices_out:
                 reg = SYSCALL_ARGUMENTS[index]
-                lbl_name = "".join([random.choice(string.lowercase) for _ in xrange(10)])
+                lbl_name = "".join([random.choice(string.ascii_lowercase) for _ in range(10)])
                 asm = """
                     push eax
                     mov eax, dword ptr [{reg}]
@@ -1293,7 +1293,7 @@ class SimplePointerEncryption(Technique):
 
         for addr, data in memory_data.iteritems():
             if data.sort == "pointer-array":
-                for i in xrange(0, data.size, cfg.project.arch.bits / 8):
+                for i in range(0, data.size, cfg.project.arch.bits / 8):
                     ptr_addr = addr + i
                     pointer_addrs.append(ptr_addr)
 

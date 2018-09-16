@@ -46,16 +46,16 @@ def test_uniquelabels():
             labels_dict[l].append(pyfile)
 
     duplicates = {}
-    for k,v in labels_dict.iteritems():
+    for k,v in labels_dict.items():
         if len(v)>1:
-            print k,[os.path.basename(x) for x in v]
+            print(k,[os.path.basename(x) for x in v])
             duplicates[k] = v
     nose.tools.assert_equal(len(duplicates),0)
 
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    all_functions = dict(filter((lambda x: x[0].startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], '__call__'):
             all_functions[f]()

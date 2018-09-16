@@ -16,5 +16,6 @@ setup(
         'compilerex',
         'shellphish-qemu',
         'fidget',
+        'python-resources',
    ],
 )

@@ -17,10 +17,8 @@ import tempfile
 import termcolor
 import traceback
 import time
-import cPickle as pickle
+import pickle
 from ctypes import cdll
-from cStringIO import StringIO
-from collections import OrderedDict
 
 from patcherex.techniques.qemudetection import QemuDetection
 from patcherex.techniques.shadowstack import ShadowStack
@@ -75,17 +73,17 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
             used_args = main_args
 
         final_args = used_args + [os.path.realpath(path)]
-        print " ".join(final_args)
+        print(" ".join(final_args))
         p = subprocess32.Popen(final_args, stdin=pipe, stdout=pipe, stderr=pipe, preexec_fn=process_killer)
         status = "ok"
         try:
             try:
                 stdout,stderr = p.communicate(tinput,timeout=10)
-                print stdout
-                print stderr
-                print p.returncode
+                print(stdout)
+                print(stderr)
+                print(p.returncode)
             except OSError:
-                print "OSError"
+                print("OSError")
                 # I have seen: "OSError: [Errno 32] Broken pipe"
                 # likely because the process dies before it reads all the input
                 # I just "pass", the code later on will check if it is a crash or normal exit
@@ -100,18 +98,18 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
             if p.returncode < 0 or p.returncode == 46:
                 status = "crash"
         except subprocess32.TimeoutExpired:
-            print "Timeout"
+            print("Timeout")
             status = "halt"
             p.terminate()
             p.wait()
-        print status
+        print(status)
         return status
 
 
     patched = tempfile.mktemp()
     with open(patched,'wb') as fp:
         fp.write(patched_blob)
-        os.chmod(patched, 0755)
+        os.chmod(patched, 0o755)
     # given challenge_binary_node.py the original file is executable
 
     # check file size, if it more than 200% (equivalent to 125% speed/memory overhead) we do not even try to submit
@@ -120,11 +118,11 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
     osize = os.path.getsize(original)
     psize = os.path.getsize(patched)
     size_overhead = (psize/float(osize))*100.0
-    print "size_overhead", size_overhead
+    print("size_overhead", size_overhead)
     if size_overhead > 200.0:
         raise SizeError(str(psize) + " vs " + str(osize))
 
-    inputs = ["","B","\n","\x00","1\n \x00"*10,"\xff\x80"+"".join([chr(i) for i in xrange(2,200,6)])]
+    inputs = ["","B","\n","\x00","1\n \x00"*10,"\xff\x80"+"".join([chr(i) for i in range(2,200,6)])]
     success_tests = []
     for i,tinput in enumerate(inputs):
         tseed = 1000+i
@@ -136,7 +134,7 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
         test_result = try_bin_with_input(patched,success_input,tseed)
         if test_result != "ok":
             os.unlink(patched)
-            raise FunctionalityError("input ->"+success_input.encode('hex')+"<-")
+            raise FunctionalityError("input ->"+bytes(success_input).hex()+"<-")
     os.unlink(patched)
 
 
@@ -191,8 +189,8 @@ class PatchMaster():
             if test_bin:
                 test_bin_with_qemu(self.infile,final_content)
             res = (final_content,"")
-        except PatcherexError, e:
-            traceback.print_exc(e)
+        except PatcherexError as ex:
+            traceback.print_exc(ex)
             res = (None,None)
 
         return res
@@ -219,8 +217,8 @@ class PatchMaster():
             if test_bin:
                 test_bin_with_qemu(self.infile,final_content)
             res = (final_content,"")
-        except PatcherexError, e:
-            traceback.print_exc(e)
+        except PatcherexError as ex:
+            traceback.print_exc(ex)
             res = (None,None)
         return res
 
@@ -246,8 +244,8 @@ class PatchMaster():
             if test_bin:
                 test_bin_with_qemu(self.infile,final_content)
             res = (final_content,"")
-        except PatcherexError, e:
-            traceback.print_exc(e)
+        except PatcherexError as ex:
+            traceback.print_exc(ex)
             res = (None,None)
         return res
 
@@ -270,7 +268,7 @@ def shellquote(s):
 def exec_cmd(args,cwd=None,shell=False,debug=False,pkill=True):
     #debug = True
     if debug:
-        print "EXECUTING:",repr(args),cwd,shell
+        print("EXECUTING:", repr(args), cwd, shell)
     pipe = subprocess.PIPE
     preexec_fn = None
     if pkill:
@@ -280,7 +278,7 @@ def exec_cmd(args,cwd=None,shell=False,debug=False,pkill=True):
     retcode = p.poll()
     res = (std[0],std[1],retcode)
     if debug:
-        print "RESULT:",repr(res)
+        print("RESULT:", repr(res))
     return res
 
 
@@ -306,13 +304,13 @@ def worker(inq,outq,filename_with_technique=True,timeout=60*3,test_results=True)
             args += ["--test"]
         res = exec_cmd(args)
         with open(output_fname+"_log","wb") as fp:
-            fp.write("\n"+"="*30+" STDOUT\n")
+            fp.write(b"\n" + b"="*30 + b" STDOUT\n")
             fp.write(res[0])
-            fp.write("\n"+"="*30+" STDERR\n")
+            fp.write(b"\n" + b"="*30 + b" STDERR\n")
             fp.write(res[1])
-            fp.write("\n"+"="*30+" RETCODE: ")
-            fp.write(str(res[2]).strip())
-            fp.write("\n")
+            fp.write(b"\n" + b"="*30 + b" RETCODE: ")
+            fp.write(bytes(str(res[2]).strip()))
+            fp.write(b"\n")
         if(res[2]!=0 or not os.path.exists(output_fname)):
             outq.put((False,(input_file,technique,output_dir),res))
         else:
@@ -355,12 +353,12 @@ if __name__ == "__main__":
         with open(sys.argv[2]) as fp:
             original_content = fp.read()
         res["original"] = (original_content, '')
-        for k,(v,rule) in res.iteritems():
+        for k,(v,rule) in res.items():
             output_fname = out+"_"+k
             fp = open(output_fname,"wb")
             fp.write(v)
             fp.close()
-            os.chmod(output_fname, 0755)
+            os.chmod(output_fname, 0o755)
             with open(output_fname+'.rules','wb') as rf:
                 rf.write(rule)
 
@@ -369,9 +367,9 @@ if __name__ == "__main__":
         mem_limit = 16 * pow(2, 30)
         resource.setrlimit(resource.RLIMIT_AS, (mem_limit, mem_limit))
 
-        print "="*50,"process started at",str(datetime.datetime.now())
+        print("="*50, "process started at",str(datetime.datetime.now()))
         start_time = time.time()
-        print " ".join(map(shellquote,sys.argv))
+        print(" ".join(map(shellquote, sys.argv)))
 
         logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
         logging.getLogger("patcherex.backend").setLevel("INFO")
@@ -400,7 +398,7 @@ if __name__ == "__main__":
         bitflip = False
         if res[0] == None:
             sys.exit(33)
-        if not any([output_fname.endswith("_"+str(i)) for i in xrange(2,10)]):
+        if not any([output_fname.endswith("_"+str(i)) for i in range(2,10)]):
             fp = open(os.path.join(os.path.dirname(output_fname),"ids.rules"),"wb")
             fp.write(res[1])
             fp.close()
@@ -411,9 +409,9 @@ if __name__ == "__main__":
         fp = open(output_fname,"wb")
         fp.write(patched_bin_content)
         fp.close()
-        os.chmod(output_fname, 0755)
+        os.chmod(output_fname, 0o755)
 
-        print "="*50,"process ended at",str(datetime.datetime.now()),"in",str(time.time()-start_time)
+        print("="*50, "process ended at", str(datetime.datetime.now()), "in", str(time.time() - start_time))
 
     elif sys.argv[1] == "multi" or sys.argv[1] == "multi_name" or sys.argv[1] == "multi_name2":
         out = sys.argv[2]
@@ -456,7 +454,7 @@ if __name__ == "__main__":
         elif sys.argv[1] == "multi":
             tasks = [(f,t,out) for f,t in list(itertools.product(files,techniques))]
 
-        print len(tasks)
+        print(len(tasks))
         res_dict = {}
 
         inq = multiprocessing.Queue()
@@ -466,7 +464,7 @@ if __name__ == "__main__":
         if nprocesses == 0:
             nprocesses = int(psutil.cpu_count()*1.0)
         timeout = int(sys.argv[6])
-        for i in xrange(nprocesses):
+        for i in range(nprocesses):
             p = multiprocessing.Process(target=worker, args=(inq,outq,technique_in_filename,timeout,test_results))
             p.start()
             plist.append(p)
@@ -475,7 +473,7 @@ if __name__ == "__main__":
         random.shuffle(tasks,lambda : 0.1)
         for t in tasks:
             inq.put(t)
-        for i in xrange(ntasks):
+        for i in range(ntasks):
             res = outq.get()
             sep = os.path.sep
             key = (sep.join(res[1][0].split(sep)[-3:]),res[1][1])
@@ -486,17 +484,17 @@ if __name__ == "__main__":
             else:
                 status = termcolor.colored(status,"red")
 
-            print "=" * 20, str(i+1)+"/"+str(ntasks), key, status
+            print("=" * 20, str(i+1)+"/"+str(ntasks), key, status)
             #print value
             res_dict[key] = res
 
         for p in plist:
             p.terminate()
 
-        failed_patches = {k:v for k,v in res_dict.iteritems() if v[0] == False}
-        print "FAILED PATCHES",str(len(failed_patches))+"/"+str(ntasks)
+        failed_patches = {k:v for k,v in res_dict.items() if v[0] == False}
+        print("FAILED PATCHES", str(len(failed_patches)) + "/" + str(ntasks))
         for k,v in failed_patches:
-            print k,v
+            print(k, v)
 
         pickle.dump(res_dict,open(sys.argv[4],"wb"))
 

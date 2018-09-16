@@ -111,7 +111,7 @@ def test_shadowstack(BackendClass, data_fallback, try_pdf_removal):
 
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate("\x00"*1000+"\n")
-    print res, p.returncode
+    print(res, p.returncode)
     nose.tools.assert_equal((p.returncode == -11), True)
 
     with patcherex.utils.tempdir() as td:
@@ -124,7 +124,7 @@ def test_shadowstack(BackendClass, data_fallback, try_pdf_removal):
 
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("\x00"*100+"\n")
-        print res, p.returncode
+        print(res, p.returncode)
         nose.tools.assert_equal(p.returncode == 68, True)
 
 
@@ -144,7 +144,7 @@ def test_packer(BackendClass, data_fallback, try_pdf_removal):
 
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
-        print res, p.returncode
+        print(res, p.returncode)
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
 
 
@@ -155,11 +155,11 @@ def test_simplecfi(BackendClass, data_fallback, try_pdf_removal):
 
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate("\x00"*1000+"\n")
-    print res, p.returncode
+    print(res, p.returncode)
     nose.tools.assert_equal((p.returncode == -11), True)
 
     #0x80480a0 is the binary entry point
-    exploiting_input = "AAAA"+"\x00"*80+struct.pack("<I",0x80480a0)*20+"\n" 
+    exploiting_input = b"AAAA" + b"\x00"*80 + struct.pack("<I",0x80480a0)*20 + b"\n"
     expected1 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tNope, that's not a palindrome\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
 
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
@@ -179,12 +179,12 @@ def test_simplecfi(BackendClass, data_fallback, try_pdf_removal):
 
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
-        print res, p.returncode
+        print(res, p.returncode)
         nose.tools.assert_equal((res[0] == expected2 and p.returncode == 0), True)
 
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(exploiting_input)
-        print res, p.returncode
+        print(res, p.returncode)
         nose.tools.assert_equal((res[0] == expected3 and p.returncode == 0x45), True)
 
 
@@ -195,7 +195,7 @@ def test_qemudetection(BackendClass, data_fallback, try_pdf_removal):
 
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate("\x00"*1000+"\n")
-    print res, p.returncode
+    print(res, p.returncode)
     nose.tools.assert_equal((p.returncode == -11), True)
 
     expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
@@ -209,12 +209,12 @@ def test_qemudetection(BackendClass, data_fallback, try_pdf_removal):
 
         p = subprocess.Popen([old_qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
-        print res, p.returncode
+        print(res, p.returncode)
         nose.tools.assert_equal(p.returncode == 0x40 or p.returncode == 0x41, True)
 
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
-        print res, p.returncode
+        print(res, p.returncode)
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
 
 
@@ -225,7 +225,7 @@ def test_randomsyscallloop(BackendClass, data_fallback, try_pdf_removal):
 
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate("\x00"*1000+"\n")
-    print res, p.returncode
+    print(res, p.returncode)
     nose.tools.assert_equal((p.returncode == -11), True)
 
     with patcherex.utils.tempdir() as td:
@@ -238,7 +238,7 @@ def test_randomsyscallloop(BackendClass, data_fallback, try_pdf_removal):
 
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("\x00"*100+"\n")
-        print res, p.returncode
+        print(res, p.returncode)
         nose.tools.assert_equal(res[0] == "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: ", True)
         nose.tools.assert_equal(p.returncode == -11, True)
 
@@ -250,7 +250,7 @@ def test_cpuid(BackendClass, data_fallback, try_pdf_removal):
 
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate("\x00"*1000+"\n")
-    print res, p.returncode
+    print(res, p.returncode)
     nose.tools.assert_equal((p.returncode == -11), True)
 
     with patcherex.utils.tempdir() as td:
@@ -263,7 +263,7 @@ def test_cpuid(BackendClass, data_fallback, try_pdf_removal):
 
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("\x00"*100+"\n")
-        print res, p.returncode
+        print(res, p.returncode)
         nose.tools.assert_equal(res[0].endswith("\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "), True)
         nose.tools.assert_equal(len(res[0]) > 500, True)
         nose.tools.assert_equal(p.returncode == -11, True)
@@ -286,7 +286,7 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
     '''
 
     #0x80480a0 is the binary entry point
-    exploiting_input = "AAAA"+"\x00"*80+struct.pack("<I",0x80480a0)*20+"\n"
+    exploiting_input = b"AAAA" + b"\x00"*80 + struct.pack("<I",0x80480a0)*20 + b"\n"
     expected1 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: " \
             "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tNope,"
     input3 = 'login\ninsert\na\na\na\n11/11/11 11:11:11\nfind\nusername <"xdDVRNBQTTrhqk" AND birthdate <6/9/1 20:33:47())\n\n'
@@ -339,12 +339,12 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
         seed = str(random.randint(0,1000000000))
         p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
-        print res
+        print(res)
         sane_stdout, sane_retcode = res[0], p.returncode
         seed = str(random.randint(0,1000000000))
         p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
-        print res
+        print(res)
         nose.tools.assert_equal(res[0] == sane_stdout, True)
         nose.tools.assert_equal(p.returncode == sane_retcode, True)
 
@@ -493,7 +493,7 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
                                  record_stdout=True,
                                  record_core=True)
                 nose.tools.assert_equal(res.stdout,"hello\nCGC")
-                print hex(res.reg_vals['eip'])
+                print(hex(res.reg_vals['eip']))
                 nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
                 # res = QEMURunner(patched_fname1,"00000002\n23456789\n",record_stdout=True)
                 # nose.tools.assert_equal(res.stdout,"hello\nCGC")
@@ -508,7 +508,7 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
                                  record_stdout=True,
                                  record_core=True)
                 nose.tools.assert_equal(res.stdout,"hello\n")
-                print hex(res.reg_vals['eip'])
+                print(hex(res.reg_vals['eip']))
                 nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
 
             #main: 08048620, stack: baaaa000, heap: "+addr_str+"
@@ -518,7 +518,7 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
                              record_stdout=True,
                              record_core=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            print hex(res.reg_vals['eip'])
+            print(hex(res.reg_vals['eip']))
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             #main -> stack
             res = QEMURunner(patched_fname1,
@@ -526,7 +526,7 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
                              record_stdout=True,
                              record_core=True)
             nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            print hex(res.reg_vals['eip'])
+            print(hex(res.reg_vals['eip']))
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             #main -> main
             res = QEMURunner(patched_fname1,
@@ -652,7 +652,7 @@ def test_freeregs():
             sr = StackRetEncryption(fname, backend)
             cached_backend[fname] = backend, sr
 
-        print tbin, hex(addr), is_tail, ecx_free, edx_free
+        print(tbin, hex(addr), is_tail, ecx_free, edx_free)
         res = sr.is_reg_free(addr,"ecx",is_tail,debug=True)
         nose.tools.assert_equal(ecx_free,res)
         res = sr.is_reg_free(addr,"edx",is_tail,debug=True)
@@ -693,7 +693,7 @@ def test_transmitprotection(BackendClass, data_fallback, try_pdf_removal):
     nose.tools.assert_equal(len(res.stdout),15+4+2)
 
     for nslot in [8,16,32,100,1000]:
-        print "nlslot:",nslot
+        print("nlslot:", nslot)
         with patcherex.utils.tempdir() as td:
             patched_fname1 = os.path.join(td, "patched1")
             backend = BackendClass(vulnerable_fname1,data_fallback,try_pdf_removal=try_pdf_removal)
@@ -767,14 +767,14 @@ def test_transmitprotection(BackendClass, data_fallback, try_pdf_removal):
                 ([(0,3)]*2+[(3,1)],True),
                 ([(0,3)]*20+[(3,1)],True),
                 (((10,1),(11,1),(13,1),(22,1),(23,1),(24,1),(20,1),(100,1),(13,1),(12,1)),True),
-                ([(i,1) for i in xrange(100,200,2)]+[(0,3)]+[(3,1)],True),
-                ([(i,1) for i in xrange(100,150,2)]+[(0,3)]+[(i,1) for i in xrange(100,150,2)]+[(10,3)]+[(13,1)],True),
-                ([(i,1) for i in xrange(100,150,2)]+[(0,3)]+[(i,1) for i in xrange(100,150,2)]+ \
+                ([(i,1) for i in range(100,200,2)]+[(0,3)]+[(3,1)],True),
+                ([(i,1) for i in range(100,150,2)]+[(0,3)]+[(i,1) for i in range(100,150,2)]+[(10,3)]+[(13,1)],True),
+                ([(i,1) for i in range(100,150,2)]+[(0,3)]+[(i,1) for i in range(100,150,2)]+ \
                         [(1000,1)]+[(10,3)]+[(13,1)],True),
-                ([(i,1) for i in xrange(100,150,2)]+[(0,3)]+[(i,1) for i in xrange(100,150,2)]+ \
-                        [(1000,1)]+[(10,3)]+[(13,1)]+[(i,3) for i in xrange(1000,1100,4)]+[(2000,3)],True),
-                ([(i,1) for i in xrange(100,150,2)]+[(0,3)]+[(i,1) for i in xrange(100,150,2)]+ \
-                        [(1000,1)]+[(10,2)]+[(13,1)]+[(i,3) for i in xrange(1000,1100,4)]+[(2000,3)],False)
+                ([(i,1) for i in range(100,150,2)]+[(0,3)]+[(i,1) for i in range(100,150,2)]+ \
+                        [(1000,1)]+[(10,3)]+[(13,1)]+[(i,3) for i in range(1000,1100,4)]+[(2000,3)],True),
+                ([(i,1) for i in range(100,150,2)]+[(0,3)]+[(i,1) for i in range(100,150,2)]+ \
+                        [(1000,1)]+[(10,2)]+[(13,1)]+[(i,3) for i in range(1000,1100,4)]+[(2000,3)],False)
             ]
             complex_tests += [(list(reversed(l)),r) for l,r in complex_tests]
             for test in complex_tests:
@@ -810,7 +810,7 @@ def test_shiftstack(BackendClass, data_fallback, try_pdf_removal):
         nose.tools.assert_equal(original_reg_value['eip'], 0x11223344)
 
         random_stack_pos = set()
-        for _ in xrange(6):
+        for _ in range(6):
             backend = BackendClass(filepath,data_fallback,try_pdf_removal=try_pdf_removal)
             cp = ShiftStack(filepath, backend)
             patches = cp.get_patches()
@@ -824,7 +824,7 @@ def test_shiftstack(BackendClass, data_fallback, try_pdf_removal):
             oesp = original_reg_value['esp']
             nesp = res.reg_vals['esp']
             random_stack_pos.add(nesp)
-            print hex(nesp),hex(oesp)
+            print(hex(nesp), hex(oesp))
             nose.tools.assert_true(oesp-pow(2,cp.max_value_pow)<=nesp<=oesp-pow(2,cp.min_value_pow))
             original_reg_value_mod = dict(original_reg_value)
             original_reg_value_mod.pop('esp')
@@ -832,7 +832,7 @@ def test_shiftstack(BackendClass, data_fallback, try_pdf_removal):
             original_reg_value_mod.pop('eflags')
             res.reg_vals.pop('eflags')
             nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
-        print map(hex,random_stack_pos)
+        print(map(hex,random_stack_pos))
         nose.tools.assert_true(len(random_stack_pos)>=2)
 
 
@@ -988,12 +988,12 @@ def test_backdoor(BackendClass, data_fallback, try_pdf_removal):
     nose.tools.assert_true(backdoor_content > (5*pow(2,19))) # size is bigger than number of challenges times 5 bytes
 
     for bitflip in [False,True]:
-        print "======== Bitflip:", bitflip
+        print("======== Bitflip:", bitflip)
         filepath = os.path.join(bin_location, "CADET_00003")
         real_backdoor_enter = "3367b180".decode('hex')
         fake_backdoor_enter = "3367b181".decode('hex')
         custom_bins = [os.path.join(bin_location,os.path.join("patchrex","backdoorme"+str(i))) \
-                for i in xrange(1,9+1,4)]
+                for i in range(1,9+1,4)]
         bins = [filepath] + custom_bins
 
         with patcherex.utils.tempdir() as td:
@@ -1092,7 +1092,7 @@ def test_backdoor(BackendClass, data_fallback, try_pdf_removal):
 
 @reassembler_only
 def test_bitflip(BackendClass, data_fallback, try_pdf_removal):
-    all_chars = [chr(c) for c in xrange(256)]
+    all_chars = [chr(c) for c in range(256)]
     pipe = subprocess.PIPE
     tests = []
     # tests.append(os.path.join(bin_location, "patchrex/CADET_00003_fixed"))
@@ -1125,7 +1125,7 @@ def test_bitflip(BackendClass, data_fallback, try_pdf_removal):
                 p = subprocess.Popen([qemu_location, "-bitflip", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
                 res = p.communicate(ostr)
                 patched = (res[0],p.returncode)
-                print test, tlen
+                print(test, tlen)
                 nose.tools.assert_equal(expected,patched)
 
         for test in tests:
@@ -1145,7 +1145,7 @@ def test_bitflip(BackendClass, data_fallback, try_pdf_removal):
                 p = subprocess.Popen([qemu_location, "-bitflip", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
                 res = p.communicate(ostr)
                 patched = (res[0],p.returncode)
-                print test, tlen
+                print(test, tlen)
                 nose.tools.assert_equal(expected,patched)
 
 @reassembler_only
@@ -1288,10 +1288,10 @@ nick stephens
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    all_functions = dict(filter((lambda x: x[0].startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], '__call__'):
-            l.info("testing %s" % str(f))
+            l.info("testing %s", str(f))
             all_functions[f]()
 
 

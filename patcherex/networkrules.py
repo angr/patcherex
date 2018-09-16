@@ -544,5 +544,3 @@ alert (name:"flip_fe"; side:client; match:"\xfe",1; replace:"\xfe";)
 alert (name:"flip_ff"; side:client; match:"\xff",1; replace:"\xff";)
 '''
         return rule
-
-        

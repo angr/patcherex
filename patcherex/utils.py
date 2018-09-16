@@ -63,7 +63,7 @@ class ASMConverter(object):
         # register
         if len(op) == 3 and op.startswith('e') and op[-1] in ('x', 'i', 'p'):
             return 4
-        elif len(op) == 2 and any([ c in string.lowercase for c in op ]):
+        elif len(op) == 2 and any([ c in string.ascii_lowercase for c in op ]):
             if not op.endswith('h') and not op.endswith('l'):
                 return 2
             else:
@@ -592,7 +592,7 @@ def instruction_to_str(instruction, print_bytes=True):
 
 def capstone_to_nasm(instruction):
         tstr = "db "
-        tstr += ",".join([hex(struct.unpack("B", b)[0]) for b in str(instruction.bytes)])
+        tstr += ",".join([hex(struct.unpack("B", bytes(b))[0]) for b in str(instruction.bytes)])
         tstr += " ;"+instruction_to_str(instruction, print_bytes=False)
         return tstr
 
@@ -649,9 +649,9 @@ def compile_asm(code, base=None, name_map=None):
         bin_fname = os.path.join(td, "bin.o")
         
         fp = open(asm_fname, 'wb')
-        fp.write("bits 32\n")
+        fp.write(b"bits 32\n")
         if base is not None:
-            fp.write("org %s\n" % hex(base))
+            fp.write(b"org %s\n" % hex(base))
         fp.write(code)
         fp.close()
         
@@ -681,10 +681,10 @@ def compile_asm_fake_symbol(code, base=None, ):
         bin_fname = os.path.join(td, "bin.o")
 
         fp = open(asm_fname, 'wb')
-        fp.write("bits 32\n")
+        fp.write(b"bits 32\n")
         if base is not None:
-            fp.write("org %s\n" % hex(base))
-        fp.write(code)
+            fp.write(b"org %s\n" % hex(base))
+        fp.write(bytes(code))
         fp.close()
 
         res = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)

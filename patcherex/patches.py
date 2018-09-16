@@ -87,6 +87,7 @@ class CodePatch(Patch):
             asm_str = ".byte " + ", ".join([hex(ord(b)) for b in code])
             return asm_str
 
+
 class AddCodePatch(CodePatch):
     def __init__(self, asm_code, name=None, is_c=False, is_att=False, optimization="-Oz"):
         super(AddCodePatch, self).__init__(name, asm_code, is_c=is_c, is_att=is_att,
@@ -141,6 +142,7 @@ class RawMemPatch(Patch):
     def __repr__(self):
         return "RawMemPatch [%s] %08x (%d)" % (self.name,self.addr,len(self.data))
 
+
 class SegmentHeaderPatch(Patch):
     def __init__(self, segment_headers, name=None):
         super(SegmentHeaderPatch, self).__init__(name)
@@ -164,7 +166,7 @@ class PointerArrayPatch(Patch):
         super(PointerArrayPatch, self).__init__(name)
         self.addr = addr
         self.pointers = pointers
-        self.data = "".join([ struct.pack("<I", p) for p in self.pointers ])
+        self.data = b"".join([ struct.pack("<I", p) for p in self.pointers ])
 
     def __repr__(self):
         return "PointerArrayPatch [%s] %#08x (%d)" % (self.name, self.addr, len(self.data))

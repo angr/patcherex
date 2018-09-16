@@ -1,8 +1,8 @@
 import patcherex
 import angr
 
-import patcherex.utils as utils
-import patcherex.cfg_utils as cfg_utils
+from .. import utils
+from .. import cfg_utils
 
 import capstone
 import logging
@@ -47,7 +47,7 @@ class Bitflip(object):
         translations = {'\x00':'\x31','\x43':'\x00','\n':'\x43','\x31':'\n'}
         full_translation_table = {}
         tstr = ""
-        for i in xrange(256):
+        for i in range(256):
             c = chr(i)
             if c in translations:
                 tstr += translations[c]

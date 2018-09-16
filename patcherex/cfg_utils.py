@@ -1,3 +1,6 @@
+
+from functools import reduce
+
 import angr
 import capstone
 import networkx
@@ -23,8 +26,8 @@ def is_sane_function(ff):
 
 def is_floatingpoint_function(backend,ff):
     if not(hasattr(backend,"mem_start") and hasattr(backend,"mem_end")):
-        init_bytes = "DB 6C 24 04 EB 0A D9 44 24 04 EB 04 DD 44 24 04 D9 FE".replace(" ","").decode('hex')
-        end_bytes = "D9 44 24 04 EB 04 DD 44 24 04 D9 EA DE C9 EB B7".replace(" ","").decode('hex')
+        init_bytes = b"\xDB\x6C\x24\x04\xEB\x0A\xD9\x44\x24\x04\xEB\x04\xDD\x44\x24\x04\xD9\xFE"
+        end_bytes = b"\xD9\x44\x24\x04\xEB\x04\xDD\x44\x24\x04\xD9\xEA\xDE\xC9\xEB\xB7"
 
         file_start = backend.ocontent.find(init_bytes)
         file_end = backend.ocontent.find(end_bytes)
@@ -127,7 +130,6 @@ def is_setjmp(backend, ff):
         return True
     else:
         return False
-    return inst_str
 
 
 def is_longjmp(backend, ff):

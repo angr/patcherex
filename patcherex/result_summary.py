@@ -3,6 +3,8 @@
 import sys
 import os
 from collections import defaultdict
+from functools import reduce
+
 from patcherex import utils
 
 timeout = 600
@@ -97,75 +99,75 @@ if __name__ == "__main__":
             if "FAILED: " in line:
                 folder,cb_name = line.split(" ")[1:2+1]
                 folder_split = folder.split(os.path.sep)
-                print folder_split
+                print(folder_split)
                 pname = folder_split[-1]
                 bname = folder_split[-2]
                 cb_name = cb_name.split("\x1b")[0]
                 results[(pname,bname)].append((cb_name,999,"",""))
 
     for k,v in results.iteritems():
-        print k,repr(v)
+        print(k,repr(v))
 
     global_results = {}
     for ptype in ptypes:
-        print "=" * 30, ptype
+        print("=" * 30, ptype)
         for btype in btypes:
-            print "-" *10, btype
+            print("-" *10, btype)
             timeouts = [b[0] for b in results[(ptype,btype)] if b[1] == -9]
             total_timeout_failures = len(timeouts)
-            print "timeouts:", cblist_to_str(timeouts)
+            print("timeouts:", cblist_to_str(timeouts))
             expected_failed_generation = [(b[0],b[1],b[2]) for b in results[(ptype, btype)] if \
                     b[1] == 33 and b[2] == "ReassemblerError"]
-            print "expected_failed_generation:", cblist_to_str(expected_failed_generation)
+            print("expected_failed_generation:", cblist_to_str(expected_failed_generation))
             unexpected_failed_generation = [(b[0],b[1],b[2]) for b in results[(ptype, btype)] if \
                     b[1] == 33 and b[2] != "ReassemblerError" and b[2] != "FunctionalityError"]
-            print "unexpected_failed_generation:", cblist_to_str(unexpected_failed_generation)
+            print("unexpected_failed_generation:", cblist_to_str(unexpected_failed_generation))
             unexpected_undetected_failed_generation = [(b[0],b[1],b[2]) for b in results[(ptype, btype)] if \
                     b[1] != 33 and b[1] != 0 and b[1] != -9 and b[1] != 999]
-            print "unexpected_undetected_failed_generation:", cblist_to_str(unexpected_undetected_failed_generation)
+            print("unexpected_undetected_failed_generation:", cblist_to_str(unexpected_undetected_failed_generation))
             total_generation_failures = len(timeouts) + len(expected_failed_generation) + \
                     len(unexpected_failed_generation) + len(unexpected_undetected_failed_generation)
-            print "TOTAL GENERATION FAILURES:", total_generation_failures
+            print("TOTAL GENERATION FAILURES:", total_generation_failures)
 
             detected_functionality_failures = [b[0] for b in results[(ptype, btype)] if \
                     b[1] == 33 and b[2] == "FunctionalityError"]
             detected_functionality_failures = coalesce_multi_cb(detected_functionality_failures)
             detected_functionality_failures = filter_functionality(detected_functionality_failures,blacklist[btype])
             total_detected_functionality_failures = len(detected_functionality_failures)
-            print "detected_functionality_failures:", cblist_to_str(detected_functionality_failures)
+            print("detected_functionality_failures:", cblist_to_str(detected_functionality_failures))
             tester_functionality_failures = [b[0] for b in results[(ptype, btype)] if b[1] == 999]
             tester_functionality_failures = filter_functionality(tester_functionality_failures, blacklist[btype])
-            print "tester_functionality_failure:", cblist_to_str(tester_functionality_failures)
+            print("tester_functionality_failure:", cblist_to_str(tester_functionality_failures))
             total_functionality_failures = len(detected_functionality_failures) + len(tester_functionality_failures)
-            print "TOTAL FUNCTIONALITY FAILURES:", total_functionality_failures
+            print("TOTAL FUNCTIONALITY FAILURES:", total_functionality_failures)
             global_results[(ptype,btype)] = (total_timeout_failures,total_generation_failures,\
                     total_detected_functionality_failures, total_functionality_failures)
 
-    print "=" * 50, "GLOBAL_RESULTS"
-    print "=" * 30, "original"
+    print("=" * 50, "GLOBAL_RESULTS")
+    print("=" * 30, "original")
     for ptype in ptypes:
         tott = 0
         totg = 0
         totd = 0
         totf = 0
-        print "="*10, ptype
+        print("="*10, ptype)
         btype = "original"
         tott += global_results[(ptype, btype)][0]
         totg += global_results[(ptype, btype)][1]
         totd += global_results[(ptype, btype)][2]
         totf += global_results[(ptype, btype)][3]
-        print "total timeout failures:", tott
-        print "----- total generation failures:", totg
-        print "total detected functionality failures:", totd
-        print "----- total functionality failures:", totf
+        print("total timeout failures:", tott)
+        print("----- total generation failures:", totg)
+        print("total detected functionality failures:", totd)
+        print("----- total functionality failures:", totf)
 
-    print "=" * 30, "others"
+    print("=" * 30, "others")
     for ptype in ptypes:
         tott = 0
         totg = 0
         totd = 0
         totf = 0
-        print "="*10, ptype
+        print("="*10, ptype)
         for btype in btypes:
             if btype == "original":
                 continue
@@ -173,20 +175,20 @@ if __name__ == "__main__":
             totg += global_results[(ptype, btype)][1]
             totd += global_results[(ptype, btype)][2]
             totf += global_results[(ptype, btype)][3]
-        print "total timeout failures:", tott
-        print "----- total generation failures:", totg
-        print "total detected functionality failures:", totd
-        print "----- total functionality failures:", totf
+        print("total timeout failures:", tott)
+        print("----- total generation failures:", totg)
+        print("total detected functionality failures:", totd)
+        print("----- total functionality failures:", totf)
 
-    intervals = list(xrange(50,70+1,10))+list(xrange(75,95,5))+list(xrange(95,100+1,1))
-    print "=" * 50, "TIME"
+    intervals = list(range(50,70+1,10)) + list(range(75,95,5)) + list(range(95,100+1,1))
+    print("=" * 50, "TIME")
     for ptype in ptypes:
         tt = times[ptype]
         tstr = "%30s " % ptype
         per = 0
         vlist = list(sorted(tt.values()))
         slist = []
-        slist.append("avg:%3s"%str(int(round((reduce(lambda x,y:x+y,tt.values())/float(len(tt.values()))),0))))
+        slist.append("avg:%3s" % str(int(round((reduce(lambda x, y:x+y, tt.values())/float(len(tt.values()))),0))))
         for i in intervals:
             slist.append(str(i) + "%:" + "%3s"%str(int(vlist[min(int(len(vlist)/100.0*i),len(vlist)-1)])))
-        print tstr+"-".join(slist)
+        print(tstr+"-".join(slist))

@@ -70,7 +70,7 @@ class StackRetEncryption(object):
 
         # create inverse callsite map
         inv_callsites = defaultdict(set)
-        for c, f in callsites.iteritems():
+        for c, f in callsites.items():
             inv_callsites[f].add(c)
         return inv_callsites
 
@@ -97,16 +97,16 @@ class StackRetEncryption(object):
             tsteps = [0]
             chain = self._is_reg_free(addr,reg,ignore_current_bb,level=0,prev=[],total_steps=tsteps,debug=debug)
             if debug:
-                print chain # the explored tree
-                print tsteps # global number of steps
+                print(chain) # the explored tree
+                print(tstep) # global number of steps
             return True
         except RegUsed as e:
             if debug:
-                print e.message
-                print tsteps
+                print(str(e))
+                print(tsteps)
             return False
 
-    def _is_reg_free(self,addr,reg,ignore_current_bb,level,total_steps,debug=False,prev=[]):
+    def _is_reg_free(self,addr,reg,ignore_current_bb,level,total_steps,debug=False,prev=None):
         if level >= self.cfg_exploration_depth:
             raise RegUsed("Max depth %#x %s" % (addr,map(hex,prev)))
 
@@ -118,6 +118,9 @@ class StackRetEncryption(object):
                 return [addr]
             if reg in self.reg_not_free_map[addr]:
                 raise RegUsed("Not free in bb %#x %s" % (addr,map(hex,prev)))
+
+        if prev is None:
+            prev = [ ]
 
         try:
             succ, is_terminate = self.get_all_succ(addr)
@@ -479,7 +482,7 @@ class StackRetEncryption(object):
                 break #double break
 
             if state == 'found':
-                l.warning("found saved reg access at %#x",block.addr)
+                l.warning("found saved reg access at %#x", block.addr)
                 blacklist.add(ff.addr)
                 if ff.addr in self.inv_callsites:
                     blacklist.update(self.inv_callsites[ff.addr])

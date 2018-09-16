@@ -58,7 +58,7 @@ class IndirectCFI(object):
                 # print nn, map(hex,[n.addr for n in nn.successors()])
                 if all([0x8048000 <=  n.addr < 0x9000000 for n in nn.successors()]):
                     l.info("Found indirect call always targeting the main bin at: %#8x: %s" % \
-                            (addr, map(hex([n.addr for n in nn.successors()]))))
+                            (addr, map(hex, [n.addr for n in nn.successors()])))
                     return True
         return False
 
@@ -173,9 +173,9 @@ class IndirectCFI(object):
             jmp 0x8047333; > <
             _exit_%d: ; < <
             pop edx
-            ''' % (target_resolver,gadget_protection,data_patch_name,IndirectCFI.global_counter,data_patch_name,\
-                    IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter, \
-                    IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter, \
+            ''' % (target_resolver,gadget_protection,data_patch_name,IndirectCFI.global_counter,data_patch_name,
+                    IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter,
+                    IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter,IndirectCFI.global_counter,
                     IndirectCFI.global_counter)
             # the memory regions should be correct with binaries up to 8MB of stack, 1GB of heap, about 930 MB of binary
 
@@ -226,7 +226,7 @@ class IndirectCFI(object):
 
         # create inverse callsite map
         inv_callsites = defaultdict(set)
-        for c, f in callsites.iteritems():
+        for c, f in callsites.items():
             inv_callsites[f].add(c)
         return inv_callsites
 

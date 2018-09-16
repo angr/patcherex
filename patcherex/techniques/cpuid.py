@@ -6,6 +6,7 @@ from patcherex.patches import *
 
 l = logging.getLogger("patcherex.techniques.CpudId")
 
+
 class CpuId(object):
 
     def __init__(self,binary_fname,backend):

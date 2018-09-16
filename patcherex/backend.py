@@ -14,6 +14,7 @@ FIND_FUNCS = (
     'snprintf',
 )
 
+
 class Backend(object):
     """
     Patcher backend.

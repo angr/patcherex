@@ -42,7 +42,7 @@ class MallocExtPatcher(object):
 
         # create inverse callsite map
         inv_callsites = defaultdict(set)
-        for c, f in callsites.iteritems():
+        for c, f in callsites.items():
             inv_callsites[f].add(c)
         return inv_callsites
 
@@ -109,12 +109,12 @@ class MallocExtPatcher(object):
             tsteps = [0]
             chain = self._is_reg_free(addr,reg,ignore_current_bb,level=0,prev=[],total_steps=tsteps,debug=debug)
             if debug:
-                print chain # the explored tree
-                print tsteps # global number of steps
+                print(chain) # the explored tree
+                print(tsteps) # global number of steps
             return True
         except RegUsed as e:
             if debug:
-                print e.message
+                print(str(e))
             return False
 
     def is_last_returning_block(self,node):

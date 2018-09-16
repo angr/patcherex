@@ -68,7 +68,7 @@ class Packer(object):
         key = 0x8ec94134 #mecphish
         original_mem = self.patcher.read_mem_from_file(start,size)
         new_mem = ""
-        for i in xrange(0,len(original_mem),4):
+        for i in range(0,len(original_mem),4):
             dw = struct.unpack("<I",original_mem[i:i+4])[0]
             dw ^= key
             new_mem += struct.pack("<I",dw)
