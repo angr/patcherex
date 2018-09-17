@@ -429,7 +429,7 @@ class DetourBackend(Backend):
 
         # cut dictionary to the current state
         todict = OrderedDict()
-        for i,(k,v) in enumerate(self.saved_states.iteritems()):
+        for i,(k,v) in enumerate(self.saved_states.items()):
             if i > self.saved_states.keys().index(tuple(applied_patches)):
                 break
             todict[k]=v
@@ -445,7 +445,7 @@ class DetourBackend(Backend):
         for p in insert_code_patches:
             insert_code_patches_dict[p.addr].append(p)
         insert_code_patches_dict_sorted = defaultdict(list)
-        for k,v in insert_code_patches_dict.iteritems():
+        for k,v in insert_code_patches_dict.items():
             insert_code_patches_dict_sorted[k] = sorted(v,key=lambda x:-1*x.priority)
 
         insert_code_patches_stackable = [p for p in patches if isinstance(p, InsertCodePatch) and p.stackable]
@@ -718,7 +718,7 @@ class DetourBackend(Backend):
                 segments[-1] = last_segment
             self.setup_headers(segments)
             self.set_added_segment_headers(len(segments))
-            l.debug("final symbol table: "+ repr([(k,hex(v)) for k,v in self.name_map.iteritems()]))
+            l.debug("final symbol table: "+ repr([(k,hex(v)) for k,v in self.name_map.items()]))
         else:
             l.info("no patches, the binary will not be touched")
 

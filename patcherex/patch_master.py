@@ -45,7 +45,7 @@ from patcherex.errors import *
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.backends.reassembler_backend import ReassemblerBackend
 from patcherex.patches import *
-from networkrules import NetworkRules
+from .networkrules import NetworkRules
 
 
 l = logging.getLogger("patcherex.PatchMaster")

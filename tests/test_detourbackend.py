@@ -48,7 +48,7 @@ def test_simple_inline():
 
     pipe = subprocess.PIPE
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
-    res = p.communicate("A"*100)
+    res = p.communicate(b"A" * 100)
     print(res, p.returncode)
     nose.tools.assert_equal((p.returncode != 0), True)
 
@@ -61,7 +61,7 @@ def test_simple_inline():
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*100)
+        res = p.communicate(b"A"*100)
         print(res, p.returncode)
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
 
@@ -84,7 +84,7 @@ def test_added_code():
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A"*10 + b"\n")
         print(res, p.returncode)
         nose.tools.assert_equal(p.returncode == 0x32, True)
 
@@ -116,7 +116,7 @@ def test_added_code_and_data():
 
         # backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A"*10 + b"\n")
         print(res, p.returncode)
         nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
 
@@ -202,7 +202,7 @@ def test_rw_memory():
             backend.save(tmp_file)
             #backend.save("../../vm/shared/patched")
             p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-            res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+            res = p.communicate(b"\x00\x01\x01" + b"A"*1000 + b"\n")
             print(str(tlen) + ":")
             print(res, p.returncode)
 
@@ -290,7 +290,7 @@ def test_ro_memory():
             backend.save(tmp_file)
             #backend.save("../../vm/shared/patched")
             p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-            res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+            res = p.communicate(b"\x00\x01\x01" + b"A"*1000 + b"\n")
             print(str(tlen) + ":")
             print(res, p.returncode)
 
@@ -380,7 +380,7 @@ def test_rwinit_memory():
             backend.save(tmp_file)
             #backend.save("../../vm/shared/patched")
             p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-            res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+            res = p.communicate(b"\x00\x01\x01" + b"A"*1000 + b"\n")
             print(str(tlen) + ":")
             print(res, p.returncode)
 
@@ -480,7 +480,7 @@ def test_added_code_and_data_complex():
         #for k,v in backend.name_map.iteritems():
             #print k,hex(v)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("\x00\x01\x01"+"A"*1000+"\n")
+        res = p.communicate(b"\x00\x01\x01" + b"A"*1000 + b"\n")
         print(res, p.returncode)
         nose.tools.assert_equal(expected == res[0] and p.returncode == 255, True)
 
@@ -545,7 +545,7 @@ def test_added_code_and_data_big():
 
         # backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A" * 10 + b"\n")
         #print res, p.returncode
         nose.tools.assert_equal(test_str in res[0] and p.returncode == 0x33, True)
 
@@ -572,7 +572,7 @@ def test_detour():
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A" * 10 + b"\n")
         #print res, p.returncode
         expected = "qwertyuiop\n\x00\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
                    "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
@@ -599,7 +599,7 @@ def test_single_entry_point_patch():
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
         nose.tools.assert_equal("\n\nEASTER EGG!\n\n" in res[0] and p.returncode == 0, True)
 
@@ -645,7 +645,7 @@ def test_complex1():
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
         nose.tools.assert_equal("\n\nEASTER EGG!\n\n"+test_str in res[0] and p.returncode == 52, True)
 
@@ -689,7 +689,7 @@ def test_double_patch_collision():
         nose.tools.assert_equal(p1 in backend.added_patches, True)
         nose.tools.assert_equal(p2 in backend.added_patches, False)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
         print(map(hex,backend.touched_bytes))
         expected = test_str1 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
@@ -706,7 +706,7 @@ def test_double_patch_collision():
         nose.tools.assert_equal(p1 in backend.added_patches, False)
         nose.tools.assert_equal(p2 in backend.added_patches, True)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A" * 10 + "\n")
+        res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
         print(map(hex,backend.touched_bytes))
         expected = test_str2 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
@@ -724,7 +724,7 @@ def test_double_patch_collision():
         nose.tools.assert_equal(p1 in backend.added_patches, False)
         nose.tools.assert_equal(p2 in backend.added_patches, True)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
         print(map(hex,backend.touched_bytes))
         expected = test_str2 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
@@ -742,7 +742,7 @@ def test_double_patch_collision():
         nose.tools.assert_equal(p1 in backend.added_patches, True)
         nose.tools.assert_equal(p2 in backend.added_patches, True)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A"*10 + b"\n")
         print(res, p.returncode)
         print(map(hex,backend.touched_bytes))
         expected = test_str1 + test_str2 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
@@ -935,7 +935,7 @@ def test_random_canary():
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n"+"\x00"*100)
+        res = p.communicate(b"A"*10 + b"\n" + b"\x00"*100)
         print(res, p.returncode)
         nose.tools.assert_equal(check_output(res[0]) and p.returncode == 0x44, True)
 
@@ -999,7 +999,7 @@ def test_patch_conflicts():
         backend.apply_patches(cpatches)
         backend.save(tmp_file)
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
         nose.tools.assert_equal(p.returncode,1)
         estr = expected_str([])
@@ -1013,7 +1013,7 @@ def test_patch_conflicts():
         backend.save(tmp_file)
         #backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A"*10 + b"\n")
         print(res, p.returncode)
         nose.tools.assert_equal(p.returncode,1)
         estr = expected_str([p11])
@@ -1027,7 +1027,7 @@ def test_patch_conflicts():
         backend.save(tmp_file)
         #backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A"*10 + b"\n")
         print(res, p.returncode)
         nose.tools.assert_equal(p.returncode,1)
         estr = expected_str([p11,p21,p31,p41])
@@ -1250,7 +1250,7 @@ def test_patch_conflicts():
         backend.save(tmp_file)
         #backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate("A"*10+"\n")
+        res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
         nose.tools.assert_equal(p.returncode,1)
         estr = expected_str([p21,p31])
