@@ -546,9 +546,8 @@ def tempdir(prefix='/tmp/python_tmp', delete=True):
     try:
         yield tmpdir
     finally:
-        pass
-        #if delete:
-        #    shutil.rmtree(tmpdir)
+        if delete:
+            shutil.rmtree(tmpdir)
 
 
 def exec_cmd(args, cwd=None, shell=False, debug=False):
