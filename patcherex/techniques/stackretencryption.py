@@ -93,12 +93,12 @@ class StackRetEncryption(object):
 
 
     def is_reg_free(self,addr,reg,ignore_current_bb,debug=False):
+        tsteps = [0]
         try:
-            tsteps = [0]
             chain = self._is_reg_free(addr,reg,ignore_current_bb,level=0,prev=[],total_steps=tsteps,debug=debug)
             if debug:
                 print(chain) # the explored tree
-                print(tstep) # global number of steps
+                print(tsteps) # global number of steps
             return True
         except RegUsed as e:
             if debug:

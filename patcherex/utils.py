@@ -505,6 +505,7 @@ class ASMConverter(object):
 
         return "\n".join(converted)
 
+
 def str_overwrite(tstr, new, pos=None):
     if pos is None:
         pos = len(tstr)
@@ -651,7 +652,7 @@ def compile_asm(code, base=None, name_map=None):
         fp = open(asm_fname, 'wb')
         fp.write(b"bits 32\n")
         if base is not None:
-            fp.write(b"org %s\n" % hex(base))
+            fp.write(bytes("org %s\n" % hex(base)))
         fp.write(code)
         fp.close()
         
