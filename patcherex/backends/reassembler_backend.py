@@ -108,7 +108,7 @@ class ReassemblerBackend(Backend):
 
         # Get the assembly
         try:
-            assembly = self._binary.assembly(comments=True, symbolized=True)
+            assembly = self._binary.assembly(comments=True, symbolized=True)  # type: str
         except BinaryError as ex:
             raise ReassemblerError('Reassembler failed to reassemble the binary. Here is the exception we '
                                    'caught: %s' %
@@ -117,7 +117,7 @@ class ReassemblerBackend(Backend):
 
         # Save the assembly onto a temporary path
         fd, tmp_file_path = tempfile.mkstemp(prefix=os.path.basename(self.project.filename), suffix=".s")
-        os.write(fd, assembly)
+        os.write(fd, assembly.encode("utf-8"))
         os.close(fd)
 
         l.info("Generating assembly manifest at %s", tmp_file_path)
