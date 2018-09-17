@@ -315,22 +315,43 @@ class DetourBackend(Backend):
         self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size, "\x00")
 
     def dump_segments(self, tprint=False):
-        # from: https://github.com/CyberGrandChallenge/readcgcef/blob/master/readcgcef-minimal.py
-        header_size = 16 + 2*2 + 4*5 + 2*6
+        header_size = 4 + 1*5 + 7 + 2 + 2 + 4
+        bits = self.project.arch.bits/8
+        header_size += bits*3 + 4 + 2*6
         buf = self.ncontent[0:header_size]
+        if bits == 4:
+            up_str = '<xxxxxxxxxxxxxxxxHHLLLLLHHHHHH'
+        elif bits == 8:
+            up_str = '<xxxxxxxxxxxxxxxxHHLQQQLHHHHHH'
         (cgcef_type, cgcef_machine, cgcef_version, cgcef_entry, cgcef_phoff,
-            cgcef_shoff, cgcef_flags, cgcef_ehsize, cgcef_phentsize, cgcef_phnum,
-            cgcef_shentsize, cgcef_shnum, cgcef_shstrndx) = struct.unpack("<xxxxxxxxxxxxxxxxHHLLLLLHHHHHH", buf)
-        phent_size = 8 * 4
+         cgcef_shoff, cgcef_flags, cgcef_ehsize, cgcef_phentsize, cgcef_phnum,
+         cgcef_shentsize, cgcef_shnum, cgcef_shstrndx) = struct.unpack(up_str, buf)
+        phent_size = 32 if bits == 4 else 56
         assert cgcef_phnum != 0
         assert cgcef_phentsize == phent_size
 
-        pt_types = {0: "NULL", 1: "LOAD", 6: "PHDR", 0x60000000+0x474e551: "GNU_STACK", 0x6ccccccc: "CGCPOV2"}
+        pt_types = {0: "NULL",
+                    1: "LOAD",
+                    2: "DYNAMIC",
+                    3: "INTERP",
+                    4: "NOTE",
+                    5: "SHLIB",
+                    6: "PHDR",
+                    0x60000000: "LOOS",
+                    0x6FFFFFFF: "HIOS",
+                    0x70000000: "LOPROC",
+                    0x7FFFFFFF: "HIPROC",
+                    0x6474e550: "GNU_EH_FRAME",
+                    0x6474e551: "GNU_STACK",
+                    0x6474e552: "GNU_RELRO",
+                    0x6ccccccc: "CGCPOV2"}
         segments = []
         for i in xrange(0, cgcef_phnum):
             hdr = self.ncontent[cgcef_phoff + phent_size * i:cgcef_phoff + phent_size * i + phent_size]
-            (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align) = struct.unpack("<IIIIIIII", hdr)
-
+            if bits == 4:
+                (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align) = struct.unpack("<IIIIIIII", hdr)
+            elif bits == 8:
+                (p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align) = struct.unpack("<IIQQQQQQ", hdr)
             assert p_type in pt_types
             ptype_str = pt_types[p_type]
 
