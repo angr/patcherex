@@ -546,8 +546,9 @@ def tempdir(prefix='/tmp/python_tmp', delete=True):
     try:
         yield tmpdir
     finally:
-        if delete:
-            shutil.rmtree(tmpdir)
+        pass
+        #if delete:
+        #    shutil.rmtree(tmpdir)
 
 
 def exec_cmd(args, cwd=None, shell=False, debug=False):
@@ -584,7 +585,7 @@ def get_asm_template(template_name, substitution_dict):
 
 def instruction_to_str(instruction, print_bytes=True):
     if print_bytes:
-        pbytes = str(instruction.bytes).encode('hex').rjust(16)
+        pbytes = instruction.bytes.hex().rjust(16)
     else:
         pbytes = ""
     return "0x%x %s:\t%s\t%s %s" % (instruction.address, pbytes, instruction.mnemonic, instruction.op_str,
@@ -606,8 +607,10 @@ def bytes_to_asm(in_str, comment=None):
         return tstr
 
 
-def decompile(code, offset=0x0):
+def disassemble(code, offset=0x0):
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+    if isinstance(code, str):
+        code = bytes(map(ord, code))
     return list(md.disasm(code, offset))
 
 
@@ -652,7 +655,7 @@ def compile_asm(code, base=None, name_map=None):
         fp = open(asm_fname, 'wb')
         fp.write(b"bits 32\n")
         if base is not None:
-            fp.write(bytes("org %s\n" % hex(base)))
+            fp.write(bytes("org %s\n" % hex(base), "utf-8"))
         fp.write(code)
         fp.close()
         
@@ -684,8 +687,8 @@ def compile_asm_fake_symbol(code, base=None, ):
         fp = open(asm_fname, 'wb')
         fp.write(b"bits 32\n")
         if base is not None:
-            fp.write(b"org %s\n" % hex(base))
-        fp.write(bytes(code))
+            fp.write(bytes("org %x\n" % base, "utf-8"))
+        fp.write(bytes(code, "utf-8"))
         fp.close()
 
         res = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)
@@ -699,7 +702,7 @@ def compile_asm_fake_symbol(code, base=None, ):
             print("\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))]))
             raise NasmException
 
-        fp = open(bin_fname)
+        fp = open(bin_fname, "rb")
         compiled = fp.read()
         fp.close()
 

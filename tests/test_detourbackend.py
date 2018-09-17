@@ -8,15 +8,15 @@ import logging
 from functools import wraps
 
 import patcherex
-import shellphish_qemu
+# import shellphish_qemu
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import *
-from tracer import QEMURunner
+# from tracer import QEMURunner
 
 l = logging.getLogger("patcherex.test.test_detourbackend")
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../test_binaries'))
-qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
+# qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
 
 global_data_fallback = None
 global_try_pdf_removal = True
@@ -557,7 +557,7 @@ def test_detour():
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-        test_str = "qwertyuiop\n\x00"
+        test_str = b"qwertyuiop\n\x00"
         added_code = '''
             mov     eax, 2
             mov     ebx, 0

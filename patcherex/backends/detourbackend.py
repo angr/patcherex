@@ -77,14 +77,14 @@ class DetourBackend(Backend):
         # we may need up to 3 additional segments (1 for pdf removal 2 for patching)
         self.additional_headers_size = 3*self.single_segment_header_size 
 
-        self.added_code = ""
-        self.added_data = ""
+        self.added_code = b""
+        self.added_data = b""
         self.added_code_file_start = None
         self.added_data_file_start = None
         self.added_patches = []
         self.added_rwdata_len = 0
         self.added_rwinitdata_len = 0
-        self.to_init_data = ""
+        self.to_init_data = b""
         self.max_convertible_address = 0xffffffff
 
         self.saved_states = OrderedDict()
@@ -158,14 +158,14 @@ class DetourBackend(Backend):
                 0x30, 0x20, 0x52, 0x20, 0x2f, 0x46, 0x69, 0x6c, 0x74, 0x65, 0x72, 0x20, 0x2f, 0x46, 0x6c,
                 0x61, 0x74, 0x65, 0x44, 0x65, 0x63, 0x6f, 0x64, 0x65, 0x20, 0x3e, 0x3e, 0x0a, 0x73, 0x74,
                 0x72, 0x65, 0x61, 0x6d, 0x0a]
-        pdf_beginning_str = "".join([chr(c) for c in pdf_beginning_str])
-        pdf_beginning_pos = pdf_string_pos+len(pdf_string)
+        pdf_beginning_str = bytes(pdf_beginning_str)
+        pdf_beginning_pos = pdf_string_pos + len(pdf_string)
         if not self.ocontent[pdf_beginning_pos:pdf_beginning_pos+len(pdf_beginning_str)] == pdf_beginning_str:
             l.warning("pdf beginning not found")
             return False, None, None, None, None
 
         # 3) check for the pdf end (based on size)
-        pdf_length_pos = self.ocontent[:pdf_string_pos-1].rfind(" ")
+        pdf_length_pos = self.ocontent[:pdf_string_pos-1].rfind(b" ")
         if pdf_length_pos == -1:
             l.warning("pdf length str not found")
             return False, None, None, None, None
@@ -209,7 +209,7 @@ class DetourBackend(Backend):
         #    return False, None, None, None, None
 
         # 5) check for _start structure
-        instructions = utils.decompile(self.read_mem_from_file(self.get_oep(),30),self.get_oep())
+        instructions = utils.disassemble(self.read_mem_from_file(self.get_oep(), 30), self.get_oep())
         i1, i2 = instructions[:2]
         if not (i1.mnemonic == u'call' and i1.mnemonic == u'call'):
             l.warning("unexpected instructions at entry points")
@@ -225,7 +225,7 @@ class DetourBackend(Backend):
         # however, it would be significantly harder to detect how to remove the crc check
         expected_instructions = ["push","push","push","call","add","push","push","push","push","push",
                 "push","add","pushfd","pop","and","push","popfd","push","pop","ret"]
-        instructions = utils.decompile(self.read_mem_from_file(checker_function_start,0x30),checker_function_start)
+        instructions = utils.disassemble(self.read_mem_from_file(checker_function_start, 0x30), checker_function_start)
         if not expected_instructions == [instruction.mnemonic.encode("ascii") for instruction in instructions]:
             l.warning("unexpected instructions in checker function")
             return False, None, None, None, None  
@@ -464,7 +464,7 @@ class DetourBackend(Backend):
 
         # check for duplicate labels, it is not very necessary for this backend
         # but it is better to behave in the same way of the reassembler backend
-        relevant_patches = [p for p in patches if (isinstance(p, AddCodePatch) or \
+        relevant_patches = [p for p in patches if (isinstance(p, AddCodePatch) or
                 isinstance(p, InsertCodePatch) or isinstance(p, AddEntryPointPatch))]
         all_code = ""
         for p in relevant_patches:
@@ -472,7 +472,7 @@ class DetourBackend(Backend):
                 code = p.code
             else:
                 code = p.asm_code
-            all_code += "\n"+code+"\n"
+            all_code += "\n" + code + "\n"
         labels = utils.string_to_labels(all_code)
         duplicates = set([x for x in labels if labels.count(x) > 1])
         if len(duplicates) > 1:
@@ -537,7 +537,7 @@ class DetourBackend(Backend):
                     self.added_rwinitdata_len += len(patch.data)
                     self.added_patches.append(patch)
                     l.info("Added patch: " + str(patch))
-            if self.to_init_data != "":
+            if self.to_init_data != b"":
                 code = '''
                 jmp _skip_data
                 _to_init_data:
@@ -750,7 +750,7 @@ class DetourBackend(Backend):
         # the idea here is an instruction is movable if and only if
         # it has the same string representation when moved at different offsets is "movable"
         def bytes_to_comparable_str(ibytes, offset):
-            return " ".join(utils.instruction_to_str(utils.decompile(ibytes, offset)[0]).split()[2:])
+            return " ".join(utils.instruction_to_str(utils.disassemble(ibytes, offset)[0]).split()[2:])
 
         instruction_bytes = str(instruction.bytes)
         pos1 = bytes_to_comparable_str(instruction_bytes, 0x0)
@@ -815,7 +815,7 @@ class DetourBackend(Backend):
         # 2) detect cases like call-pop and dependent instructions (which should not be moved)
         # get movable_instructions in the bb
         original_bbcode = block.bytes
-        instructions = utils.decompile(original_bbcode, block.addr)
+        instructions = utils.disassemble(original_bbcode, block.addr)
 
         if self.check_if_movable(instructions[-1]):
             movable_instructions = instructions
@@ -930,7 +930,7 @@ class DetourBackend(Backend):
         detour_jmp_code = utils.compile_jmp(detour_pos, self.get_current_code_position())
         self.patch_bin(detour_pos, detour_jmp_code)
         patched_bbcode = self.read_mem_from_file(block_addr, block.size)
-        patched_bbinstructions = utils.decompile(patched_bbcode, block_addr)
+        patched_bbinstructions = utils.disassemble(patched_bbcode, block_addr)
         l.debug("patched bb instructions:\n %s",
                 "\n".join([utils.instruction_to_str(i) for i in patched_bbinstructions]))
 

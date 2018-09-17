@@ -25,6 +25,8 @@ class InlinePatch(Patch):
 class AddRODataPatch(Patch):
     def __init__(self, data, name=None):
         super(AddRODataPatch, self).__init__(name)
+        if not isinstance(data, bytes):
+            raise TypeError("Data must be a bytestring.")
         self.data = data
 
     def __repr__(self):
@@ -45,6 +47,8 @@ class AddRWInitDataPatch(Patch):
     def __init__(self, data, name=None):
         super(AddRWInitDataPatch, self).__init__(name)
         self.data = data
+        if not isinstance(data, bytes):
+            raise TypeError("Data must be a bytestring.")
 
     def __repr__(self):
         return "AddRWInitDataPatch [%s] (%d)" % (self.name,len(self.data))
@@ -137,6 +141,8 @@ class RawMemPatch(Patch):
     def __init__(self, addr, data, name=None):
         super(RawMemPatch, self).__init__(name)
         self.addr = addr
+        if not isinstance(data, bytes):
+            raise TypeError("Data must be a bytestring.")
         self.data = data
 
     def __repr__(self):
