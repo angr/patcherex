@@ -3,6 +3,7 @@ import os
 import struct
 import bisect
 import logging
+import IPython
 from collections import OrderedDict
 from collections import defaultdict
 
@@ -78,7 +79,7 @@ class DetourBackend(Backend):
         self.added_data_segment = 0x07000000
         self.single_segment_header_size = 32
         # we may need up to 3 additional segments (1 for pdf removal 2 for patching)
-        self.additional_headers_size = 3*self.single_segment_header_size 
+        self.additional_headers_size = 3*self.single_segment_header_size
 
         self.added_code = ""
         self.added_data = ""
@@ -137,10 +138,10 @@ class DetourBackend(Backend):
             self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + self.added_data_segment
         else:
             last_segment = self.modded_segments[-1]
-            # at the end of the file there is stuff which is supposely not loaded in memory 
+            # at the end of the file there is stuff which is supposely not loaded in memory
             # but it is present in the file (e.g., segment headers)
             # we need to account for that
-            self.real_size_last_segment = len(self.ncontent) - last_segment[1]  
+            self.real_size_last_segment = len(self.ncontent) - last_segment[1]
             # this is the start in memory of RWData
             self.name_map["ADDED_DATA_START"] = last_segment[2] + last_segment[5]
 
@@ -231,13 +232,13 @@ class DetourBackend(Backend):
         instructions = utils.decompile(self.read_mem_from_file(checker_function_start,0x30),checker_function_start)
         if not expected_instructions == [instruction.mnemonic.encode("ascii") for instruction in instructions]:
             l.warning("unexpected instructions in checker function")
-            return False, None, None, None, None  
+            return False, None, None, None, None
 
         # 7) check for pdf acceses from cfg
         if False: # TODO, see issue: https://git.seclab.cs.ucsb.edu/cgc/patcherex/issues
             l.warning("unexpected acceses to the pdf")
             return False, None, None, None, None
-            
+
         return True, pdf_beginning_pos, pdf_length, instructions[3].address, len(instructions[3].bytes)
 
     def remove_pdf(self, pdf_start, pdf_length, check_instruction_addr, check_instruction_size):
@@ -288,26 +289,31 @@ class DetourBackend(Backend):
         self.modded_segments = segments[:-1] + [pre_cut_segment,post_cut_segment]
 
     def is_patched(self):
-        return self.ncontent[0x34:0x34 + len(self.patched_tag)] == self.patched_tag
+        off = 0x32 if self.project.arch.bits == 32 else 0x40
+        return self.ncontent[off:off + len(self.patched_tag)] == self.patched_tag
 
-    def setup_headers(self,segments):
+    def setup_headers(self, segments):
         if self.is_patched():
             return
 
         # align size of the entire ELF
         self.ncontent = utils.pad_str(self.ncontent, 0x10)
         # change pointer to program headers to point at the end of the elf
-        self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<I", len(self.ncontent)), 0x1C)
+        phoff = 0x1C if self.project.arch.bits == 32 else 0x20
+        pack_str = '<I' if self.project.arch.bits == 32 else '<Q'
+        self.ncontent = utils.str_overwrite(self.ncontent, struct.pack(pack_str, len(self.ncontent)), phoff)
 
-        # copying original program headers (potentially modified by patches and/or pdf removal) 
+        # copying original program headers (potentially modified by patches and/or pdf removal)
         # in the new place (at the  end of the file)
+        pack_str = "<IIIIIIII" if self.project.arch.bits == 32 else "<IIQQQQQQ"
         for segment in segments:
-            self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *segment))
+            self.ncontent = utils.str_overwrite(self.ncontent, struct.pack(pack_str, *segment))
         self.original_header_end = len(self.ncontent)
 
         # we overwrite the first original program header,
         # we do not need it anymore since we have moved original program headers at the bottom of the file
-        self.ncontent = utils.str_overwrite(self.ncontent, self.patched_tag, 0x34)
+        header_sz = 0x34 if self.project.arch.bits == 32 else 0x40
+        self.ncontent = utils.str_overwrite(self.ncontent, self.patched_tag, header_sz)
 
         # adding space for the additional headers
         # I add two of them, no matter what, if the data one will be used only in case of the fallback solution
@@ -370,7 +376,16 @@ class DetourBackend(Backend):
         return segments
 
     def set_added_segment_headers(self, nsegments):
-        assert self.ncontent[0x34:0x34+len(self.patched_tag)] == self.patched_tag
+        if self.project.arch.bits == 32:
+            tag_off = 0x34
+            pack_str = "<IIIIIIII"
+            phnum_offset = 0x2c
+        else:
+            tag_off = 0x40
+            pack_str = "<IIQQQQQQ"
+            phnum_offset = 0x38
+
+        assert self.ncontent[tag_off:tag_off+len(self.patched_tag)] == self.patched_tag
         if self.data_fallback:
             l.debug("added_data_file_start: %#x", self.added_data_file_start)
         added_segments = 0
@@ -382,7 +397,7 @@ class DetourBackend(Backend):
             mem_data_location = self.name_map["ADDED_DATA_START"]
             data_segment_header = (1, self.added_data_file_start, mem_data_location, mem_data_location,
                                    len(self.added_data), len(self.added_data), 0x6, 0x1000)  # RW
-            self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *data_segment_header),
+            self.ncontent = utils.str_overwrite(self.ncontent, struct.pack(pack_str, *data_segment_header),
                                                 self.original_header_end + 32)
             added_segments += 1
         else:
@@ -392,12 +407,12 @@ class DetourBackend(Backend):
         mem_code_location = self.added_code_segment + (self.added_code_file_start % 0x1000)
         code_segment_header = (1, self.added_code_file_start, mem_code_location, mem_code_location,
                                len(self.added_code), len(self.added_code), 0x5, 0x1000)  # RX
-        self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *code_segment_header),
+        self.ncontent = utils.str_overwrite(self.ncontent, struct.pack(pack_str, *code_segment_header),
                                             self.original_header_end)
         added_segments += 1
 
         # print original_nsegments,added_segments
-        self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<H", original_nsegments + added_segments), 0x2c)
+        self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<H", original_nsegments + added_segments), phnum_offset)
 
     @staticmethod
     def pflags_to_perms(p_flags):
@@ -416,11 +431,16 @@ class DetourBackend(Backend):
 
     def set_oep(self, new_oep):
         # get original entry point
-        self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<I", new_oep), 0x18)
+        pack_str = "<I" if self.project.arch.bits == 32 else "<Q"
+        self.ncontent = utils.str_overwrite(self.ncontent, struct.pack(pack_str, new_oep), 0x18)
 
     def get_oep(self):
         # set original entry point
-        return struct.unpack("<I", self.ncontent[0x18:0x18+4])[0]
+        if self.project.arch.bits == 32:
+            retval = struct.unpack("<I", self.ncontent[0x18:0x18+4])[0]
+        else:
+            retval = struct.unpack("<Q", self.ncontent[0x18:0x18+8])[0]
+        return retval
 
     # 3 inserting strategies
     # Jump out and jump back
@@ -570,7 +590,7 @@ class DetourBackend(Backend):
                     mov esi, _to_init_data
                     mov edi, %s
                     mov ecx, %d
-                    cld 
+                    cld
                     rep movsb
                 ''' % (",".join([hex(ord(x)) for x in self.to_init_data]), \
                         hex(self.name_map["ADDED_DATA_START"] + self.added_rwdata_len), \
@@ -615,7 +635,7 @@ class DetourBackend(Backend):
         # 3) AddEntryPointPatch
         # basically like AddCodePatch but we detour by changing oep
         # and we jump at the end of all of them
-        # resolving symbols 
+        # resolving symbols
         if any([isinstance(p, AddEntryPointPatch) for p in patches]):
             pre_entrypoint_code_position = self.get_current_code_position()
             current_symbol_pos = self.get_current_code_position()
@@ -716,7 +736,7 @@ class DetourBackend(Backend):
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
         if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
                 any([isinstance(p,SegmentHeaderPatch) for p in patches]) or self.pdf_removed:
-            # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers 
+            # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers
 
             # 6) SegmentHeaderPatch
             segment_header_patches = [p for p in patches if isinstance(p,SegmentHeaderPatch)]
@@ -736,9 +756,13 @@ class DetourBackend(Backend):
 
             if not self.data_fallback:
                 last_segment = segments[-1]
-                p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align = last_segment
-                last_segment =  p_type, p_offset, p_vaddr, p_paddr, \
-                       p_filesz, p_memsz + self.added_rwdata_len + self.added_rwinitdata_len, p_flags, p_align
+                if self.project.arch.bits == 32:
+                    p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align = last_segment
+                    last_segment = p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz + self.added_rwdata_len + self.added_rwinitdata_len, p_flags, p_align
+                else:
+                    p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_align = last_segment
+                    last_segment = p_type, p_flags, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz + self.added_rwdata_len + self.added_rwinitdata_len, p_align
+
                 segments[-1] = last_segment
             self.setup_headers(segments)
             self.set_added_segment_headers(len(segments))
