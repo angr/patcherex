@@ -3,7 +3,6 @@
 import sys
 import os
 import logging
-import resource
 import traceback
 import timeout_decorator
 import itertools
@@ -18,37 +17,43 @@ import termcolor
 import traceback
 import time
 import pickle
+import platform
 from ctypes import cdll
 
-from patcherex.techniques.qemudetection import QemuDetection
-from patcherex.techniques.shadowstack import ShadowStack
-from patcherex.techniques.packer import Packer
-from patcherex.techniques.simplecfi import SimpleCFI
-from patcherex.techniques.cpuid import CpuId
-from patcherex.techniques.randomsyscallloop import RandomSyscallLoop
-from patcherex.techniques.stackretencryption import StackRetEncryption
-from patcherex.techniques.indirectcfi import IndirectCFI
-from patcherex.techniques.transmitprotection import TransmitProtection
-from patcherex.techniques.shiftstack import ShiftStack
-from patcherex.techniques.nxstack import NxStack
-from patcherex.techniques.adversarial import Adversarial
-from patcherex.techniques.backdoor import Backdoor
-from patcherex.techniques.bitflip import Bitflip
-from patcherex.techniques.binary_optimization import optimize_it
-from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
-from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
-from patcherex.techniques.noflagprintf import NoFlagPrintfPatcher
-from patcherex.techniques.fidgetpatches import fidget_it
-from patcherex.errors import *
-
-
-from patcherex.backends.detourbackend import DetourBackend
-from patcherex.backends.reassembler_backend import ReassemblerBackend
-from patcherex.patches import *
-from .networkrules import NetworkRules
-
-
 l = logging.getLogger("patcherex.PatchMaster")
+
+try:
+    import resource
+except ImportError:
+    if platform.system() == "Windows":
+        l.warning("Skip importing the resource package on Windows.")
+    else:
+        raise
+
+from .techniques.qemudetection import QemuDetection
+from .techniques.shadowstack import ShadowStack
+from .techniques.packer import Packer
+from .techniques.simplecfi import SimpleCFI
+from .techniques.cpuid import CpuId
+from .techniques.randomsyscallloop import RandomSyscallLoop
+from .techniques.stackretencryption import StackRetEncryption
+from .techniques.indirectcfi import IndirectCFI
+from .techniques.transmitprotection import TransmitProtection
+from .techniques.shiftstack import ShiftStack
+from .techniques.nxstack import NxStack
+from .techniques.adversarial import Adversarial
+from .techniques.backdoor import Backdoor
+from .techniques.bitflip import Bitflip
+from .techniques.binary_optimization import optimize_it
+from .techniques.uninitialized_patcher import UninitializedPatcher
+from .techniques.malloc_ext_patcher import MallocExtPatcher
+from .techniques.noflagprintf import NoFlagPrintfPatcher
+from .techniques.fidgetpatches import fidget_it
+from .errors import *
+from .backends.detourbackend import DetourBackend
+from .backends.reassembler_backend import ReassemblerBackend
+from .patches import *
+from .networkrules import NetworkRules
 
 
 def get_backdoorpov():

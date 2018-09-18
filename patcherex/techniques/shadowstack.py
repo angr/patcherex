@@ -18,14 +18,14 @@ class ShadowStack(object):
 
     def get_common_patches(self):
         common_patches = []
-        common_patches.append(AddRODataPatch("0123456789abcdef",name="hex_array"))
-        common_patches.append(AddRWDataPatch(4,name="saved_canary"))
-        common_patches.append(AddRWDataPatch(4,name="shadow_stack_pointer"))
-        common_patches.append(AddRWDataPatch(4,name="tmp_reg1"))
-        common_patches.append(AddRWDataPatch(4,name="tmp_reg2"))
-        common_patches.append(AddRWDataPatch(self.shadow_stack_size,name="shadow_stack"))
-        common_patches.append(AddRODataPatch("canary failure: \x00",name="str_fcanary"))
-        common_patches.append(AddRODataPatch(" vs \x00",name="str_vs"))
+        common_patches.append(AddRODataPatch(b"0123456789abcdef", name="hex_array"))
+        common_patches.append(AddRWDataPatch(4, name="saved_canary"))
+        common_patches.append(AddRWDataPatch(4, name="shadow_stack_pointer"))
+        common_patches.append(AddRWDataPatch(4, name="tmp_reg1"))
+        common_patches.append(AddRWDataPatch(4, name="tmp_reg2"))
+        common_patches.append(AddRWDataPatch(self.shadow_stack_size, name="shadow_stack"))
+        common_patches.append(AddRODataPatch(b"canary failure: \x00", name="str_fcanary"))
+        common_patches.append(AddRODataPatch(b" vs \x00",name="str_vs"))
 
         added_code = '''
             ; print eax as hex
@@ -46,7 +46,7 @@ class ShadowStack(object):
             popa
             ret
         '''
-        common_patches.append(AddCodePatch(added_code,name="print_hex_eax"))
+        common_patches.append(AddCodePatch(added_code, name="print_hex_eax"))
 
         added_code = '''
             ; eax=buf,ebx=len
@@ -60,14 +60,14 @@ class ShadowStack(object):
             popa
             ret
         '''
-        common_patches.append(AddCodePatch(added_code,name="print"))
+        common_patches.append(AddCodePatch(added_code, name="print"))
 
         added_code = '''
             mov     ebx, eax
             mov     eax, 0x1
             int     80h
         '''
-        common_patches.append(AddCodePatch(added_code,name="exit_eax"))
+        common_patches.append(AddCodePatch(added_code, name="exit_eax"))
 
         added_code = '''
             ; put 4 random bytes in eax
@@ -80,7 +80,7 @@ class ShadowStack(object):
             popa
             ret
         '''
-        common_patches.append(AddCodePatch(added_code,name="random"))
+        common_patches.append(AddCodePatch(added_code, name="random"))
 
         added_code = '''
             ; print a null terminated string pointed by eax
@@ -100,19 +100,19 @@ class ShadowStack(object):
             popa
             ret
         '''
-        common_patches.append(AddCodePatch(added_code,name="print_str"))
+        common_patches.append(AddCodePatch(added_code, name="print_str"))
 
         added_code = '''
             mov eax, 0x44
             call {exit_eax}
         '''
-        common_patches.append(AddCodePatch(added_code,name="canary_check_fail"))
+        common_patches.append(AddCodePatch(added_code, name="canary_check_fail"))
 
         #TODO add randomization of starting point
         added_code = '''
             mov DWORD [{shadow_stack_pointer}],{shadow_stack}
         '''
-        common_patches.append(AddEntryPointPatch(added_code,name="set_shadowstack_pointer"))
+        common_patches.append(AddEntryPointPatch(added_code, name="set_shadowstack_pointer"))
         return common_patches
 
 
@@ -170,7 +170,7 @@ class ShadowStack(object):
                 bb = self.patcher.project.factory.block(ret_site.addr)
                 last_instruction = bb.capstone.insns[-1]
                 if last_instruction.mnemonic not in ("ret", "retl"):
-                    l.debug("bb at %s does not terminate with a ret in function %s" % (hex(int(bb.addr)),ff.name))
+                    l.debug("bb at %s does not terminate with a ret in function %s", (hex(int(bb.addr)), ff.name))
                     break
                 else:
                     ends.add(last_instruction.address)
@@ -190,10 +190,11 @@ class ShadowStack(object):
         cfg = self.patcher.cfg
 
         patches = []
-        for k,ff in cfg.functions.iteritems():
+        for k,ff in cfg.functions.items():
             start,ends = self.function_to_canary_locations(ff)
-            if start!=None and ends !=None:
+            if start is not None and ends is not None:
                 new_patches = self.add_shadowstack_to_function(start,ends)
-                l.info("added shadowstack to function %s (%s -> %s)",ff.name,hex(start),map(hex,ends))
+                l.info("added shadowstack to function %s (%s -> %s)", ff.name, hex(start), map(hex,ends))
                 patches += new_patches
+
         return common_patches + patches

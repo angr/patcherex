@@ -654,7 +654,7 @@ def compile_asm(code, base=None, name_map=None):
         fp = open(asm_fname, 'wb')
         fp.write(b"bits 32\n")
         if base is not None:
-            fp.write(bytes("org %s\n" % hex(base), "utf-8"))
+            fp.write(bytes("org %#x\n" % base, "utf-8"))
         fp.write(code)
         fp.close()
         
@@ -683,10 +683,10 @@ def compile_asm_fake_symbol(code, base=None, ):
         asm_fname = os.path.join(td, "asm.s")
         bin_fname = os.path.join(td, "bin.o")
 
-        fp = open(asm_fname, 'wb')
+        fp = open(asm_fname, "wb")
         fp.write(b"bits 32\n")
         if base is not None:
-            fp.write(bytes("org %x\n" % base, "utf-8"))
+            fp.write(bytes("org %#x\n" % base, "utf-8"))
         fp.write(bytes(code, "utf-8"))
         fp.close()
 

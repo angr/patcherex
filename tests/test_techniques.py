@@ -11,13 +11,26 @@ import tempfile
 import random
 
 import patcherex
-import shellphish_qemu
 from patcherex.patch_master import PatchMaster
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.backends.reassembler_backend import ReassemblerBackend
 from patcherex.patches import *
 from tracer import QEMURunner
-from povsim import CGCPovSimulator
+
+l = logging.getLogger("patcherex.test.test_techniques_detourbackend")
+
+try:
+    import shellphish_qemu
+    qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
+except ImportError:
+    l.warning("Cannot import shellphish_qemu. Patched binaries will not be tested.")
+    qemu_location = None
+
+try:
+    from povsim import CGCPovSimulator
+except ImportError:
+    l.warning("Cannot import povsim. Patched binaries will not be tested.")
+
 from patcherex.techniques.shadowstack import ShadowStack
 from patcherex.techniques.packer import Packer
 from patcherex.techniques.simplecfi import SimpleCFI
@@ -39,13 +52,10 @@ from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
 from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
 from patcherex.techniques.noflagprintf import NoFlagPrintfPatcher
 
-l = logging.getLogger("patcherex.test.test_techniques_detourbackend")
-
 # TODO ideally these tests should be run in the vm
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../test_binaries'))
 poll_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), 'polls'))
-qemu_location = shellphish_qemu.qemu_path('cgc-tracer')
 self_location_folder = os.path.dirname(os.path.realpath(__file__))
 
 

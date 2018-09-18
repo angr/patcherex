@@ -806,7 +806,7 @@ class DetourBackend(Backend):
         mem = ""
         for start, end in self.get_memory_translation_list(address, size):
             # print "-",hex(start),hex(end)
-            mem += self.ncontent[start:end]
+            mem += self.ncontent[start : end]
         return mem
 
     def get_movable_instructions(self, block):

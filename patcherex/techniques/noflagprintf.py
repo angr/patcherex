@@ -42,7 +42,7 @@ class NoFlagPrintfPatcher(object):
                 hash ^= ord(c)
             if hash == 0:
                 hash += 1
-            return chr(hash)
+            return bytes(hash)
 
         hash_dict = {}
         for func, (func_name, func_obj) in self.ident.matches.items():
@@ -51,7 +51,8 @@ class NoFlagPrintfPatcher(object):
             if func_obj.format_spec_char is None:
                 continue
             relevant_strings = [s for s in self.all_strings if func_obj.format_spec_char in s]
-            hash_dict[func_obj.format_spec_char] = list(sorted(set(map(hash_str,relevant_strings)),key=lambda x:ord(x)))
+            hash_dict[func_obj.format_spec_char] = list(sorted(set(map(hash_str, relevant_strings)),
+                                                               key=lambda x: ord(x)))
         return hash_dict
 
     @property
@@ -173,7 +174,7 @@ class NoFlagPrintfPatcher(object):
 
         # print repr(self.hash_dict)
         for fspec in set(used_spec_chars):
-            hash_list = "".join(self.hash_dict[fspec]) + "\x00"
+            hash_list = b"".join(self.hash_dict[fspec]) + b"\x00"
             patches.append(AddRODataPatch(hash_list,
                         name="hash_list_{format_spec_char}".format(format_spec_char=ord(fspec))))
         # print "\n".join(map(str,patches))

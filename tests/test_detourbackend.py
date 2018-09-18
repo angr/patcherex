@@ -96,7 +96,7 @@ def test_added_code_and_data():
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-        test_str = "testtesttest\n\x00"
+        test_str = b"testtesttest\n\x00"
         added_code = '''
             mov     eax, 2
             mov     ebx, 0
@@ -143,7 +143,7 @@ def test_rw_memory():
         patches = []
         patches.append(AddRWDataPatch(tlen, "added_data_rw"))
 
-        patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
+        patches.append(AddRODataPatch(b"0123456789abcdef", "hex_array"))
         added_code = '''
             ; eax=buf,ebx=len
             pusha
@@ -229,9 +229,9 @@ def test_ro_memory():
     for tlen in lenlist:
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
-        patches.append(AddRODataPatch("\x01"*tlen, "added_data_rw"))
+        patches.append(AddRODataPatch(b"\x01"*tlen, "added_data_rw"))
 
-        patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
+        patches.append(AddRODataPatch(b"0123456789abcdef", "hex_array"))
         added_code = '''
             ; eax=buf,ebx=len
             pusha
@@ -319,9 +319,9 @@ def test_rwinit_memory():
     for tlen in lenlist:
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = []
-        patches.append(AddRWInitDataPatch("\x02"*tlen, "added_data_rwinit"))
+        patches.append(AddRWInitDataPatch(b"\x02"*tlen, "added_data_rwinit"))
 
-        patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
+        patches.append(AddRODataPatch(b"0123456789abcdef", "hex_array"))
         added_code = '''
             ; eax=buf,ebx=len
             pusha
@@ -396,15 +396,15 @@ def test_added_code_and_data_complex():
 
     common_patches = []
     patches = []
-    common_patches.append(AddRODataPatch("ro1ro1ro1\n\x00", "added_data_ro1"))
+    common_patches.append(AddRODataPatch(b"ro1ro1ro1\n\x00", "added_data_ro1"))
     common_patches.append(AddRWDataPatch(10, "added_data_rw1"))
-    common_patches.append(AddRWInitDataPatch("ri1ri1ri1\n\x00", "added_data_rwinit1"))
-    common_patches.append(AddRODataPatch("ro2ro2ro2\n\x00", "added_data_ro2"))
+    common_patches.append(AddRWInitDataPatch(b"ri1ri1ri1\n\x00", "added_data_rwinit1"))
+    common_patches.append(AddRODataPatch(b"ro2ro2ro2\n\x00", "added_data_ro2"))
     common_patches.append(AddRWDataPatch(10, "added_data_rw2"))
-    common_patches.append(AddRWInitDataPatch("ri2ri2ri2\n\x00", "added_data_rwinit2"))
-    common_patches.append(AddRODataPatch("ro3ro3ro3\n\x00", "added_data_ro3"))
+    common_patches.append(AddRWInitDataPatch(b"ri2ri2ri2\n\x00", "added_data_rwinit2"))
+    common_patches.append(AddRODataPatch(b"ro3ro3ro3\n\x00", "added_data_ro3"))
     common_patches.append(AddRWDataPatch(10, "added_data_rw3"))
-    common_patches.append(AddRWInitDataPatch("ri3ri3ri3\n\x00", "added_data_rwinit3"))
+    common_patches.append(AddRWInitDataPatch(b"ri3ri3ri3\n\x00", "added_data_rwinit3"))
     added_code = '''
         ; eax=buf,ebx=len
         pusha
@@ -525,7 +525,7 @@ def test_added_code_and_data_big():
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-        test_str = "".join([chr(x) for x in range(256)])*40
+        test_str = b"".join(range(256))*40
         added_code = '''
             mov     eax, 2
             mov     ebx, 0
@@ -656,8 +656,8 @@ def test_double_patch_collision():
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        test_str1 = "1111111111\n\x00"
-        test_str2 = "2222222222\n\x00"
+        test_str1 = b"1111111111\n\x00"
+        test_str2 = b"2222222222\n\x00"
         added_code1 = '''
             pusha
             mov     eax, 2
@@ -755,8 +755,8 @@ def test_conflicting_symbols():
 
     patches = []
     backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-    patches.append(AddRODataPatch("0123456789abcdef", "aaa"))
-    patches.append(AddRODataPatch("\n", "aaa"))
+    patches.append(AddRODataPatch(b"0123456789abcdef", "aaa"))
+    patches.append(AddRODataPatch(b"\n", "aaa"))
     exc = False
     try:
         backend.apply_patches(patches)
@@ -766,7 +766,7 @@ def test_conflicting_symbols():
 
     patches = []
     backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-    patches.append(AddRODataPatch("0123456789abcdef", "aaa"))
+    patches.append(AddRODataPatch(b"0123456789abcdef", "aaa"))
     added_code = '''
         ; put 4 random bytes in eax
         pusha
@@ -808,12 +808,12 @@ def test_random_canary():
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
 
         patches = []
-        patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
-        patches.append(AddRODataPatch("\n", "new_line"))
-        patches.append(AddRODataPatch("X"*4, "saved_canary"))
-        patches.append(AddRODataPatch("base canary value: \x00","str_bcanary"))
-        patches.append(AddRODataPatch("canary failure: \x00","str_fcanary"))
-        patches.append(AddRODataPatch(" vs \x00","str_vs"))
+        patches.append(AddRODataPatch(b"0123456789abcdef", "hex_array"))
+        patches.append(AddRODataPatch(b"\n", "new_line"))
+        patches.append(AddRODataPatch(b"X"*4, "saved_canary"))
+        patches.append(AddRODataPatch(b"base canary value: \x00","str_bcanary"))
+        patches.append(AddRODataPatch(b"canary failure: \x00","str_fcanary"))
+        patches.append(AddRODataPatch(b" vs \x00","str_vs"))
 
         added_code = '''
             ; print eax as hex
@@ -972,14 +972,14 @@ def test_patch_conflicts():
     base_str = "Database checksum: "
 
     cpatches = []
-    cpatches.append(AddRODataPatch("11\n\x00", "s11"))
-    cpatches.append(AddRODataPatch("12\n\x00", "s12"))
-    cpatches.append(AddRODataPatch("21\n\x00", "s21"))
-    cpatches.append(AddRODataPatch("22\n\x00", "s22"))
-    cpatches.append(AddRODataPatch("31\n\x00", "s31"))
-    cpatches.append(AddRODataPatch("32\n\x00", "s32"))
-    cpatches.append(AddRODataPatch("41\n\x00", "s41"))
-    cpatches.append(AddRODataPatch("42\n\x00", "s42"))
+    cpatches.append(AddRODataPatch(b"11\n\x00", "s11"))
+    cpatches.append(AddRODataPatch(b"12\n\x00", "s12"))
+    cpatches.append(AddRODataPatch(b"21\n\x00", "s21"))
+    cpatches.append(AddRODataPatch(b"22\n\x00", "s22"))
+    cpatches.append(AddRODataPatch(b"31\n\x00", "s31"))
+    cpatches.append(AddRODataPatch(b"32\n\x00", "s32"))
+    cpatches.append(AddRODataPatch(b"41\n\x00", "s41"))
+    cpatches.append(AddRODataPatch(b"42\n\x00", "s42"))
     added_code = '''
         pusha
         mov     eax, 2
@@ -1457,8 +1457,8 @@ def test_piling():
                        "mov esi, 0; \n" \
                        "int 0x80;"
 
-        patches.append(AddRODataPatch("does it work\n", "the_first_string"))
-        patches.append(AddRODataPatch("nope no\n", name="the_second_string"))
+        patches.append(AddRODataPatch(b"does it work\n", "the_first_string"))
+        patches.append(AddRODataPatch(b"nope no\n", name="the_second_string"))
         patches.append(InsertCodePatch(0x80480a0, code_print_a, "test_code"))
         patches.append(InsertCodePatch(0x80480a0, code_print_b, name="second_add_code_patch", stackable=True))
 
@@ -1494,7 +1494,7 @@ def test_pdf_removal():
             patches = []
             osize = os.path.getsize(filepath)
 
-            patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
+            patches.append(AddRODataPatch(b"0123456789abcdef", "hex_array"))
             added_code = '''
                 ; eax=buf,ebx=len
                 pusha

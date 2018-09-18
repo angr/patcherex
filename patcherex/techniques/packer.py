@@ -60,13 +60,13 @@ class Packer(object):
 
     def get_patches(self):
         patches = []
-        new_segments_patch,start,size = self.compute_new_segments_layout()
+        new_segments_patch, start, size = self.compute_new_segments_layout()
         if new_segments_patch == None:
             return []
         patches.append(new_segments_patch)
 
         key = 0x8ec94134 #mecphish
-        original_mem = self.patcher.read_mem_from_file(start,size)
+        original_mem = self.patcher.read_mem_from_file(start, size)
         new_mem = ""
         for i in range(0,len(original_mem),4):
             dw = struct.unpack("<I",original_mem[i:i+4])[0]

@@ -44,16 +44,16 @@ class Bitflip(object):
 
     @staticmethod
     def get_translation_table_patch():
-        translations = {'\x00':'\x31','\x43':'\x00','\n':'\x43','\x31':'\n'}
+        translations = {b'\x00': b'\x31', b'\x43': b'\x00', b'\n': b'\x43', b'\x31': b'\n'}
         full_translation_table = {}
-        tstr = ""
+        tstr = b""
         for i in range(256):
-            c = chr(i)
+            c = bytes(i)
             if c in translations:
                 tstr += translations[c]
             else:
                 tstr += c
-        return AddRODataPatch(tstr,name="bitflip_translation_table")
+        return AddRODataPatch(tstr, name="bitflip_translation_table")
 
     @staticmethod
     def get_presyscall_patch(syscall_addr):
