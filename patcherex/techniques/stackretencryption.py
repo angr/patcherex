@@ -329,7 +329,7 @@ class StackRetEncryption(object):
         target_kind = block.vex.constant_jump_targets_and_jumpkinds
         if len(target_kind) != 1:
             return False
-        if target_kind.keys()[0] not in self.patcher.cfg.functions:
+        if list(target_kind.keys())[0] not in self.patcher.cfg.functions:
             return False
         target = self.patcher.cfg.functions[target_kind.keys()[0]]
         if cfg_utils.detect_syscall_wrapper(self.patcher, target) and \
@@ -428,7 +428,7 @@ class StackRetEncryption(object):
                 return False
 
         blacklist = set()
-        for k, ff in functions.iteritems():
+        for k, ff in functions.items():
             if not is_ebp_based_function(ff):
                 continue
 
@@ -500,7 +500,7 @@ class StackRetEncryption(object):
         cfg = self.patcher.cfg
         patches = []
         blacklisted_functions = self.find_savedretaccess_functions(cfg.functions)
-        for k,ff in cfg.functions.iteritems():
+        for k,ff in cfg.functions.items():
             if ff.addr in blacklisted_functions:
                 continue
             start,ends = self.function_to_patch_locations(ff)

@@ -629,7 +629,7 @@ def test_complex1():
             int     80h
         '''
         patches.append(AddEntryPointPatch(added_code))
-        test_str = "testtesttest\n\x00"
+        test_str = b"testtesttest\n\x00"
         added_code = '''
             mov     eax, 2
             mov     ebx, 0
@@ -1296,7 +1296,7 @@ def test_c_compilation():
         ret
     '''
     common_patches.append(AddCodePatch(added_code,"print"))
-    common_patches.append(AddRODataPatch("0123456789abcdef", "hex_array"))
+    common_patches.append(AddRODataPatch(b"0123456789abcdef", "hex_array"))
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")

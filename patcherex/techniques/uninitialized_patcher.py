@@ -436,7 +436,7 @@ class UninitializedPatcher(object):
         self.safe_addrs = self.get_safe_functions()
 
         self.patches = []
-        for k, ff in cfg.functions.iteritems():
+        for k, ff in cfg.functions.items():
             if k in self.safe_addrs:
                 continue
             self._handle_func(ff)

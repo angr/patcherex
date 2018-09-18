@@ -95,7 +95,7 @@ class SimpleCFI(object):
 
         patches = []
         cfg = self.patcher.cfg
-        for k,ff in cfg.functions.iteritems():
+        for k,ff in cfg.functions.items():
             ends = self.function_to_ret_locations(ff)
             for end,offset in ends:
                 #I realize that we do not really care about the offset in the "ret imm16" case

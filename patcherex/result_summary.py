@@ -105,7 +105,7 @@ if __name__ == "__main__":
                 cb_name = cb_name.split("\x1b")[0]
                 results[(pname,bname)].append((cb_name,999,"",""))
 
-    for k,v in results.iteritems():
+    for k,v in results.items():
         print(k,repr(v))
 
     global_results = {}

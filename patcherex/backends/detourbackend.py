@@ -548,7 +548,7 @@ class DetourBackend(Backend):
                     mov ecx, %d
                     cld 
                     rep movsb
-                ''' % (",".join([hex(ord(x)) for x in self.to_init_data]), \
+                ''' % (",".join([hex(x) for x in self.to_init_data]), \
                         hex(self.name_map["ADDED_DATA_START"] + self.added_rwdata_len), \
                         self.added_rwinitdata_len)
                 patches.append(AddEntryPointPatch(code,priority=1000,name="INIT_DATA"))

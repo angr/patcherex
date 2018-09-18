@@ -655,7 +655,7 @@ def compile_asm(code, base=None, name_map=None):
         fp.write(b"bits 32\n")
         if base is not None:
             fp.write(bytes("org %#x\n" % base, "utf-8"))
-        fp.write(code)
+        fp.write(bytes(code, "utf-8"))
         fp.close()
         
         res = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)

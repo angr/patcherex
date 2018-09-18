@@ -1291,7 +1291,7 @@ class SimplePointerEncryption(Technique):
 
         memory_data = cfg.memory_data
 
-        for addr, data in memory_data.iteritems():
+        for addr, data in memory_data.items():
             if data.sort == "pointer-array":
                 for i in range(0, data.size, cfg.project.arch.bits / 8):
                     ptr_addr = addr + i
