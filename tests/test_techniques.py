@@ -729,7 +729,7 @@ def test_transmitprotection(BackendClass, data_fallback, try_pdf_removal):
                              base + b"4347c000\n0000000a\n",
                              record_stdout=True,
                              record_core=True)
-            nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+            nose.tools.assert_true(res.stdout.startswith(b"hello\n\x7fCGC\x01"))
             nose.tools.assert_equal(len(res.stdout),11)
             nose.tools.assert_equal(res.reg_vals['eip'],0x08047ffc)
 
@@ -739,9 +739,9 @@ def test_transmitprotection(BackendClass, data_fallback, try_pdf_removal):
                              base + b"4347c000\n0000000a\n",
                              record_stdout=True,
                              record_core=True)
-            nose.tools.assert_true(res.stdout.startswith("hello\n\x7fCGC\x01"))
+            nose.tools.assert_true(res.stdout.startswith(b"hello\n\x7fCGC\x01"))
             nose.tools.assert_equal(len(res.stdout),11)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x08047ffc)
+            nose.tools.assert_equal(res.reg_vals['eip'], 0x08047ffc)
 
             res = QEMURunner(patched_fname1, base + b"4347bfff\n00000004\n08048000\n00000005\n", record_stdout=True)
             nose.tools.assert_equal(res.stdout, b"hello\n\x7fCGC\x01\x7fCGC\x01")
@@ -985,7 +985,7 @@ def test_adversarial(BackendClass, data_fallback, try_pdf_removal):
 def test_backdoor(BackendClass, data_fallback, try_pdf_removal):
     def solution_to_bytearray(l):
         # deal with endianness craziness
-        return b"".join([ l[3],l[2],l[1],l[0],0,0,0,l[4] ])
+        return bytes([ l[3],l[2],l[1],l[0],0,0,0,l[4] ])
 
 
     import patcherex

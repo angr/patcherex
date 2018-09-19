@@ -70,7 +70,7 @@ class IndirectCFI(object):
             instruction_str = instruction.mnemonic + " " + instruction.op_str
             # TODO if we move to keystone removing " ptr " may not be necessary
             # the problem here is that capstone writes prt and NASM does not like it
-            rvalue = instruction.op_str.lower().replace(" ptr ","").encode("ascii")
+            rvalue = instruction.op_str.lower().replace(" ptr ", "")
             # this is a weird case it should never happen
             # if it happens it is better not to do anything since we change esp in our patch
             # TODO handle this better
@@ -84,7 +84,7 @@ class IndirectCFI(object):
                 offset_str = match.group(1)
                 label_patch_name = "indirectcfi_%#8X" % instruction.address
                 offset_value = int(offset_str,16)
-                rvalue = rvalue.replace(offset_str,"{"+label_patch_name+"}")
+                rvalue = rvalue.replace(offset_str, "{"+label_patch_name+"}")
                 additional_patches.append(AddLabelPatch(addr=offset_value,name=label_patch_name))
 
             mem_access_str = "mov edx, %s" % rvalue
