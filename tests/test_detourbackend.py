@@ -451,13 +451,13 @@ def test_added_code_and_data_complex():
     common_patches.append(AddCodePatch(added_code,"dump"))
 
     with patcherex.utils.tempdir() as td:
-        expected = "ro1ro1ro1\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00ri1ri1ri1\nro2ro2ro2\n\x00" \
-                        "\x00\x00\x00\x00\x00\x00\x00\x00\x00ri2ri2ri2\nro3ro3ro3\n\x00\x00\x00\x00" \
-                        "\x00\x00\x00\x00\x00\x00ri3ri3ri3\nro1ro1ro1\nDCBA\x00\x00\x00\x00\x00\x00" \
-                        "ri1ri1ri1\nro2ro2ro2\nHGFE\x00\x00\x00\x00\x00\x00ri2ri2ri2\nro3ro3ro3\nLKJI" \
-                        "\x00\x00\x00\x00\x00\x00ri3ri3ri3\nro1ro1ro1\nDCBA\x00\x00\x00\x00\x00\x00DCBA" \
-                        "i1ri1\nro2ro2ro2\nHGFE\x00\x00\x00\x00\x00\x00HGFEi2ri2\nro3ro3ro3\nLKJI\x00\x00" \
-                        "\x00\x00\x00\x00LKJIi3ri3\n\x00\x02\x00\x00\x02"
+        expected = b"ro1ro1ro1\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00ri1ri1ri1\nro2ro2ro2\n\x00" \
+                        b"\x00\x00\x00\x00\x00\x00\x00\x00\x00ri2ri2ri2\nro3ro3ro3\n\x00\x00\x00\x00" \
+                        b"\x00\x00\x00\x00\x00\x00ri3ri3ri3\nro1ro1ro1\nDCBA\x00\x00\x00\x00\x00\x00" \
+                        b"ri1ri1ri1\nro2ro2ro2\nHGFE\x00\x00\x00\x00\x00\x00ri2ri2ri2\nro3ro3ro3\nLKJI" \
+                        b"\x00\x00\x00\x00\x00\x00ri3ri3ri3\nro1ro1ro1\nDCBA\x00\x00\x00\x00\x00\x00DCBA" \
+                        b"i1ri1\nro2ro2ro2\nHGFE\x00\x00\x00\x00\x00\x00HGFEi2ri2\nro3ro3ro3\nLKJI\x00\x00" \
+                        b"\x00\x00\x00\x00LKJIi3ri3\n\x00\x02\x00\x00\x02"
         tmp_file = os.path.join(td, "patched1")
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = [p for p in common_patches]
@@ -484,11 +484,11 @@ def test_added_code_and_data_complex():
         print(res, p.returncode)
         nose.tools.assert_equal(expected == res[0] and p.returncode == 255, True)
 
-        expected = "ro1ro1ro1\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00ri1ri1ri1\nro2ro2ro2\n\x00\x00\x00" \
-                            "\x00\x00\x00\x00\x00\x00\x00ri2ri2ri2\nro3ro3ro3\n\x00\x00\x00\x00\x00\x00\x00" \
-                            "\x00\x00\x00ri3ri3ri3\nro1ro1ro1\nDCBA\x00\x00\x00\x00\x00\x00ri1ri1ri1\nro2ro2ro2" \
-                            "\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00HGFEi2ri2\nro3ro3ro3\nLKJI\x00\x00\x00\x00" \
-                            "\x00\x00ri3ri3ri3\n"
+        expected = b"ro1ro1ro1\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00ri1ri1ri1\nro2ro2ro2\n\x00\x00\x00" \
+                            b"\x00\x00\x00\x00\x00\x00\x00ri2ri2ri2\nro3ro3ro3\n\x00\x00\x00\x00\x00\x00\x00" \
+                            b"\x00\x00\x00ri3ri3ri3\nro1ro1ro1\nDCBA\x00\x00\x00\x00\x00\x00ri1ri1ri1\nro2ro2ro2" \
+                            b"\n\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00HGFEi2ri2\nro3ro3ro3\nLKJI\x00\x00\x00\x00" \
+                            b"\x00\x00ri3ri3ri3\n"
         tmp_file = os.path.join(td, "patched2")
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
         patches = [p for p in common_patches]
@@ -574,8 +574,8 @@ def test_detour():
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"A" * 10 + b"\n")
         #print res, p.returncode
-        expected = "qwertyuiop\n\x00\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
-                   "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+        expected = b"qwertyuiop\n\x00\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
+                   b"that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
 
 
@@ -1466,7 +1466,7 @@ def test_piling():
         backend.save(tmp_file)
         res = QEMURunner(tmp_file, b"abcdefg\n", record_stdout=True)
         expected = \
-"""does it work
+b"""does it work
 nope no
 
 Welcome to Palindrome Finder

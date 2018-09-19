@@ -87,8 +87,8 @@ class CodePatch(Patch):
         if not self.is_c:
             return ASMConverter.intel_to_att(self.asm_code)
         else:
-            code = utils.compile_c(self.asm_code,optimization=self.optimization)
-            asm_str = ".byte " + ", ".join([hex(ord(b)) for b in code])
+            code = utils.compile_c(self.asm_code, optimization=self.optimization)
+            asm_str = ".byte " + ", ".join([hex(b) for b in code])
             return asm_str
 
 
