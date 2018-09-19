@@ -739,7 +739,7 @@ def compile_c(code, optimization='-Oz', name_map=None):
         object_fname = os.path.join(td, "code.o")
         bin_fname = os.path.join(td, "code.bin")
 
-        fp = open(c_fname, 'wb')
+        fp = open(c_fname, 'w')
         fp.write(code)
         fp.close()
 

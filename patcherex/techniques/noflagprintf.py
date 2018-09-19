@@ -34,7 +34,7 @@ class NoFlagPrintfPatcher(object):
                 st_bytes = state.solver.eval(state.memory.load(v.address, v.size), cast_to=bytes)
                 st = "".join(chr(i) for i in st_bytes)
                 string_references.append((v.address, st))
-        return [] if len(string_references) == 0 else zip(*string_references)[1]
+        return [] if len(string_references) == 0 else list(zip(*string_references))[1]
 
     def _generate_hash_dict(self):
         def hash_str(tstr):

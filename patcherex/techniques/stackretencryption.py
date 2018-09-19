@@ -331,7 +331,7 @@ class StackRetEncryption(object):
             return False
         if list(target_kind.keys())[0] not in self.patcher.cfg.functions:
             return False
-        target = self.patcher.cfg.functions[target_kind.keys()[0]]
+        target = self.patcher.cfg.functions[list(target_kind.keys())[0]]
         if cfg_utils.detect_syscall_wrapper(self.patcher, target) and \
                 cfg_utils.detect_syscall_wrapper(self.patcher, target) != 3:
             return True

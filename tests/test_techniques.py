@@ -424,12 +424,12 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
     for i,(tbin,addr_str) in enumerate(tests):
         vulnerable_fname1 = os.path.join(bin_location, tbin)
         if i==0: #do this only the first time
-            res = QEMURunner(vulnerable_fname1,"00000001\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            res = QEMURunner(vulnerable_fname1,"00000002\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            res = QEMURunner(vulnerable_fname1,"00000003\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            res = QEMURunner(vulnerable_fname1, b"00000001\n", record_stdout=True)
+            nose.tools.assert_equal(res.stdout, b"hello\nCGC")
+            res = QEMURunner(vulnerable_fname1, b"00000002\n", record_stdout=True)
+            nose.tools.assert_equal(res.stdout, b"hello\nCGC")
+            res = QEMURunner(vulnerable_fname1, b"00000003\n", record_stdout=True)
+            nose.tools.assert_equal(res.stdout, b"hello\nCGC")
 
             '''
             res = QEMURunner(vulnerable_fname1,"00000001\n23456789\n",record_stdout=True)
@@ -991,11 +991,11 @@ def test_backdoor(BackendClass, data_fallback, try_pdf_removal):
     import patcherex
     backdoor_content = patcherex.get_backdoorpov()
     nose.tools.assert_equal(backdoor_content[:16], b"\x7fCGC\x01\x01\x01C\x01Merino\x00")
-    nose.tools.assert_true(backdoor_content > (5*pow(2,19))) # size is bigger than number of challenges times 5 bytes
+    nose.tools.assert_true(len(backdoor_content) > (5*pow(2,19))) # size is bigger than number of challenges times 5 bytes
 
     backdoor_content = patcherex.patch_master.get_backdoorpov()
     nose.tools.assert_equal(backdoor_content[:16], b"\x7fCGC\x01\x01\x01C\x01Merino\x00")
-    nose.tools.assert_true(backdoor_content > (5*pow(2,19))) # size is bigger than number of challenges times 5 bytes
+    nose.tools.assert_true(len(backdoor_content) > (5*pow(2,19))) # size is bigger than number of challenges times 5 bytes
 
     for bitflip in [False,True]:
         print("======== Bitflip:", bitflip)
@@ -1103,7 +1103,7 @@ def test_backdoor(BackendClass, data_fallback, try_pdf_removal):
 
 @reassembler_only
 def test_bitflip(BackendClass, data_fallback, try_pdf_removal):
-    all_chars = [chr(c) for c in range(256)]
+    all_chars = [bytes([c]) for c in range(256)]
     pipe = subprocess.PIPE
     tests = []
     # tests.append(os.path.join(bin_location, "patchrex/CADET_00003_fixed"))
@@ -1129,7 +1129,7 @@ def test_bitflip(BackendClass, data_fallback, try_pdf_removal):
             backend.save(tmp_file)
 
             for tlen in slens:
-                ostr = ''.join(random.choice(all_chars) for _ in range(tlen))
+                ostr = b''.join(random.choice(all_chars) for _ in range(tlen))
                 p = subprocess.Popen([qemu_location, test], stdin=pipe, stdout=pipe, stderr=pipe)
                 res = p.communicate(ostr)
                 expected = (res[0],p.returncode)

@@ -430,7 +430,7 @@ class DetourBackend(Backend):
         # cut dictionary to the current state
         todict = OrderedDict()
         for i,(k,v) in enumerate(self.saved_states.items()):
-            if i > self.saved_states.keys().index(tuple(applied_patches)):
+            if i > list(self.saved_states.keys()).index(tuple(applied_patches)):
                 break
             todict[k]=v
         self.saved_states = todict

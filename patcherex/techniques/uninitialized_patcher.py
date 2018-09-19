@@ -302,7 +302,7 @@ class UninitializedPatcher(object):
                             uninitialized_size = the_next - arg
 
                             target_kind = self.patcher.project.factory.block(i).vex.constant_jump_targets_and_jumpkinds
-                            if len(target_kind) == 1 and target_kind.keys()[0] in self.patcher.cfg.functions:
+                            if len(target_kind) == 1 and list(target_kind.keys())[0] in self.patcher.cfg.functions:
                                 call_target = self.patcher.cfg.functions[target_kind.keys()[0]]
                             else:
                                 call_target = None

@@ -525,7 +525,7 @@ def test_added_code_and_data_big():
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
-        test_str = b"".join(range(256))*40
+        test_str = bytes(range(256)) * 40
         added_code = '''
             mov     eax, 2
             mov     ebx, 0
