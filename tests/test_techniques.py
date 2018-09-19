@@ -415,13 +415,13 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
 @reassembler_only
 def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
     tests = [
-        ("patchrex/indirect_call_test_O0","b7fff000"),
-        #("patchrex/indirect_call_test_fullmem_O0","78000000"),
+        ("patchrex/indirect_call_test_O0", b"b7fff000"),
+        #("patchrex/indirect_call_test_fullmem_O0", b"78000000"),
     ]
     if BackendClass == ReassemblerBackend:
         tests = tests[:1]
 
-    for i,(tbin,addr_str) in enumerate(tests):
+    for i, (tbin, addr_str) in enumerate(tests):
         vulnerable_fname1 = os.path.join(bin_location, tbin)
         if i==0: #do this only the first time
             res = QEMURunner(vulnerable_fname1, b"00000001\n", record_stdout=True)
@@ -459,11 +459,11 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             nose.tools.assert_equal(res.reg_vals['eip'],0x30303030)
             '''
 
-            res = QEMURunner(vulnerable_fname1, b"00000001\n" + bytes(addr_str) + b"\n", record_stdout=True)
+            res = QEMURunner(vulnerable_fname1, b"00000001\n" + addr_str + b"\n", record_stdout=True)
             nose.tools.assert_equal(res.stdout, b"hello\nCGCCGCCGC")
             res = QEMURunner(vulnerable_fname1, b"00000001\nbaaaa000\n", record_stdout=True)
             nose.tools.assert_equal(res.stdout, b"hello\nCGCCGCCGC")
-            res = QEMURunner(vulnerable_fname1, b"00000001\n" + bytes(addr_str) + b"\n", record_stdout=True)
+            res = QEMURunner(vulnerable_fname1, b"00000001\n" + addr_str + b"\n", record_stdout=True)
             nose.tools.assert_equal(res.stdout, b"hello\nCGCCGCCGC")
             res = QEMURunner(vulnerable_fname1, b"00000002\nbaaaa000\n", record_stdout=True)
             nose.tools.assert_equal(res.stdout, b"hello\nCGCCGCCGC")

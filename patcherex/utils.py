@@ -575,7 +575,7 @@ def compile_asm_template(template_name, substitution_dict):
 def get_asm_template(template_name, substitution_dict):
     project_basedir = os.path.sep.join(os.path.abspath(__file__).split(os.path.sep)[:-2])
     template_fname = os.path.join(project_basedir, "asm", template_name)
-    fp = open(template_fname)
+    fp = open(template_fname, "r")
     template_content = fp.read()
     fp.close()
     formatted_template_content = template_content.format(**substitution_dict)
@@ -759,7 +759,7 @@ def compile_c(code, optimization='-Oz', name_map=None):
             print(res[0])
             print(res[1])
             raise ObjcopyException
-        fp = open(bin_fname)
+        fp = open(bin_fname, "rb")
         compiled = fp.read()
         fp.close()
 

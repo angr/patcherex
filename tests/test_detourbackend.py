@@ -207,7 +207,7 @@ def test_rw_memory():
             print(res, p.returncode)
 
         nose.tools.assert_true(p.returncode==255)
-        nose.tools.assert_true(res[0].startswith("00000000"))
+        nose.tools.assert_true(res[0].startswith(b"00000000"))
 
 
 def test_ro_memory():
@@ -295,7 +295,7 @@ def test_ro_memory():
             print(res, p.returncode)
 
         nose.tools.assert_true(p.returncode==255)
-        expected = struct.pack(">I", tlen).hex()
+        expected = bytes(struct.pack(">I", tlen).hex(), "utf-8")
         print(expected)
         nose.tools.assert_true(res[0].startswith(expected))
 
@@ -385,7 +385,7 @@ def test_rwinit_memory():
             print(res, p.returncode)
 
         nose.tools.assert_true(p.returncode==255)
-        expected = struct.pack(">I", tlen * 2).hex()
+        expected = bytes(struct.pack(">I", tlen * 2).hex(), "utf-8")
         print(expected)
         nose.tools.assert_true(res[0].startswith(expected))
 
@@ -601,7 +601,7 @@ def test_single_entry_point_patch():
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
-        nose.tools.assert_equal("\n\nEASTER EGG!\n\n" in res[0] and p.returncode == 0, True)
+        nose.tools.assert_equal(b"\n\nEASTER EGG!\n\n" in res[0] and p.returncode == 0, True)
 
 
 def test_complex1():
@@ -647,7 +647,7 @@ def test_complex1():
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
-        nose.tools.assert_equal("\n\nEASTER EGG!\n\n"+test_str in res[0] and p.returncode == 52, True)
+        nose.tools.assert_equal((b"\n\nEASTER EGG!\n\n" + test_str) in res[0] and p.returncode == 52, True)
 
 
 def test_double_patch_collision():
@@ -692,8 +692,8 @@ def test_double_patch_collision():
         res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
         print(map(hex,backend.touched_bytes))
-        expected = test_str1 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
-                   "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+        expected = test_str1 + b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
+                   b"that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
 
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -709,8 +709,8 @@ def test_double_patch_collision():
         res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
         print(map(hex,backend.touched_bytes))
-        expected = test_str2 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
-                   "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+        expected = test_str2 + b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
+                   b"that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
 
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -727,8 +727,8 @@ def test_double_patch_collision():
         res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
         print(map(hex,backend.touched_bytes))
-        expected = test_str2 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
-                   "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+        expected = test_str2 + b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
+                   b"that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
 
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -745,8 +745,8 @@ def test_double_patch_collision():
         res = p.communicate(b"A"*10 + b"\n")
         print(res, p.returncode)
         print(map(hex,backend.touched_bytes))
-        expected = test_str1 + test_str2 + "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
-                   "that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+        expected = test_str1 + test_str2 + b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, " \
+                   b"that's a palindrome!\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0], expected)
 
 
@@ -789,8 +789,8 @@ def test_conflicting_symbols():
 
 def test_random_canary():
     def check_output(tstr):
-        expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: canary failure: 00000000 vs "
-        init = "base canary value:"
+        expected = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: canary failure: 00000000 vs "
+        init = b"base canary value:"
         if not tstr.startswith(init):
             return False
         canary = tstr.split(init)[1].split()[0].strip()
@@ -920,7 +920,7 @@ def test_random_canary():
         added_code = '''
             push DWORD [{saved_canary}]
         '''
-        patches.append(InsertCodePatch(0x08048230,added_code,"canary_push1"))
+        patches.append(InsertCodePatch(0x08048230, added_code, "canary_push1"))
         added_code = '''
             push eax ; avoid changing eax
             mov eax, dword [esp+4]
@@ -929,7 +929,7 @@ def test_random_canary():
             pop eax
             add esp, 4
         '''
-        patches.append(InsertCodePatch(0x080483FF,added_code,"canary_pop1"))
+        patches.append(InsertCodePatch(0x080483FF, added_code, "canary_pop1"))
 
         backend.apply_patches(patches)
         backend.save(tmp_file)
@@ -951,9 +951,9 @@ def test_patch_conflicts():
         return InsertCodePatch(addr,code,tstr,priority=p)
 
     def expected_str(plist):
-        tstr = ""
+        tstr = b""
         for p in plist:
-            tstr += p.name + "\n\x00"
+            tstr += p.name + b"\n\x00"
         return tstr + base_str
 
     def create_patches():
@@ -969,7 +969,7 @@ def test_patch_conflicts():
 
     filepath = os.path.join(bin_location, "CROMU_00071")
     pipe = subprocess.PIPE
-    base_str = "Database checksum: "
+    base_str = b"Database checksum: "
 
     cpatches = []
     cpatches.append(AddRODataPatch(b"11\n\x00", "s11"))
@@ -1411,7 +1411,7 @@ def test_entrypointpatch_restore():
         patches.append(InsertCodePatch(0x80480a0, "jmp 0x4567890", "goto_crash"))
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        res = QEMURunner(tmp_file, "00000001\n", record_stdout=True, record_core=True)
+        res = QEMURunner(tmp_file, b"00000001\n", record_stdout=True, record_core=True)
         original_reg_value = res.reg_vals
         nose.tools.assert_equal(original_reg_value['eip'], 0x4567890)
 
@@ -1421,7 +1421,7 @@ def test_entrypointpatch_restore():
         patches.append(AddEntryPointPatch("mov eax, 0x34567890", name="entry_patch1"))
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        res = QEMURunner(tmp_file, "00000001\n", record_stdout=True, record_core=True)
+        res = QEMURunner(tmp_file, b"00000001\n", record_stdout=True, record_core=True)
         nose.tools.assert_equal(original_reg_value, res.reg_vals)
 
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -1430,7 +1430,7 @@ def test_entrypointpatch_restore():
         patches.append(AddEntryPointPatch("mov eax, 0x34567890", after_restore=True, name="entry_patch2"))
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        res = QEMURunner(tmp_file, "00000001\n", record_stdout=True, record_core=True)
+        res = QEMURunner(tmp_file, b"00000001\n", record_stdout=True, record_core=True)
         original_reg_value_mod = dict(original_reg_value)
         original_reg_value_mod['eax'] = 0x34567890
         nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
@@ -1464,7 +1464,7 @@ def test_piling():
 
         backend.apply_patches(patches)
         backend.save(tmp_file)
-        res = QEMURunner(tmp_file, "abcdefg\n", record_stdout=True)
+        res = QEMURunner(tmp_file, b"abcdefg\n", record_stdout=True)
         expected = \
 """does it work
 nope no
@@ -1560,7 +1560,7 @@ def test_pdf_removal():
             backend.apply_patches(patches)
             backend.save(tmp_file)
             # backend.save("../../vm/shared/patched")
-            res = QEMURunner(tmp_file, "\n", record_stdout=True)
+            res = QEMURunner(tmp_file, b"\n", record_stdout=True)
             nose.tools.assert_equal(res.reg_vals, None)
             original = res.stdout
             print(filepath)
@@ -1569,7 +1569,7 @@ def test_pdf_removal():
             backend = DetourBackend(filepath,data_fallback,try_pdf_removal=True)
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            res = QEMURunner(tmp_file, "\n", record_stdout=True)
+            res = QEMURunner(tmp_file, b"\n", record_stdout=True)
             nose.tools.assert_equal(res.reg_vals, None)
             mod = res.stdout
             fsize = os.path.getsize(tmp_file)
@@ -1582,7 +1582,7 @@ def test_pdf_removal():
             backend = DetourBackend(filepath,data_fallback,try_pdf_removal=True)
             backend.apply_patches(patches)
             backend.save(tmp_file)
-            res = QEMURunner(tmp_file, "\n", record_stdout=True)
+            res = QEMURunner(tmp_file, b"\n", record_stdout=True)
             nose.tools.assert_equal(res.reg_vals, None)
             mod = res.stdout
             fsize = os.path.getsize(tmp_file)

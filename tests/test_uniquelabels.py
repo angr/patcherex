@@ -25,7 +25,7 @@ def test_uniquelabels():
         labels = []
 
         # not really necessary:
-        fp = open(pyfile)
+        fp = open(pyfile, "r")
         content = fp.read()
         fp.close()
         # asm_lines = ""
