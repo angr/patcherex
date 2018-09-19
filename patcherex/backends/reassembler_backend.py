@@ -16,7 +16,7 @@ from angr.analyses.reassembler import BinaryError
 from ..patches import *
 from ..backend import Backend
 from ..errors import ReassemblerError, CompilationError, ReassemblerNotImplementedError
-from ..utils import str_overwrite
+from ..utils import bytes_overwrite
 from .misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
 
 class ReassemblerBackend(Backend):
@@ -177,23 +177,23 @@ class ReassemblerBackend(Backend):
             old_segments.append((p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align))
 
         # align size of the entire ELF
-        content = utils.pad_str(content, 0x10)
+        content = utils.pad_bytes(content, 0x10)
         # change pointer to program headers to point at the end of the elf
-        content = utils.str_overwrite(content, struct.pack("<I", len(content)), 0x1C)
+        content = utils.bytes_overwrite(content, struct.pack("<I", len(content)), 0x1C)
 
         new_segments = [p.new_segment for p in patches]
         all_segments = old_segments + new_segments
 
         # add all segments at the end of the file
         for segment in all_segments:
-            content = utils.str_overwrite(content, struct.pack("<IIIIIIII", *segment))
+            content = utils.bytes_overwrite(content, struct.pack("<IIIIIIII", *segment))
 
         # we overwrite the first original program header,
         # we do not need it anymore since we have moved original program headers at the bottom of the file
-        content = utils.str_overwrite(content, "SHELLPHISH\x00", 0x34)
+        content = utils.bytes_overwrite(content, b"SHELLPHISH\x00", 0x34)
 
         # set the total number of segment headers
-        content = utils.str_overwrite(content, struct.pack("<H", len(all_segments)), 0x2c)
+        content = utils.bytes_overwrite(content, struct.pack("<H", len(all_segments)), 0x2c)
 
         # update the file
         fp = open(filename,"wb")
@@ -256,7 +256,7 @@ class ReassemblerBackend(Backend):
             data = f.read()
 
         for p in self._raw_file_patches:  # type: RawFilePatch
-            data = str_overwrite(data, p.data, p.file_addr)
+            data = bytes_overwrite(data, p.data, p.file_addr)
 
         with open(filename, "wb") as f:
             f.write(data)

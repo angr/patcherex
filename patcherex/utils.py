@@ -506,13 +506,13 @@ class ASMConverter(object):
         return "\n".join(converted)
 
 
-def str_overwrite(tstr, new, pos=None):
+def bytes_overwrite(tstr, new, pos=None):
     if pos is None:
         pos = len(tstr)
     return tstr[:pos] + new + tstr[pos+len(new):]
 
 
-def pad_str(tstr, align, pad="\x00"):
+def pad_bytes(tstr, align, pad=b"\x00"):
     str_len = len(tstr)
     if str_len % align == 0:
         return tstr
@@ -522,12 +522,12 @@ def pad_str(tstr, align, pad="\x00"):
 
 def elf_to_cgc(tstr):
     assert(tstr.startswith(ELF_HEADER))
-    return str_overwrite(tstr, CGC_HEADER, 0)
+    return bytes_overwrite(tstr, CGC_HEADER, 0)
 
 
 def cgc_to_elf(tstr):
     assert(tstr.startswith(CGC_HEADER))
-    return str_overwrite(tstr, ELF_HEADER, 0)
+    return bytes_overwrite(tstr, ELF_HEADER, 0)
 
 
 def exe_type(tstr):
@@ -593,7 +593,7 @@ def instruction_to_str(instruction, print_bytes=True):
 
 def capstone_to_nasm(instruction):
         tstr = "db "
-        tstr += ",".join([hex(struct.unpack("B", bytes(b))[0]) for b in str(instruction.bytes)])
+        tstr += ",".join([hex(b) for b in instruction.bytes])
         tstr += " ;"+instruction_to_str(instruction, print_bytes=False)
         return tstr
 
@@ -608,6 +608,7 @@ def bytes_to_asm(in_str, comment=None):
 
 def disassemble(code, offset=0x0):
     md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+    md.detail = True
     if isinstance(code, str):
         code = bytes(map(ord, code))
     return list(md.disasm(code, offset))
@@ -669,7 +670,7 @@ def compile_asm(code, base=None, name_map=None):
             print("\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))]))
             raise NasmException
 
-        fp = open(bin_fname)
+        fp = open(bin_fname, "rb")
         compiled = fp.read()
         fp.close()
 

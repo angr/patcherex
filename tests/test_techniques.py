@@ -143,7 +143,7 @@ def test_packer(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
 
-    expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+    expected = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
         backend = BackendClass(filepath,data_fallback,try_pdf_removal=try_pdf_removal)
@@ -170,15 +170,15 @@ def test_simplecfi(BackendClass, data_fallback, try_pdf_removal):
 
     #0x80480a0 is the binary entry point
     exploiting_input = b"AAAA" + b"\x00"*80 + struct.pack("<I",0x80480a0)*20 + b"\n"
-    expected1 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tNope, that's not a palindrome\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
+    expected1 = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tNope, that's not a palindrome\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
 
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(exploiting_input)
     expected_retcode = 1 #should be -11
     nose.tools.assert_equal((res[0][:200] == expected1[:200] and p.returncode == expected_retcode), True)
 
-    expected2 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
-    expected3 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
+    expected2 = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+    expected3 = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
         backend = BackendClass(filepath,data_fallback,try_pdf_removal=try_pdf_removal)
@@ -208,7 +208,7 @@ def test_qemudetection(BackendClass, data_fallback, try_pdf_removal):
     print(res, p.returncode)
     nose.tools.assert_equal((p.returncode == -11), True)
 
-    expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+    expected = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
         backend = BackendClass(filepath,data_fallback,try_pdf_removal=try_pdf_removal)
@@ -249,7 +249,7 @@ def test_randomsyscallloop(BackendClass, data_fallback, try_pdf_removal):
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"\x00" * 100 + b"\n")
         print(res, p.returncode)
-        nose.tools.assert_equal(res[0] == "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: ", True)
+        nose.tools.assert_equal(res[0] == b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: ", True)
         nose.tools.assert_equal(p.returncode == -11, True)
 
 
@@ -274,7 +274,7 @@ def test_cpuid(BackendClass, data_fallback, try_pdf_removal):
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"\x00"*100 + b"\n")
         print(res, p.returncode)
-        nose.tools.assert_equal(res[0].endswith("\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "), True)
+        nose.tools.assert_equal(res[0].endswith(b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "), True)
         nose.tools.assert_equal(len(res[0]) > 500, True)
         nose.tools.assert_equal(p.returncode == -11, True)
 
@@ -297,15 +297,15 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
 
     #0x80480a0 is the binary entry point
     exploiting_input = b"AAAA" + b"\x00"*80 + struct.pack("<I",0x80480a0)*20 + b"\n"
-    expected1 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: " \
-            "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tNope,"
-    input3 = 'login\ninsert\na\na\na\n11/11/11 11:11:11\nfind\nusername <"xdDVRNBQTTrhqk" AND birthdate <6/9/1 20:33:47())\n\n'
-    expected3 = '> You logged in.\n> First name: Last name: User name: Birthdate (mm/dd/yy hh:mm:ss): Date ' \
-        'is: 11/11/2011 11:11:11\nData added, record 0\n> Enter search express (firstname or fn, lastname or ' \
-        'ln, username or un, birthdate or bd, operators ==, !=, >, <, AND and OR):\nSyntax error\n> Command' \
-        ' not found.\n> '
-    input4 = "1\n2\n3\n4\n5\n6\n"*10
-    input5 = "a"*10+"\n"*10
+    expected1 = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: " \
+            b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tNope,"
+    input3 = b'blogin\ninsert\na\na\na\n11/11/11 11:11:11\nfind\nusername <"xdDVRNBQTTrhqk" AND birthdate <6/9/1 20:33:47())\n\n'
+    expected3 = b'> You logged in.\n> First name: Last name: User name: Birthdate (mm/dd/yy hh:mm:ss): Date ' \
+        b'is: 11/11/2011 11:11:11\nData added, record 0\n> Enter search express (firstname or fn, lastname or ' \
+        b'ln, username or un, birthdate or bd, operators ==, !=, >, <, AND and OR):\nSyntax error\n> Command' \
+        b' not found.\n> '
+    input4 = b"1\n2\n3\n4\n5\n6\n"*10
+    input5 = b"a"*10 + b"\n"*10
     '''
     p = subprocess.Popen([qemu_location, filepath1], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(exploiting_input)
@@ -314,7 +314,7 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
     nose.tools.assert_equal(res[0].startswith(expected1),True)
     '''
 
-    expected2 = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+    expected2 = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         seed = str(random.randint(1,1000000000))
         original_file = os.path.join(td, "original")

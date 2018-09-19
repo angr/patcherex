@@ -66,7 +66,7 @@ class DetourBackend(Backend):
         self.original_header_end = None
 
         # tag to track if already patched
-        self.patched_tag = "SHELLPHISH\x00"  # should not be longer than 0x20
+        self.patched_tag = b"SHELLPHISH\x00"  # should not be longer than 0x20
 
         self.name_map = RejectingDict()
 
@@ -251,12 +251,12 @@ class DetourBackend(Backend):
         # remove pointer to section headers, so that it loads fine in gdb, ida, ...
         # later we can set this ti 0xffffffff for adversarial patching
         # e_shoff = 0xffffffff, e_shnum = 0x0000,  e_shstrndx = 0x0000
-        self.ncontent = utils.str_overwrite(self.ncontent,struct.pack("<I",0),0x20)
-        self.ncontent = utils.str_overwrite(self.ncontent,struct.pack("<H",0),0x30)
-        self.ncontent = utils.str_overwrite(self.ncontent,struct.pack("<H",0),0x32)
+        self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<I", 0), 0x20)
+        self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<H", 0), 0x30)
+        self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<H", 0), 0x32)
 
-        self.ncontent = utils.str_overwrite(self.ncontent,"\x90"*check_instruction_size, \
-                self.maddress_to_baddress(check_instruction_addr))
+        self.ncontent = utils.bytes_overwrite(self.ncontent, "\x90" * check_instruction_size, \
+                                              self.maddress_to_baddress(check_instruction_addr))
         self.max_convertible_address = cut_start_mem
 
         header_size = 16 + 2*2 + 4*5 + 2*6
@@ -292,24 +292,24 @@ class DetourBackend(Backend):
             return
 
         # align size of the entire ELF
-        self.ncontent = utils.pad_str(self.ncontent, 0x10)
+        self.ncontent = utils.pad_bytes(self.ncontent, 0x10)
         # change pointer to program headers to point at the end of the elf
-        self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<I", len(self.ncontent)), 0x1C)
+        self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<I", len(self.ncontent)), 0x1C)
 
         # copying original program headers (potentially modified by patches and/or pdf removal) 
         # in the new place (at the  end of the file)
         for segment in segments:
-            self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *segment))
+            self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<IIIIIIII", *segment))
         self.original_header_end = len(self.ncontent)
 
         # we overwrite the first original program header,
         # we do not need it anymore since we have moved original program headers at the bottom of the file
-        self.ncontent = utils.str_overwrite(self.ncontent, self.patched_tag, 0x34)
+        self.ncontent = utils.bytes_overwrite(self.ncontent, self.patched_tag, 0x34)
 
         # adding space for the additional headers
         # I add two of them, no matter what, if the data one will be used only in case of the fallback solution
         # Additionally added program headers have been already copied by the for loop above
-        self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size, "\x00")
+        self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size, b"\x00")
 
     def dump_segments(self, tprint=False):
         # from: https://github.com/CyberGrandChallenge/readcgcef/blob/master/readcgcef-minimal.py
@@ -358,8 +358,8 @@ class DetourBackend(Backend):
             mem_data_location = self.name_map["ADDED_DATA_START"]
             data_segment_header = (1, self.added_data_file_start, mem_data_location, mem_data_location,
                                    len(self.added_data), len(self.added_data), 0x6, 0x1000)  # RW
-            self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *data_segment_header),
-                                                self.original_header_end + 32)
+            self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<IIIIIIII", *data_segment_header),
+                                                  self.original_header_end + 32)
             added_segments += 1
         else:
             pass
@@ -368,12 +368,12 @@ class DetourBackend(Backend):
         mem_code_location = self.added_code_segment + (self.added_code_file_start % 0x1000)
         code_segment_header = (1, self.added_code_file_start, mem_code_location, mem_code_location,
                                len(self.added_code), len(self.added_code), 0x5, 0x1000)  # RX
-        self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<IIIIIIII", *code_segment_header),
-                                            self.original_header_end)
+        self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<IIIIIIII", *code_segment_header),
+                                              self.original_header_end)
         added_segments += 1
 
         # print original_nsegments,added_segments
-        self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<H", original_nsegments + added_segments), 0x2c)
+        self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<H", original_nsegments + added_segments), 0x2c)
 
     @staticmethod
     def pflags_to_perms(p_flags):
@@ -392,7 +392,7 @@ class DetourBackend(Backend):
 
     def set_oep(self, new_oep):
         # get original entry point
-        self.ncontent = utils.str_overwrite(self.ncontent, struct.pack("<I", new_oep), 0x18)
+        self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<I", new_oep), 0x18)
 
     def get_oep(self):
         # set original entry point
@@ -486,7 +486,7 @@ class DetourBackend(Backend):
         # 0) RawPatch:
         for patch in patches:
             if isinstance(patch, RawFilePatch):
-                self.ncontent = utils.str_overwrite(self.ncontent,patch.data,patch.file_addr)
+                self.ncontent = utils.bytes_overwrite(self.ncontent, patch.data, patch.file_addr)
                 self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
         for patch in patches:
@@ -502,21 +502,21 @@ class DetourBackend(Backend):
             for patch in patches:
                 if isinstance(patch, AddRWDataPatch) or isinstance(patch, AddRODataPatch) or \
                         isinstance(patch, AddRWInitDataPatch):
-                    if hasattr(patch,"data"):
+                    if hasattr(patch, "data"):
                         final_patch_data = patch.data
                     else:
-                        final_patch_data = "\x00"*patch.len
+                        final_patch_data = b"\x00" * patch.len
                     self.added_data += final_patch_data
                     if patch.name is not None:
                         self.name_map[patch.name] = curr_data_position
                     curr_data_position += len(final_patch_data)
-                    self.ncontent = utils.str_overwrite(self.ncontent, final_patch_data)
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, final_patch_data)
                     self.added_patches.append(patch)
                     l.info("Added patch: " + str(patch))
-            self.ncontent = utils.pad_str(self.ncontent, 0x10)  # some minimal alignment may be good
+            self.ncontent = utils.pad_bytes(self.ncontent, 0x10)  # some minimal alignment may be good
 
             self.added_code_file_start = len(self.ncontent)
-            self.name_map.force_insert("ADDED_CODE_START",(len(self.ncontent) % 0x1000) + self.added_code_segment)
+            self.name_map.force_insert("ADDED_CODE_START", (len(self.ncontent) % 0x1000) + self.added_code_segment)
         else:
             # 1.1) AddRWDataPatch
             for patch in patches:
@@ -560,7 +560,7 @@ class DetourBackend(Backend):
                     if patch.name is not None:
                         self.name_map[patch.name] = self.get_current_code_position()
                     self.added_code += patch.data
-                    self.ncontent = utils.str_overwrite(self.ncontent, patch.data)
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, patch.data)
                     self.added_patches.append(patch)
                     l.info("Added patch: " + str(patch))
 
@@ -584,7 +584,7 @@ class DetourBackend(Backend):
                 else:
                     new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                 self.added_code += new_code
-                self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
 
@@ -610,13 +610,13 @@ class DetourBackend(Backend):
             # now compile for real
             new_code = utils.compile_asm(ASM_ENTRY_POINT_PUSH_ENV, self.get_current_code_position())
             self.added_code += new_code
-            self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+            self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
             for patch in between_restore_entrypoint_patches:
                 new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                 self.added_code += new_code
                 self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
-                self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
 
             restore_code = ASM_ENTRY_POINT_RESTORE_ENV
             current_symbol_pos += len(utils.compile_asm_fake_symbol(restore_code, current_symbol_pos))
@@ -628,11 +628,11 @@ class DetourBackend(Backend):
             # now compile for real
             new_code = utils.compile_asm(restore_code, self.get_current_code_position())
             self.added_code += new_code
-            self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+            self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
             for patch in after_restore_entrypoint_patches:
                 new_code = utils.compile_asm(patch.asm_code, self.get_current_code_position(), self.name_map)
                 self.added_code += new_code
-                self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
 
@@ -649,7 +649,7 @@ class DetourBackend(Backend):
                 new_code = utils.compile_asm(patch.new_asm, patch.instruction_addr, self.name_map)
                 assert len(new_code) == self.project.factory.block(patch.instruction_addr, num_inst=1).size
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.instruction_addr)
-                self.ncontent = utils.str_overwrite(self.ncontent, new_code, file_offset)
+                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                 self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
 
@@ -670,7 +670,7 @@ class DetourBackend(Backend):
                         l.info("Trying to add patch: " + str(patch))
                         new_code = self.insert_detour(patch)
                         self.added_code += new_code
-                        self.ncontent = utils.str_overwrite(self.ncontent, new_code)
+                        self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                         applied_patches.append(patch)
                         self.added_patches.append(patch)
                         l.info("Added patch: " + str(patch))
@@ -799,11 +799,11 @@ class DetourBackend(Backend):
         for start, end in self.get_memory_translation_list(address, len(new_content)):
             # print "-",hex(start),hex(end)
             ndata = new_content[ndata_pos:ndata_pos+(end-start)]
-            self.ncontent = utils.str_overwrite(self.ncontent, ndata, start)
+            self.ncontent = utils.bytes_overwrite(self.ncontent, ndata, start)
             ndata_pos += len(ndata)
 
     def read_mem_from_file(self, address, size):
-        mem = ""
+        mem = b""
         for start, end in self.get_memory_translation_list(address, size):
             # print "-",hex(start),hex(end)
             mem += self.ncontent[start : end]
@@ -890,7 +890,7 @@ class DetourBackend(Backend):
         l.debug("inserting detour for patch: %s" % (map(hex, (block_addr, block.size, patch.addr))))
 
         detour_size = 5
-        one_byte_nop = '\x90'
+        one_byte_nop = b'\x90'
 
         # get movable instructions
         movable_instructions = self.get_movable_instructions(block)

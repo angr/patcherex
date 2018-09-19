@@ -67,12 +67,12 @@ class Packer(object):
 
         key = 0x8ec94134 #mecphish
         original_mem = self.patcher.read_mem_from_file(start, size)
-        new_mem = ""
+        new_mem = b""
         for i in range(0,len(original_mem),4):
-            dw = struct.unpack("<I",original_mem[i:i+4])[0]
+            dw = struct.unpack("<I", original_mem[i:i+4])[0]
             dw ^= key
-            new_mem += struct.pack("<I",dw)
-        patches.append(RawMemPatch(start,new_mem,name="packer_xored_data"))
+            new_mem += struct.pack("<I", dw)
+        patches.append(RawMemPatch(start, new_mem, name="packer_xored_data"))
         added_code = '''
             mov eax, 0x%08x
             mov ebx, 0x%08x
@@ -90,7 +90,7 @@ class Packer(object):
                 ;
         ''' % (key,start,size)
 
-        patches.append(AddEntryPointPatch(added_code,name="packer_unpack_code"))
+        patches.append(AddEntryPointPatch(added_code, name="packer_unpack_code"))
 
         return patches
 

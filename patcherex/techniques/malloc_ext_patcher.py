@@ -76,7 +76,7 @@ class MallocExtPatcher(object):
 
             if self.patcher.project.is_hooked(n.addr):
                 continue
-            if self.patcher.project._simos.syscall_from_addr(n.addr) is not None:
+            if self.patcher.project.simos.syscall_from_addr(n.addr) is not None:
                 continue
 
             try:
