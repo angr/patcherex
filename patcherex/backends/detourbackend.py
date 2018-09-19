@@ -3,7 +3,6 @@ import os
 import struct
 import bisect
 import logging
-import IPython
 from collections import OrderedDict
 from collections import defaultdict
 
