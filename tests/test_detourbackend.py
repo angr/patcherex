@@ -1327,7 +1327,7 @@ def test_c_compilation():
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate()
         nose.tools.assert_equal(p.returncode,0)
-        expected = "00000225\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
+        expected = b"00000225\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0],expected)
 
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -1361,7 +1361,7 @@ def test_c_compilation():
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate()
         nose.tools.assert_equal(p.returncode,0)
-        expected = "0000010000000032\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
+        expected = b"0000010000000032\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0],expected)
 
         backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
@@ -1395,7 +1395,7 @@ def test_c_compilation():
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate()
         nose.tools.assert_equal(p.returncode,0)
-        expected = "0000003200000032\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
+        expected = b"0000003200000032\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
         nose.tools.assert_equal(res[0],expected)
 
 

@@ -167,7 +167,7 @@ class NoFlagPrintfPatcher(object):
             ) % tuple([pnum]*18)
 
             patches.append(InsertCodePatch(func.addr, check, priority=250, name="noflagprintf_%d" % pnum))
-            l.info("function at %#8x protected" % func.addr)
+            l.info("function at %#08x protected" % func.addr)
 
         if patches:
             max_ro_addr = max(seg.max_addr for seg in self.ro_segments)
