@@ -1,20 +1,20 @@
-import patcherex
 
 import logging
-import patcherex.cfg_utils as cfg_utils
-from patcherex.patches import *
+
+from .. import cfg_utils
+from ..patches import AddRODataPatch, AddRWDataPatch, AddCodePatch, AddEntryPointPatch, InsertCodePatch
 
 l = logging.getLogger("patcherex.techniques.ShadowStack")
 
+
 #TODO this should be a subclass of a generic patcher class
-class ShadowStack(object):
+class ShadowStack:
 
     def __init__(self,binary_fname,backend):
         self.binary_fname = binary_fname
         self.patcher = backend
         self.shadow_stack_size = 0x800
         self.ncanary = 0
-
 
     def get_common_patches(self):
         common_patches = []
@@ -115,8 +115,7 @@ class ShadowStack(object):
         common_patches.append(AddEntryPointPatch(added_code, name="set_shadowstack_pointer"))
         return common_patches
 
-
-    #TODO more efficient (at least when ebx and eax are "free")
+    # TODO more efficient (at least when ebx and eax are "free")
     def add_shadowstack_to_function(self,start,ends):
         added_code = '''
             mov DWORD [{tmp_reg1}], eax
@@ -153,7 +152,7 @@ class ShadowStack(object):
             self.ncanary += 1
             return [headp]+tailp
 
-    #not used anymore
+    # not used anymore
     def check_bb_size(self,bb):
         movable_instructions = self.patcher.get_movable_instructions(bb)
         movable_bb_size = self.patcher.project.factory.block(bb.addr, num_inst=len(movable_instructions)).size
@@ -170,19 +169,18 @@ class ShadowStack(object):
                 bb = self.patcher.project.factory.block(ret_site.addr)
                 last_instruction = bb.capstone.insns[-1]
                 if last_instruction.mnemonic not in ("ret", "retl"):
-                    l.debug("bb at %s does not terminate with a ret in function %s", (hex(int(bb.addr)), ff.name))
+                    l.debug("bb at %s does not terminate with a ret in function %s", (hex(int(bb.addr))), ff.name)
                     break
                 else:
                     ends.add(last_instruction.address)
             else:
                 if len(ends) == 0:
-                    l.debug("cannot find any ret in function %s" %ff.name)
+                    l.debug("cannot find any ret in function %s", ff.name)
                 else:
-                    return int(start.addr),map(int,ends) #avoid "long" problems
-            
-        l.debug("function %s has problems and cannot be patched" % ff.name)
-        return None, None
+                    return int(start.addr), map(int, ends)  # avoid "long" problems
 
+        l.debug("function %s has problems and cannot be patched", ff.name)
+        return None, None
 
     def get_patches(self):
         common_patches = self.get_common_patches()
@@ -190,7 +188,7 @@ class ShadowStack(object):
         cfg = self.patcher.cfg
 
         patches = []
-        for k,ff in cfg.functions.items():
+        for _, ff in cfg.functions.items():
             start,ends = self.function_to_canary_locations(ff)
             if start is not None and ends is not None:
                 new_patches = self.add_shadowstack_to_function(start,ends)
