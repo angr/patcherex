@@ -1121,7 +1121,7 @@ def test_bitflip(BackendClass, data_fallback, try_pdf_removal):
     with patcherex.utils.tempdir() as td:
         for test in tests:
             tmp_file = os.path.join(td, "patched")
-            backend = BackendClass(test,data_fallback,try_pdf_removal=try_pdf_removal)
+            backend = BackendClass(test, data_fallback, try_pdf_removal=try_pdf_removal)
             cp = Bitflip(test, backend)
             # backend._debugging = True
             patches = cp.get_patches()
@@ -1129,19 +1129,19 @@ def test_bitflip(BackendClass, data_fallback, try_pdf_removal):
             backend.save(tmp_file)
 
             for tlen in slens:
-                ostr = b''.join(random.choice(all_chars) for _ in range(tlen))
+                ostr = bytes(random.choice(list(range(256))) for _ in range(tlen))
                 p = subprocess.Popen([qemu_location, test], stdin=pipe, stdout=pipe, stderr=pipe)
                 res = p.communicate(ostr)
-                expected = (res[0],p.returncode)
+                expected = (res[0], p.returncode)
                 p = subprocess.Popen([qemu_location, "-bitflip", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
                 res = p.communicate(ostr)
-                patched = (res[0],p.returncode)
+                patched = (res[0], p.returncode)
                 print(test, tlen)
-                nose.tools.assert_equal(expected,patched)
+                nose.tools.assert_equal(expected, patched)
 
         for test in tests:
             tmp_file = os.path.join(td, "patched")
-            backend = BackendClass(test,data_fallback,try_pdf_removal=try_pdf_removal)
+            backend = BackendClass(test, data_fallback, try_pdf_removal=try_pdf_removal)
             cp = Backdoor(test, backend, enable_bitflip=True)
             patches = cp.get_patches()
             backend.apply_patches(patches)
@@ -1149,15 +1149,15 @@ def test_bitflip(BackendClass, data_fallback, try_pdf_removal):
             # backend.save("/tmp/aaa")
 
             for tlen in slens:
-                ostr = ''.join(random.choice(all_chars) for _ in range(tlen))
+                ostr = bytes(random.choice(list(range(256))) for _ in range(tlen))
                 p = subprocess.Popen([qemu_location, test], stdin=pipe, stdout=pipe, stderr=pipe)
                 res = p.communicate(ostr)
-                expected = (res[0],p.returncode)
+                expected = (res[0], p.returncode)
                 p = subprocess.Popen([qemu_location, "-bitflip", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
                 res = p.communicate(ostr)
-                patched = (res[0],p.returncode)
+                patched = (res[0], p.returncode)
                 print(test, tlen)
-                nose.tools.assert_equal(expected,patched)
+                nose.tools.assert_equal(expected, patched)
 
 @reassembler_only
 def test_uninitialized(BackendClass, data_fallback, try_pdf_removal):

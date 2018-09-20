@@ -48,7 +48,7 @@ class Bitflip(object):
         full_translation_table = {}
         tstr = b""
         for i in range(256):
-            c = bytes(i)
+            c = bytes([i])
             if c in translations:
                 tstr += translations[c]
             else:
@@ -64,9 +64,9 @@ class Bitflip(object):
             mov esi, {prereceive_bitflip_nbytes}
             _exit_prereceive:
         '''
-        p1 = InsertCodePatch(syscall_addr,code,"prereceive_bitflip_patch",priority=900)
-        p2 = AddRWDataPatch(4,"prereceive_bitflip_nbytes")
-        return [p1,p2]
+        p1 = InsertCodePatch(syscall_addr, code, "prereceive_bitflip_patch",priority=900)
+        p2 = AddRWDataPatch(4, "prereceive_bitflip_nbytes")
+        return [p1, p2]
 
 
     def get_patches(self):
@@ -76,7 +76,7 @@ class Bitflip(object):
         receive_wrapper = [ff for ff in cfg.functions.values() if \
                 cfg_utils.detect_syscall_wrapper(self.patcher,ff) == 3] 
         if len(receive_wrapper) != 1:
-            l.warning("Found %d receive_wrapper... better not to touch anything"%len(receive_wrapper))
+            l.warning("Found %d receive_wrapper... better not to touch anything", len(receive_wrapper))
             return []
         receive_wrapper = receive_wrapper[0]
         # here we assume that receive_wrapper is a "sane" syscall wrapper, as checked by detect_syscall_wrapper
@@ -89,7 +89,7 @@ class Bitflip(object):
         # free registers esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
         # ebx: fd, ecx: buf, edx: count, esi: rx_byte
         code = '''
-            test eax, eax ; receive succeded
+            test eax, eax ; receive succeeded
             jne _exit_bitflip
 
             test ebx, ebx ; test if ebx is 0 (stdin)
@@ -103,5 +103,5 @@ class Bitflip(object):
             _exit_bitflip:
         ''' % (Bitflip.get_bitflip_code())
 
-        patches.append(InsertCodePatch(victim_addr,code,"postreceive_bitflip_patch",priority=900))
+        patches.append(InsertCodePatch(victim_addr, code, "postreceive_bitflip_patch", priority=900))
         return patches

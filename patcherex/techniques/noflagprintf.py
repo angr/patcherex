@@ -43,7 +43,7 @@ class NoFlagPrintfPatcher(object):
                 hash ^= ord(c)
             if hash == 0:
                 hash += 1
-            return bytes(hash)
+            return bytes([hash])
 
         hash_dict = {}
         for func, (func_name, func_obj) in self.ident.matches.items():
