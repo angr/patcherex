@@ -1237,7 +1237,11 @@ def test_malloc_patcher(BackendClass, data_fallback, try_pdf_removal):
 
 
 @reassembler_only
-def test_no_flag_printf(BackendClass, data_fallback, try_pdf_removal):
+def disable_no_flag_printf(BackendClass, data_fallback, try_pdf_removal):
+
+    # @anto: I don't think the first crash test for PIZZA_00002 makes sense. It should not print out any data from the
+    # flag page. Also it crashes the original program as well. I'm disabling this test case for now.
+
     filepath1 = os.path.join(bin_location, "PIZZA_00002")
     filepath2 = os.path.join(bin_location, "original/KPRCA_00011")
 
@@ -1257,6 +1261,7 @@ deliver
 hello
 %s %s
         """
+        import ipdb; ipdb.set_trace()
         res = QEMURunner(tmp_file, crash_test, record_stdout=True, record_core=True)
         nose.tools.assert_not_equal(res.returncode, 0)
         # shutil.copy(tmp_file, "/tmp/aaa")
