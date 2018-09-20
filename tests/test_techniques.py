@@ -527,7 +527,7 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
                              b"00000001\n" + bytes(addr_str) + b"\n",
                              record_stdout=True,
                              record_core=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            nose.tools.assert_equal(res.stdout, b"hello\nCGC")
             print(hex(res.reg_vals['eip']))
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             #main -> stack
@@ -535,7 +535,7 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
                              b"00000001\nbaaaa000\n",
                              record_stdout=True,
                              record_core=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            nose.tools.assert_equal(res.stdout, b"hello\nCGC")
             print(hex(res.reg_vals['eip']))
             nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
             #main -> main
