@@ -494,15 +494,15 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             backend.apply_patches(patches)
             backend.save(patched_fname1)
             # backend.save("/tmp/aaa")
-            res = QEMURunner(patched_fname1,"00000001\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            res = QEMURunner(patched_fname1, b"00000001\n",record_stdout=True)
+            nose.tools.assert_equal(res.stdout, b"hello\nCGC")
 
             if i==0:
                 res = QEMURunner(patched_fname1,
-                                 "00000001\n23456789\n",
+                                 b"00000001\n23456789\n",
                                  record_stdout=True,
                                  record_core=True)
-                nose.tools.assert_equal(res.stdout,"hello\nCGC")
+                nose.tools.assert_equal(res.stdout, b"hello\nCGC")
                 print(hex(res.reg_vals['eip']))
                 nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
                 # res = QEMURunner(patched_fname1,"00000002\n23456789\n",record_stdout=True)
@@ -514,10 +514,10 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
                 # print hex(res.reg_vals['eip'])
                 # nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
                 res = QEMURunner(patched_fname1,
-                                 "00000004\n23456789\n",
+                                 b"00000004\n23456789\n",
                                  record_stdout=True,
                                  record_core=True)
-                nose.tools.assert_equal(res.stdout,"hello\n")
+                nose.tools.assert_equal(res.stdout, b"hello\n")
                 print(hex(res.reg_vals['eip']))
                 nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
 
@@ -678,7 +678,7 @@ def test_transmitprotection(BackendClass, data_fallback, try_pdf_removal):
         tinput = b"08048000\n00000005\n"
         tsize = 0
         for addr, size in values:
-            tinput += bytes("4347c%03x\n%08x\n" % (addr, size))
+            tinput += b"4347c%03x\n%08x\n" % (addr, size)
             tsize += size
         tinput += b"08048000\n00000005\n"
         #print repr(tinput)
