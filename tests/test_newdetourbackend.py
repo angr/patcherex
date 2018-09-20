@@ -1,8 +1,11 @@
+import os
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import *
 
-backend = DetourBackend("./new_test_files/test")
+bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), './new_test_files'))
+
+backend = DetourBackend(os.path.join(bin_location, "test"))
 patches = []
 
 transmit_code = '''
