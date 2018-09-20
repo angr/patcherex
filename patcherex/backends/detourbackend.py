@@ -176,7 +176,7 @@ class DetourBackend(Backend):
             l.warning("pdf length str not int")
             return False, None, None, None, None
         pdf_end = pdf_beginning_pos+pdf_length
-        pdf_ending_str = "\n%%EOF\n"
+        pdf_ending_str = b"\n%%EOF\n"
         if not self.ocontent[pdf_end-len(pdf_ending_str):pdf_end] == pdf_ending_str:
             l.warning("pdf ending not found")
             return False, None, None, None, None
