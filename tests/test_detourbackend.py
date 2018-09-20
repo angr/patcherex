@@ -52,16 +52,16 @@ def test_simple_inline():
     print(res, p.returncode)
     nose.tools.assert_equal((p.returncode != 0), True)
 
-    expected = "\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
+    expected = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
-        backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
+        backend = DetourBackend(filepath, data_fallback=global_data_fallback, try_pdf_removal=global_try_pdf_removal)
         p = InlinePatch(0x8048291, "mov DWORD [esp+8], 0x40;", name="asdf")
         backend.apply_patches([p])
         backend.save(tmp_file)
         # backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate(b"A"*100)
+        res = p.communicate(b"A" * 100)
         print(res, p.returncode)
         nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
 

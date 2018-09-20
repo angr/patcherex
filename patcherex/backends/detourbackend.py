@@ -226,7 +226,7 @@ class DetourBackend(Backend):
         expected_instructions = ["push","push","push","call","add","push","push","push","push","push",
                 "push","add","pushfd","pop","and","push","popfd","push","pop","ret"]
         instructions = utils.disassemble(self.read_mem_from_file(checker_function_start, 0x30), checker_function_start)
-        if not expected_instructions == [instruction.mnemonic.encode("ascii") for instruction in instructions]:
+        if not expected_instructions == [instruction.mnemonic for instruction in instructions]:
             l.warning("unexpected instructions in checker function")
             return False, None, None, None, None  
 
@@ -255,7 +255,7 @@ class DetourBackend(Backend):
         self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<H", 0), 0x30)
         self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<H", 0), 0x32)
 
-        self.ncontent = utils.bytes_overwrite(self.ncontent, "\x90" * check_instruction_size, \
+        self.ncontent = utils.bytes_overwrite(self.ncontent, b"\x90" * check_instruction_size,
                                               self.maddress_to_baddress(check_instruction_addr))
         self.max_convertible_address = cut_start_mem
 
@@ -273,15 +273,16 @@ class DetourBackend(Backend):
         (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align) = last_segment
         pre_cut_segment_size = cut_start_mem - p_vaddr
         # print map(hex,[cut_start,cut_end,cut_start_mem,pre_cut_segment_size, cut_start_mem, p_vaddr])
-        pre_cut_segment = (p_type, p_offset, p_vaddr, p_paddr, pre_cut_segment_size, pre_cut_segment_size, \
+        pre_cut_segment = (p_type, p_offset, p_vaddr, p_paddr, pre_cut_segment_size, pre_cut_segment_size,
                 p_flags, p_align)
-        post_cut_segment = (p_type, p_offset + pre_cut_segment_size, \
-                p_vaddr + pre_cut_segment_size + cut_size, p_vaddr + pre_cut_segment_size + cut_size, \
-                p_filesz - cut_size - pre_cut_segment_size, p_memsz - cut_size - pre_cut_segment_size, \
+        post_cut_segment = (p_type, p_offset + pre_cut_segment_size,
+                p_vaddr + pre_cut_segment_size + cut_size, p_vaddr + pre_cut_segment_size + cut_size,
+                p_filesz - cut_size - pre_cut_segment_size, p_memsz - cut_size - pre_cut_segment_size,
                 p_flags, p_align)
 
-        l.info("last segment changed from \n%s to \n%s\n%s" % \
-                (map(hex,last_segment),map(hex,pre_cut_segment),map(hex,post_cut_segment)))
+        l.info("last segment changed from \n%s to \n%s\n%s",
+                map(hex, last_segment), map(hex, pre_cut_segment), map(hex, post_cut_segment)
+               )
         self.modded_segments = segments[:-1] + [pre_cut_segment,post_cut_segment]
 
     def is_patched(self):
