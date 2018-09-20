@@ -1,7 +1,7 @@
 import os
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
-from patcherex.patches import *
+from patcherex.patches import AddCodePatch, AddRODataPatch, InsertCodePatch
 
 bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), './new_test_files'))
 
