@@ -941,30 +941,30 @@ def test_random_canary():
 
 
 def test_patch_conflicts():
-    def create_dpatch(tstr,addr,p):
+    def create_dpatch(tstr, addr, p):
         code = '''
             push ecx
             mov ecx, {s%s}
             call {print}
             pop ecx
         ''' % tstr
-        return InsertCodePatch(addr,code,tstr,priority=p)
+        return InsertCodePatch(addr, code, tstr, priority=p)
 
     def expected_str(plist):
         tstr = b""
         for p in plist:
-            tstr += p.name + b"\n\x00"
+            tstr += bytes(p.name, "utf-8") + b"\n\x00"
         return tstr + base_str
 
     def create_patches():
-        p11=create_dpatch("11",0x08049920,2)
-        p12=create_dpatch("12",0x08049920+1,1)
-        p21=create_dpatch("21",0x0804992F,2)
-        p22=create_dpatch("22",0x0804992F+0,1)
-        p31=create_dpatch("31",0x08049947,2)
-        p32=create_dpatch("32",0x08049947+0,1)
-        p41=create_dpatch("41",0x08049953,2)
-        p42=create_dpatch("42",0x08049953+3,1)
+        p11=create_dpatch("11", 0x08049920, 2)
+        p12=create_dpatch("12", 0x08049920+1, 1)
+        p21=create_dpatch("21", 0x0804992F, 2)
+        p22=create_dpatch("22", 0x0804992F+0, 1)
+        p31=create_dpatch("31", 0x08049947, 2)
+        p32=create_dpatch("32", 0x08049947+0, 1)
+        p41=create_dpatch("41", 0x08049953, 2)
+        p42=create_dpatch("42", 0x08049953+3, 1)
         return p11,p12,p21,p22,p31,p32,p41,p42
 
     filepath = os.path.join(bin_location, "CROMU_00071")
@@ -1248,7 +1248,6 @@ def test_patch_conflicts():
         p11.dependencies = [p21,p32]
         backend.apply_patches(cpatches+[p11,p21,p31,p32])
         backend.save(tmp_file)
-        #backend.save("../../vm/shared/patched")
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)

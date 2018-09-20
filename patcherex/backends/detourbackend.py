@@ -661,29 +661,29 @@ class DetourBackend(Backend):
         insert_code_patches = sorted([p for p in insert_code_patches],key=lambda x:-1*x.priority)
         applied_patches = []
         while True:
-            name_list = [str(p) if (p==None or p.name==None) else p.name for p in applied_patches]
+            name_list = [str(p) if (p is None or p.name is None) else p.name for p in applied_patches]
             l.info("applied_patches is: |" + "-".join(name_list)+"|")
-            assert all([a == b for a,b in zip(applied_patches,insert_code_patches)])
+            assert all([a == b for a, b in zip(applied_patches, insert_code_patches)])
             for patch in insert_code_patches[len(applied_patches):]:
-                    self.save_state(applied_patches)
-                    try:
-                        l.info("Trying to add patch: " + str(patch))
-                        new_code = self.insert_detour(patch)
-                        self.added_code += new_code
-                        self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
-                        applied_patches.append(patch)
-                        self.added_patches.append(patch)
-                        l.info("Added patch: " + str(patch))
-                    except (DetourException, MissingBlockException, DoubleDetourException) as e:
-                        l.warning(e)
-                        insert_code_patches, removed = self.handle_remove_patch(insert_code_patches,patch)
-                        #print map(str,removed)
-                        applied_patches = self.restore_state(applied_patches, removed)
-                        l.warning("One patch failed, rolling back InsertCodePatch patches. Failed patch: "+str(patch))
-                        break
-                        # TODO: right now rollback goes back to 0 patches, we may want to go back less
-                        # the solution is to save touched_bytes and ncontent indexed by applied patfch
-                        # and go back to the biggest compatible list of patches
+                self.save_state(applied_patches)
+                try:
+                    l.info("Trying to add patch: " + str(patch))
+                    new_code = self.insert_detour(patch)
+                    self.added_code += new_code
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                    applied_patches.append(patch)
+                    self.added_patches.append(patch)
+                    l.info("Added patch: " + str(patch))
+                except (DetourException, MissingBlockException, DoubleDetourException) as e:
+                    l.warning(e)
+                    insert_code_patches, removed = self.handle_remove_patch(insert_code_patches,patch)
+                    #print map(str,removed)
+                    applied_patches = self.restore_state(applied_patches, removed)
+                    l.warning("One patch failed, rolling back InsertCodePatch patches. Failed patch: "+str(patch))
+                    break
+                    # TODO: right now rollback goes back to 0 patches, we may want to go back less
+                    # the solution is to save touched_bytes and ncontent indexed by applied patfch
+                    # and go back to the biggest compatible list of patches
             else:
                 break #at this point we applied everything in current insert_code_patches
                 # TODO symbol name, for now no name_map for InsertCode patches
@@ -870,7 +870,7 @@ class DetourBackend(Backend):
         jmp_back_target = None
         for i in reversed(classified_instructions):  # jmp back to the one after the last byte of the last non-out
             if i.overwritten != "out":
-                jmp_back_target = i.address+len(str(i.bytes))
+                jmp_back_target = i.address+len(i.bytes)
                 break
         assert jmp_back_target is not None
         injected_code += "jmp %s" % hex(int(jmp_back_target)) + "\n"
