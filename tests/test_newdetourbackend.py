@@ -30,4 +30,3 @@ if __name__ == '__main__':
 
     backend.apply_patches(patches)
     backend.save("/tmp/patched")
-
