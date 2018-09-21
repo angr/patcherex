@@ -185,7 +185,7 @@ class ASMConverter(object):
                 if base_reg is None: raise ASMConverterError('Unsupported base register "%s"' % part_0)
                 index_reg = ASMConverter.reg_to_att(part_1)
                 if index_reg is None: raise ASMConverterError('Unsupported index register "%s"' % part_1)
-                
+
                 disp = str((int(part_2,base=0)))
 
                 if sign_2 == '-':
@@ -372,7 +372,7 @@ class ASMConverter(object):
 
     @staticmethod
     def intel_to_att(asm):
-        
+
         # convert each line from intel syntax to AT&T syntax
 
         converted = []
@@ -559,7 +559,7 @@ def exec_cmd(args, cwd=None, shell=False, debug=False):
     std = p.communicate()
     retcode = p.poll()
     res = (std[0], std[1], retcode)
-    
+
     if debug:
         print "RESULT:", repr(res)
 
@@ -647,14 +647,14 @@ def compile_asm(code, base=None, name_map=None):
     with tempdir() as td:
         asm_fname = os.path.join(td, "asm.s")
         bin_fname = os.path.join(td, "bin.o")
-        
+
         fp = open(asm_fname, 'wb')
         fp.write("bits 32\n")
         if base is not None:
             fp.write("org %s\n" % hex(base))
         fp.write(code)
         fp.close()
-        
+
         res = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)
         if res[2] != 0:
             print "NASM error:"
