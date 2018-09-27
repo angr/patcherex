@@ -10,7 +10,7 @@ sudo apt-get install nasm clang
 
 # mkvirtualenv cgc # create and activate a proper virtual env in which other CRS components have been installed (see setup.py)
 
-git clone https://github.com/shellphish/patcherex.git
+git clone https://github.com/angr/patcherex.git
 cd patcherex
 pip install -e .
 ```
