@@ -334,7 +334,7 @@ class BinaryOptimization(Technique):
                 l.error('Something is not implemented.', exc_info=True)
                 raise
 
-        for insertion_addr, insns in prologue_saves.iteritems():
+        for insertion_addr, insns in prologue_saves.items():
             p = InsertCodePatch(insertion_addr, "\n".join(insns))
             # those patches must go in the front of those replaced instructions
             # for example, we would expect
@@ -345,7 +345,7 @@ class BinaryOptimization(Technique):
             #   push esi  <- the order is wrong
             patches.insert(0, p)
 
-        for insertion_addr, insns in epilogue_restores.iteritems():
+        for insertion_addr, insns in epilogue_restores.items():
             p = InsertCodePatch(insertion_addr, "\n".join(insns))
             # those patches must go in the front of those replaced instructions
             patches.insert(0, p)

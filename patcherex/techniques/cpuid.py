@@ -6,6 +6,7 @@ from patcherex.patches import *
 
 l = logging.getLogger("patcherex.techniques.CpudId")
 
+
 class CpuId(object):
 
     def __init__(self,binary_fname,backend):
@@ -179,8 +180,8 @@ class CpuId(object):
             ret
         '''
         patches.append(AddCodePatch(added_code,name="print"))
-        patches.append(AddRODataPatch("0123456789abcdef",name="hex_array"))
-        patches.append(AddRODataPatch("\n",name="new_line"))
+        patches.append(AddRODataPatch(b"0123456789abcdef",name="hex_array"))
+        patches.append(AddRODataPatch(b"\n",name="new_line"))
         patches.append(AddRWDataPatch(len("XXXX"),name="allocate_result"))
         patches.append(AddRWDataPatch(len("XXXXXXXXXXXXXXXXXXXX"),name="space"))
 

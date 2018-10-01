@@ -23,13 +23,13 @@ if __name__ == "__main__":
     patched_files = utils.find_files(patched_folder,"*",True)
     patched_sizes = {fname_patched_to_key(f): os.path.getsize(f) for f in patched_files}
     size_overheads = {}
-    for k, v in patched_sizes.iteritems():
+    for k, v in patched_sizes.items():
         unpatched_size = unpatched_sizes[(k[0],k[3])]
         size_overheads[k] = (unpatched_size,v,v/float(unpatched_size))
 
     sorted_results = sorted(size_overheads.items(),key=lambda x:x[1][2])
     for k,(o,p,ov) in sorted_results:
-        print "%65s % 9d % 9d % 3.2f"%(os.path.sep.join(k),o,p,round(ov*100.0,2))
+        print("%65s % 9d % 9d % 3.2f"%(os.path.sep.join(k),o,p,round(ov*100.0,2)))
 
 
 '''

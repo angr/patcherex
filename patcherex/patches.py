@@ -1,7 +1,7 @@
 
 import struct
 
-import utils
+from . import utils
 from .utils import ASMConverter
 
 
@@ -25,6 +25,8 @@ class InlinePatch(Patch):
 class AddRODataPatch(Patch):
     def __init__(self, data, name=None):
         super(AddRODataPatch, self).__init__(name)
+        if not isinstance(data, bytes):
+            raise TypeError("Data must be a bytestring.")
         self.data = data
 
     def __repr__(self):
@@ -45,6 +47,8 @@ class AddRWInitDataPatch(Patch):
     def __init__(self, data, name=None):
         super(AddRWInitDataPatch, self).__init__(name)
         self.data = data
+        if not isinstance(data, bytes):
+            raise TypeError("Data must be a bytestring.")
 
     def __repr__(self):
         return "AddRWInitDataPatch [%s] (%d)" % (self.name,len(self.data))
@@ -83,9 +87,10 @@ class CodePatch(Patch):
         if not self.is_c:
             return ASMConverter.intel_to_att(self.asm_code)
         else:
-            code = utils.compile_c(self.asm_code,optimization=self.optimization)
-            asm_str = ".byte " + ", ".join([hex(ord(b)) for b in code])
+            code = utils.compile_c(self.asm_code, optimization=self.optimization)
+            asm_str = ".byte " + ", ".join([hex(b) for b in code])
             return asm_str
+
 
 class AddCodePatch(CodePatch):
     def __init__(self, asm_code, name=None, is_c=False, is_att=False, optimization="-Oz"):
@@ -136,10 +141,13 @@ class RawMemPatch(Patch):
     def __init__(self, addr, data, name=None):
         super(RawMemPatch, self).__init__(name)
         self.addr = addr
+        if not isinstance(data, bytes):
+            raise TypeError("Data must be a bytestring.")
         self.data = data
 
     def __repr__(self):
         return "RawMemPatch [%s] %08x (%d)" % (self.name,self.addr,len(self.data))
+
 
 class SegmentHeaderPatch(Patch):
     def __init__(self, segment_headers, name=None):
@@ -164,7 +172,7 @@ class PointerArrayPatch(Patch):
         super(PointerArrayPatch, self).__init__(name)
         self.addr = addr
         self.pointers = pointers
-        self.data = "".join([ struct.pack("<I", p) for p in self.pointers ])
+        self.data = b"".join([ struct.pack("<I", p) for p in self.pointers ])
 
     def __repr__(self):
         return "PointerArrayPatch [%s] %#08x (%d)" % (self.name, self.addr, len(self.data))

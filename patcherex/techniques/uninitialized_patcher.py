@@ -43,7 +43,7 @@ class UninitializedPatcher(object):
 
         # create inverse callsite map
         inv_callsites = defaultdict(set)
-        for c, f in callsites.iteritems():
+        for c, f in callsites.items():
             inv_callsites[f].add(c)
         return inv_callsites
 
@@ -75,7 +75,7 @@ class UninitializedPatcher(object):
 
             if self.patcher.project.is_hooked(n.addr):
                 continue
-            elif self.patcher.project._simos.is_syscall_addr(n.addr):
+            elif self.patcher.project.simos.is_syscall_addr(n.addr):
                 continue
 
             try:
@@ -133,12 +133,12 @@ class UninitializedPatcher(object):
             tsteps = [0]
             chain = self._is_reg_free(addr,reg,ignore_current_bb,level=0,prev=[],total_steps=tsteps,debug=debug)
             if debug:
-                print chain # the explored tree
-                print tsteps # global number of steps
+                print(chain) # the explored tree
+                print(tsteps) # global number of steps
             return True
         except RegUsed as e:
             if debug:
-                print e.message
+                print(str(e))
             return False
 
     def is_last_returning_block(self,node):
@@ -302,8 +302,8 @@ class UninitializedPatcher(object):
                             uninitialized_size = the_next - arg
 
                             target_kind = self.patcher.project.factory.block(i).vex.constant_jump_targets_and_jumpkinds
-                            if len(target_kind) == 1 and target_kind.keys()[0] in self.patcher.cfg.functions:
-                                call_target = self.patcher.cfg.functions[target_kind.keys()[0]]
+                            if len(target_kind) == 1 and list(target_kind.keys())[0] in self.patcher.cfg.functions:
+                                call_target = self.patcher.cfg.functions[list(target_kind.keys())[0]]
                             else:
                                 call_target = None
 
@@ -313,8 +313,8 @@ class UninitializedPatcher(object):
                                     not cfg_utils.detect_syscall_wrapper(self.patcher, call_target):
 
                                 if uninitialized_size < 0x40:
-                                    possible_uninitialized_reads.update(arg+x for x in xrange(0, uninitialized_size, 4))
-                                    written.update(arg+x for x in xrange(0, uninitialized_size, 4))
+                                    possible_uninitialized_reads.update(arg+x for x in range(0, uninitialized_size, 4))
+                                    written.update(arg+x for x in range(0, uninitialized_size, 4))
                             else:
                                 written.add(arg)
 
@@ -436,7 +436,7 @@ class UninitializedPatcher(object):
         self.safe_addrs = self.get_safe_functions()
 
         self.patches = []
-        for k, ff in cfg.functions.iteritems():
+        for k, ff in cfg.functions.items():
             if k in self.safe_addrs:
                 continue
             self._handle_func(ff)

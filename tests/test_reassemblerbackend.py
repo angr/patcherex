@@ -5,7 +5,7 @@ import random
 import argparse
 import logging
 import time
-import Queue
+import queue as Queue
 from multiprocessing import Pool, Manager
 from functools import partial
 
@@ -55,7 +55,7 @@ def run_functionality(filename, save_as=None, optimize=False):
         try:
             optimize_it(filepath, intermediate, debugging=True)
         except BinaryOptimizationError:
-            print "Optimization failed on file %s" % filepath
+            print("Optimization failed on file %s" % filepath)
             raise
 
         # update filepath
@@ -71,9 +71,9 @@ def run_functionality(filename, save_as=None, optimize=False):
             pass
 
     if not r:
-        print "Compiler says:"
-        print p._compiler_stdout
-        print p._compiler_stderr
+        print("Compiler says:")
+        print(p._compiler_stdout)
+        print(p._compiler_stderr)
 
     nose.tools.assert_true(r, 'Reassembler fails on binary %s' % filename)
 
@@ -143,7 +143,7 @@ def manual_run_functionality_all(threads=8, optimize=False):
         # statistics
         for b, r, exc in results:
             if not r:
-                print "Fail to process %s: %s" % (b, str(exc))
+                print("Fail to process %s: %s" % (b, str(exc)))
 
     else:
         for b in binaries:
@@ -203,9 +203,9 @@ def run_shadowstack(filename):
     r = p.save(os.path.join('/', 'tmp', 'shadowstack', os.path.basename(filename)))
 
     if not r:
-        print "Compiler says:"
-        print p._compiler_stdout
-        print p._compiler_stderr
+        print("Compiler says:")
+        print(p._compiler_stdout)
+        print(p._compiler_stderr)
 
     nose.tools.assert_true(r, 'Shadowstack patching with reassembler fails on binary %s' % filename)
 
@@ -235,9 +235,9 @@ def run_shiftstack(filename):
     r = p.save(os.path.join('/', 'tmp', 'shiftstack', os.path.basename(filename)))
 
     if not r:
-        print "Compiler says:"
-        print p._compiler_stdout
-        print p._compiler_stderr
+        print("Compiler says:")
+        print(p._compiler_stdout)
+        print(p._compiler_stderr)
 
     nose.tools.assert_true(r, 'ShiftStack patching with reassembler fails on binary %s' % filename)
 
@@ -262,9 +262,9 @@ def run_adversarial(filename):
     r = p.save(os.path.join('/', 'tmp', 'adversarial', os.path.basename(filename)))
 
     if not r:
-        print "Compiler says:"
-        print p._compiler_stdout
-        print p._compiler_stderr
+        print("Compiler says:")
+        print(p._compiler_stdout)
+        print(p._compiler_stderr)
 
     nose.tools.assert_true(r, 'Adversarial patching with reassembler fails on binary %s' % filename)
 
@@ -292,9 +292,9 @@ def run_optimization(filename):
     r = b1.save(rr_filepath)
 
     if not r:
-        print "Compiler says:"
-        print b1._compiler_stdout
-        print b1._compiler_stderr
+        print("Compiler says:")
+        print(b1._compiler_stdout)
+        print(b1._compiler_stderr)
 
     # other optimization techniques
     b2 = ReassemblerBackend(rr_filepath, debugging=True)
@@ -305,9 +305,9 @@ def run_optimization(filename):
     r = b2.save(target_filepath)
 
     if not r:
-        print "Compiler says:"
-        print b2._compiler_stdout
-        print b2._compiler_stderr
+        print("Compiler says:")
+        print(b2._compiler_stdout)
+        print(b2._compiler_stderr)
 
     nose.tools.assert_true(r, 'Optimization fails on binary %s' % filename)
 
@@ -337,7 +337,7 @@ def trace():
 
 def run_all():
     functions = globals()
-    all_functions = dict(filter((lambda (k, v): k.startswith('test_')), functions.items()))
+    all_functions = dict(filter((lambda x: x[0].startswith('test_')), functions.items()))
     for f in sorted(all_functions.keys()):
         if hasattr(all_functions[f], '__call__'):
             all_functions[f]()
@@ -378,6 +378,7 @@ def main():
         globals()['test_%s' % test]()
     else:
         parser.print_help()
+
 
 if __name__ == "__main__":
     main()

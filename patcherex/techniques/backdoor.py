@@ -85,15 +85,15 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
   return (0x67452301 + A);
 }
         '''
-        return AddCodePatch(code,"sha1_block",is_c=True,optimization="-Oz")
+        return AddCodePatch(code, "sha1_block", is_c=True, optimization="-Oz")
 
     def compute_patches(self,victim_addr):
         patches = []
-        patches.append(AddRWDataPatch(8,"random_value")) #rnd value and delimiter
-        patches.append(AddRWDataPatch(4,"nbytes"))
-        patches.append(AddRWDataPatch(4,"backdoor_receive_buffer"))
-        patches.append(AddRWDataPatch(1,"backdoor_receive_len"))
-        patches.append(AddRWDataPatch(16,"backdoor_response_buffer"))
+        patches.append(AddRWDataPatch(8, "random_value")) #rnd value and delimiter
+        patches.append(AddRWDataPatch(4, "nbytes"))
+        patches.append(AddRWDataPatch(4, "backdoor_receive_buffer"))
+        patches.append(AddRWDataPatch(1, "backdoor_receive_len"))
+        patches.append(AddRWDataPatch(16, "backdoor_response_buffer"))
         patches.append(self.get_c_patch())
         code = '''
             ; get 4 rnd value retrying in the unlikely case, in which rnd failed
@@ -116,7 +116,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
             _random_exit:
                 ret
         '''
-        patches.append(AddCodePatch(code,name="get_4_rnd"))
+        patches.append(AddCodePatch(code, name="get_4_rnd"))
 
         if self.enable_bitflip:
             bitflip_in_backdoor_code = '''
@@ -151,7 +151,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
             _receive_exit:
                 ret
         ''' % (bitflip_in_backdoor_code)
-        patches.append(AddCodePatch(code,name="receive_16"))
+        patches.append(AddCodePatch(code, name="receive_16"))
 
         if not self.enable_bitflip:
             code_header = '''
@@ -356,7 +356,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
 
             _exit_backdoor:
         '''
-        patches.append(InsertCodePatch(victim_addr,code,name="backdoor_receive_checker",priority=300))
+        patches.append(InsertCodePatch(victim_addr, code, name="backdoor_receive_checker", priority=300))
         return patches
 
 

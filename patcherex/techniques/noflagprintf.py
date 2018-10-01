@@ -31,9 +31,10 @@ class NoFlagPrintfPatcher(object):
         string_references = []
         for v in self.patcher.cfg._memory_data.values():
             if v.sort == "string" and v.size > 1:
-                st = state.solver.eval(state.memory.load(v.address, v.size), cast_to=str)
+                st_bytes = state.solver.eval(state.memory.load(v.address, v.size), cast_to=bytes)
+                st = "".join(chr(i) for i in st_bytes)
                 string_references.append((v.address, st))
-        return [] if len(string_references) == 0 else zip(*string_references)[1]
+        return [] if len(string_references) == 0 else list(zip(*string_references))[1]
 
     def _generate_hash_dict(self):
         def hash_str(tstr):
@@ -42,7 +43,7 @@ class NoFlagPrintfPatcher(object):
                 hash ^= ord(c)
             if hash == 0:
                 hash += 1
-            return chr(hash)
+            return bytes([hash])
 
         hash_dict = {}
         for func, (func_name, func_obj) in self.ident.matches.items():
@@ -51,7 +52,8 @@ class NoFlagPrintfPatcher(object):
             if func_obj.format_spec_char is None:
                 continue
             relevant_strings = [s for s in self.all_strings if func_obj.format_spec_char in s]
-            hash_dict[func_obj.format_spec_char] = list(sorted(set(map(hash_str,relevant_strings)),key=lambda x:ord(x)))
+            hash_dict[func_obj.format_spec_char] = list(sorted(set(map(hash_str, relevant_strings)),
+                                                               key=lambda x: ord(x)))
         return hash_dict
 
     @property
@@ -165,7 +167,7 @@ class NoFlagPrintfPatcher(object):
             ) % tuple([pnum]*18)
 
             patches.append(InsertCodePatch(func.addr, check, priority=250, name="noflagprintf_%d" % pnum))
-            l.info("function at %#8x protected" % func.addr)
+            l.info("function at %#08x protected" % func.addr)
 
         if patches:
             max_ro_addr = max(seg.max_addr for seg in self.ro_segments)
@@ -173,7 +175,7 @@ class NoFlagPrintfPatcher(object):
 
         # print repr(self.hash_dict)
         for fspec in set(used_spec_chars):
-            hash_list = "".join(self.hash_dict[fspec]) + "\x00"
+            hash_list = b"".join(self.hash_dict[fspec]) + b"\x00"
             patches.append(AddRODataPatch(hash_list,
                         name="hash_list_{format_spec_char}".format(format_spec_char=ord(fspec))))
         # print "\n".join(map(str,patches))

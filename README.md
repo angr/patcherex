@@ -85,8 +85,8 @@ transmit_code = '''
   popa
   ret
   '''
-patches.append(AddCodePatch(transmit_code,name="transmit_function"))
-patches.append(AddRODataPatch("HI!\x00",name="transmitted_string"))
+patches.append(AddCodePatch(transmit_code, name="transmit_function"))
+patches.append(AddRODataPatch(b"HI!\x00", name="transmitted_string"))
 # the following code is going to be executed just before the original instruction at 0x8048166
 injected_code = '''
 ; at this code location, it is fine to clobber eax and ebx

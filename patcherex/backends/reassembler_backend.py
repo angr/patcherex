@@ -16,7 +16,7 @@ from angr.analyses.reassembler import BinaryError
 from ..patches import *
 from ..backend import Backend
 from ..errors import ReassemblerError, CompilationError, ReassemblerNotImplementedError
-from ..utils import str_overwrite
+from ..utils import bytes_overwrite
 from .misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
 
 class ReassemblerBackend(Backend):
@@ -108,7 +108,7 @@ class ReassemblerBackend(Backend):
 
         # Get the assembly
         try:
-            assembly = self._binary.assembly(comments=True, symbolized=True)
+            assembly = self._binary.assembly(comments=True, symbolized=True)  # type: str
         except BinaryError as ex:
             raise ReassemblerError('Reassembler failed to reassemble the binary. Here is the exception we '
                                    'caught: %s' %
@@ -117,14 +117,14 @@ class ReassemblerBackend(Backend):
 
         # Save the assembly onto a temporary path
         fd, tmp_file_path = tempfile.mkstemp(prefix=os.path.basename(self.project.filename), suffix=".s")
-        os.write(fd, assembly)
+        os.write(fd, assembly.encode("utf-8"))
         os.close(fd)
 
         l.info("Generating assembly manifest at %s", tmp_file_path)
 
         dirpath = os.path.dirname(filename)
         try:
-            os.makedirs(dirpath, 0755)
+            os.makedirs(dirpath, 0o755)
         except OSError:
             pass
 
@@ -154,7 +154,7 @@ class ReassemblerBackend(Backend):
         return True
 
     def _add_segments(self, filename, patches):
-        fp = open(filename)
+        fp = open(filename, "rb")
         content = fp.read()
         fp.close()
 
@@ -170,30 +170,30 @@ class ReassemblerBackend(Backend):
         assert cgcef_phentsize == phent_size
         pt_types = {0: "NULL", 1: "LOAD", 6: "PHDR", 0x60000000+0x474e551: "GNU_STACK", 0x6ccccccc: "CGCPOV2"}
         segments = []
-        for i in xrange(0, cgcef_phnum):
+        for i in range(0, cgcef_phnum):
             hdr = content[cgcef_phoff + phent_size * i:cgcef_phoff + phent_size * i + phent_size]
             (p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align) = struct.unpack("<IIIIIIII", hdr)
             assert p_type in pt_types
             old_segments.append((p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align))
 
         # align size of the entire ELF
-        content = utils.pad_str(content, 0x10)
+        content = utils.pad_bytes(content, 0x10)
         # change pointer to program headers to point at the end of the elf
-        content = utils.str_overwrite(content, struct.pack("<I", len(content)), 0x1C)
+        content = utils.bytes_overwrite(content, struct.pack("<I", len(content)), 0x1C)
 
         new_segments = [p.new_segment for p in patches]
         all_segments = old_segments + new_segments
 
         # add all segments at the end of the file
         for segment in all_segments:
-            content = utils.str_overwrite(content, struct.pack("<IIIIIIII", *segment))
+            content = utils.bytes_overwrite(content, struct.pack("<IIIIIIII", *segment))
 
         # we overwrite the first original program header,
         # we do not need it anymore since we have moved original program headers at the bottom of the file
-        content = utils.str_overwrite(content, "SHELLPHISH\x00", 0x34)
+        content = utils.bytes_overwrite(content, b"SHELLPHISH\x00", 0x34)
 
         # set the total number of segment headers
-        content = utils.str_overwrite(content, struct.pack("<H", len(all_segments)), 0x2c)
+        content = utils.bytes_overwrite(content, struct.pack("<H", len(all_segments)), 0x2c)
 
         # update the file
         fp = open(filename,"wb")
@@ -210,7 +210,7 @@ class ReassemblerBackend(Backend):
 
         tmp_path = path + ".tmp"
 
-        elf_header = "\177ELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00"
+        elf_header = b"\177ELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00"
 
         with open(path, "rb") as f:
             data = f.read()
@@ -256,7 +256,7 @@ class ReassemblerBackend(Backend):
             data = f.read()
 
         for p in self._raw_file_patches:  # type: RawFilePatch
-            data = str_overwrite(data, p.data, p.file_addr)
+            data = bytes_overwrite(data, p.data, p.file_addr)
 
         with open(filename, "wb") as f:
             f.write(data)

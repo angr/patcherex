@@ -20,7 +20,7 @@ class Adversarial(object):
 
     def get_debug_patches(self):
         patches = []
-        patches.append(AddRODataPatch("0123456789abcdef\n", "hex_array"))
+        patches.append(AddRODataPatch(b"0123456789abcdef\n", "hex_array"))
         added_code = '''
             ; eax=buf,ebx=len
             pusha

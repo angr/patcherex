@@ -60,19 +60,19 @@ class Packer(object):
 
     def get_patches(self):
         patches = []
-        new_segments_patch,start,size = self.compute_new_segments_layout()
+        new_segments_patch, start, size = self.compute_new_segments_layout()
         if new_segments_patch == None:
             return []
         patches.append(new_segments_patch)
 
         key = 0x8ec94134 #mecphish
-        original_mem = self.patcher.read_mem_from_file(start,size)
-        new_mem = ""
-        for i in xrange(0,len(original_mem),4):
-            dw = struct.unpack("<I",original_mem[i:i+4])[0]
+        original_mem = self.patcher.read_mem_from_file(start, size)
+        new_mem = b""
+        for i in range(0,len(original_mem),4):
+            dw = struct.unpack("<I", original_mem[i:i+4])[0]
             dw ^= key
-            new_mem += struct.pack("<I",dw)
-        patches.append(RawMemPatch(start,new_mem,name="packer_xored_data"))
+            new_mem += struct.pack("<I", dw)
+        patches.append(RawMemPatch(start, new_mem, name="packer_xored_data"))
         added_code = '''
             mov eax, 0x%08x
             mov ebx, 0x%08x
@@ -90,7 +90,7 @@ class Packer(object):
                 ;
         ''' % (key,start,size)
 
-        patches.append(AddEntryPointPatch(added_code,name="packer_unpack_code"))
+        patches.append(AddEntryPointPatch(added_code, name="packer_unpack_code"))
 
         return patches
 

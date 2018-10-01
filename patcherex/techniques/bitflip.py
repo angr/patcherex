@@ -1,8 +1,8 @@
 import patcherex
 import angr
 
-import patcherex.utils as utils
-import patcherex.cfg_utils as cfg_utils
+from .. import utils
+from .. import cfg_utils
 
 import capstone
 import logging
@@ -44,16 +44,16 @@ class Bitflip(object):
 
     @staticmethod
     def get_translation_table_patch():
-        translations = {'\x00':'\x31','\x43':'\x00','\n':'\x43','\x31':'\n'}
+        translations = {b'\x00': b'\x31', b'\x43': b'\x00', b'\n': b'\x43', b'\x31': b'\n'}
         full_translation_table = {}
-        tstr = ""
-        for i in xrange(256):
-            c = chr(i)
+        tstr = b""
+        for i in range(256):
+            c = bytes([i])
             if c in translations:
                 tstr += translations[c]
             else:
                 tstr += c
-        return AddRODataPatch(tstr,name="bitflip_translation_table")
+        return AddRODataPatch(tstr, name="bitflip_translation_table")
 
     @staticmethod
     def get_presyscall_patch(syscall_addr):
@@ -64,9 +64,9 @@ class Bitflip(object):
             mov esi, {prereceive_bitflip_nbytes}
             _exit_prereceive:
         '''
-        p1 = InsertCodePatch(syscall_addr,code,"prereceive_bitflip_patch",priority=900)
-        p2 = AddRWDataPatch(4,"prereceive_bitflip_nbytes")
-        return [p1,p2]
+        p1 = InsertCodePatch(syscall_addr, code, "prereceive_bitflip_patch",priority=900)
+        p2 = AddRWDataPatch(4, "prereceive_bitflip_nbytes")
+        return [p1, p2]
 
 
     def get_patches(self):
@@ -76,7 +76,7 @@ class Bitflip(object):
         receive_wrapper = [ff for ff in cfg.functions.values() if \
                 cfg_utils.detect_syscall_wrapper(self.patcher,ff) == 3] 
         if len(receive_wrapper) != 1:
-            l.warning("Found %d receive_wrapper... better not to touch anything"%len(receive_wrapper))
+            l.warning("Found %d receive_wrapper... better not to touch anything", len(receive_wrapper))
             return []
         receive_wrapper = receive_wrapper[0]
         # here we assume that receive_wrapper is a "sane" syscall wrapper, as checked by detect_syscall_wrapper
@@ -89,7 +89,7 @@ class Bitflip(object):
         # free registers esi, edx, ecx, ebx are free because we are in a syscall wrapper restoring them
         # ebx: fd, ecx: buf, edx: count, esi: rx_byte
         code = '''
-            test eax, eax ; receive succeded
+            test eax, eax ; receive succeeded
             jne _exit_bitflip
 
             test ebx, ebx ; test if ebx is 0 (stdin)
@@ -103,5 +103,5 @@ class Bitflip(object):
             _exit_bitflip:
         ''' % (Bitflip.get_bitflip_code())
 
-        patches.append(InsertCodePatch(victim_addr,code,"postreceive_bitflip_patch",priority=900))
+        patches.append(InsertCodePatch(victim_addr, code, "postreceive_bitflip_patch", priority=900))
         return patches
