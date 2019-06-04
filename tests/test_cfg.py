@@ -19,7 +19,7 @@ bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..
 
 
 def is_sane_function(ff):
-    return not ff.is_syscall and not ff.has_unresolved_calls and not ff.has_unresolved_jumps
+    return not ff.is_syscall and not ff.has_unresolved_calls and not ff.has_unresolved_jumps and not ff.alignment
 
 
 def map_callsites(cfg):
@@ -38,7 +38,7 @@ def map_callsites(cfg):
 
 
 def is_last_returning_block(addr,cfg,project):
-    node = cfg.get_any_node(addr)
+    node = cfg.model.get_any_node(addr)
     function = cfg.functions[node.function_address]
     if not function.returning:
         return False
@@ -50,7 +50,7 @@ def is_last_returning_block(addr,cfg,project):
 
 
 def last_block_to_callers(addr,cfg,inv_callsites):
-    node = cfg.get_any_node(addr)
+    node = cfg.model.get_any_node(addr)
     if node == None:
         return []
     function = cfg.functions[node.function_address]
@@ -59,7 +59,7 @@ def last_block_to_callers(addr,cfg,inv_callsites):
 
     return_locations = []
     for site in inv_callsites[function.addr]:
-        node = cfg.get_any_node(site)
+        node = cfg.model.get_any_node(site)
         nlist = cfg.get_successors_and_jumpkind(node, excluding_fakeret=False)
         return_locations.extend([n[0] for n in nlist if n[1]=='Ijk_FakeRet'])
     return return_locations
@@ -72,7 +72,7 @@ def test_EAGLE_00005_bb():
     # import IPython; IPython.embed()
     bbs = [(0x0804A73C,3),(0x0804BB3D,1),(0x0804A0E5,6),(0x0804A101,3),(0x0804B145,1),(0x0804BB42,2)]
     for addr,ni in bbs:
-        n = cfg.get_any_node(addr)
+        n = cfg.model.get_any_node(addr)
         nose.tools.assert_true(n != None)
         nose.tools.assert_true(len(n.instruction_addrs) == ni)
 
@@ -116,30 +116,30 @@ def test_CADET_00003():
         0x804869a,
     }
 
-    non_syscall_functions = [v for k,v in cfg.functions.items() if not v.is_syscall]
+    non_syscall_functions = [v for k,v in cfg.functions.items() if not v.is_syscall and not v.alignment]
     #check startpoints, I know that sometimes they could be None, but this should not happen in CADET_00003
     function_entrypoints = set([f.startpoint.addr for f in non_syscall_functions])
-    print("additional:", map(hex, function_entrypoints-legitimate_functions))
-    print("skipped:", map(hex, legitimate_functions-function_entrypoints))
+    print("additional:", list(map(hex, function_entrypoints-legitimate_functions)))
+    print("skipped:", list(map(hex, legitimate_functions-function_entrypoints)))
     nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
 
     sane_functions = [v for k,v in cfg.functions.items() if is_sane_function(v)]
     function_entrypoints = set([f.startpoint.addr for f in sane_functions])
-    print("additional:", map(hex, function_entrypoints-legitimate_functions))
-    print("skipped:", map(hex, legitimate_functions-function_entrypoints))
+    print("additional:", list(map(hex, function_entrypoints-legitimate_functions)))
+    print("skipped:", list(map(hex, legitimate_functions-function_entrypoints)))
     nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
 
     #something which was wrong in the past
-    n = cfg.get_any_node(0x80485EC)
+    n = cfg.model.get_any_node(0x80485EC)
     nose.tools.assert_true(len(n.instruction_addrs) == 1)
     nose.tools.assert_true(n.instruction_addrs[0] == 0x80485EC)
 
     #all sane functions ends with ret in CADET_00003
     for ff in sane_functions:
-        node = cfg.get_any_node(ff.addr, is_syscall=False)
+        node = cfg.model.get_any_node(ff.addr, is_syscall=False)
         nose.tools.assert_equal(node!=None,True)
         nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
-        node = cfg.get_any_node(ff.addr+1, is_syscall=False,anyaddr=True)
+        node = cfg.model.get_any_node(ff.addr+1, is_syscall=False,anyaddr=True)
         nose.tools.assert_equal(node!=None,True)
         nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
         nose.tools.assert_equal(ff.startpoint!=None,True)
@@ -156,7 +156,7 @@ def test_CADET_00003():
     syscalls = [v for k,v in cfg.functions.items() if v.is_syscall]
 
     for ff in syscalls:
-        bb1 = cfg.get_any_node(ff.addr)
+        bb1 = cfg.model.get_any_node(ff.addr)
         nose.tools.assert_equal(len(bb1.predecessors) >= 1, True)
         bb2 = bb1.predecessors[0]
         bb = backend.project.factory.block(bb2.addr)
@@ -170,10 +170,10 @@ def test_CADET_00003():
 
     # the following is a case of a bb that should be split by normalization
     # because the bb is split by a "subsequent" jump 
-    bb = cfg.get_any_node(0x804824F)
+    bb = cfg.model.get_any_node(0x804824F)
     nose.tools.assert_equal(bb != None, True)
     nose.tools.assert_equal(bb.size == 13, True)
-    bb = cfg.get_any_node(0x08048230)
+    bb = cfg.model.get_any_node(0x08048230)
     nose.tools.assert_equal(bb != None, True)
     nose.tools.assert_equal(bb.size == 31, True)
 
@@ -202,25 +202,25 @@ def test_0b32aa01_01():
         0x8048695
     }
 
-    non_syscall_functions = [v for k,v in cfg.functions.items() if not v.is_syscall]
+    non_syscall_functions = [v for k,v in cfg.functions.items() if not v.is_syscall and not v.alignment]
     #check startpoints, I know that sometimes they could be None, but this should not happen in CADET_00003
     function_entrypoints = set([f.startpoint.addr for f in non_syscall_functions])
-    print("additional:", map(hex,function_entrypoints-legitimate_functions))
-    print("skipped:", map(hex,legitimate_functions-function_entrypoints))
+    print("additional:", list(map(hex,function_entrypoints-legitimate_functions)))
+    print("skipped:", list(map(hex,legitimate_functions-function_entrypoints)))
     nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
 
     sane_functions = [v for k,v in cfg.functions.items() if is_sane_function(v)]
     function_entrypoints = set([f.startpoint.addr for f in sane_functions])
-    print("additional:", map(hex,function_entrypoints-legitimate_functions))
-    print("skipped:", map(hex,legitimate_functions-function_entrypoints))
+    print("additional:", list(map(hex,function_entrypoints-legitimate_functions)))
+    print("skipped:", list(map(hex,legitimate_functions-function_entrypoints)))
     nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
 
     #all sane functions ends with ret in CADET_00003
     for ff in sane_functions:
-        node = cfg.get_any_node(ff.addr, is_syscall=False)
+        node = cfg.model.get_any_node(ff.addr, is_syscall=False)
         nose.tools.assert_equal(node!=None,True)
         nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
-        node = cfg.get_any_node(ff.addr+1, is_syscall=False,anyaddr=True)
+        node = cfg.model.get_any_node(ff.addr+1, is_syscall=False,anyaddr=True)
         nose.tools.assert_equal(node!=None,True)
         nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
         nose.tools.assert_equal(ff.startpoint!=None,True)
@@ -237,7 +237,7 @@ def test_0b32aa01_01():
     syscalls = [v for k,v in cfg.functions.items() if v.is_syscall]
 
     for ff in syscalls:
-        bb1 = cfg.get_any_node(ff.addr)
+        bb1 = cfg.model.get_any_node(ff.addr)
         nose.tools.assert_equal(len(bb1.predecessors) >= 1, True)
         bb2 = bb1.predecessors[0]
         bb = backend.project.factory.block(bb2.addr)
@@ -369,14 +369,15 @@ def test_fullcfg_properties():
 
             # check that we do not encounter any unexpected jumpout
             if not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and \
-                    not ff.has_unresolved_jumps and ff.startpoint != None and ff.endpoints:
+                    not ff.has_unresolved_jumps and ff.startpoint is not None and not ff.alignment and ff.endpoints:
                 if not cfg_utils.is_floatingpoint_function(backend,ff):
                     if len(ff.jumpout_sites) > 0:
                         unexpected_jumpout = [(binary,int(jo.addr)) for jo in ff.jumpout_sites \
                                 if (binary,int(jo.addr)) not in legittimate_jumpouts]
                         if len(unexpected_jumpout)>0:
-                            print("unexpected jumpouts in", binary, map(lambda x: hex(x[1]), unexpected_jumpout))
-                            import ipdb; ipdb.set_trace()
+                            print("unexpected jumpouts in", binary,
+                                  list(map(lambda x: hex(x[1]), unexpected_jumpout))
+                                  )
                         nose.tools.assert_equal(len(unexpected_jumpout),0)
 
         # check that every node only belongs to a single function
@@ -388,7 +389,7 @@ def test_fullcfg_properties():
         # check that every node only appears once in the cfg
         nn = set()
         instruction_set = set()
-        for n in cfg.nodes():
+        for n in cfg.model.nodes():
             nose.tools.assert_true(n.addr not in nn)
             nn.add(n.addr)
             # check that every instruction appears only in one node
