@@ -1,5 +1,6 @@
 
 import os
+import magic
 import bisect
 import logging
 from collections import OrderedDict
@@ -55,89 +56,172 @@ class DuplicateLabelsException(PatchingException):
 
 class DetourBackend(Backend):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, data_fallback=None, base_address=None):
+    def __init__(self, filename, data_fallback=None, base_address=None, try_pdf_removal=True):
+        if 'ELF' in magic.from_file(filename):
+            super(DetourBackend, self).__init__(filename, project_options={"main_opts": {"custom_base_addr": base_address}})
 
-        super(DetourBackend, self).__init__(filename, project_options={"main_opts": {"custom_base_addr": base_address}})
+            self.modded_segments = self.dump_segments()
 
-        self.modded_segments = self.dump_segments()
+            self.cfg = self._generate_cfg()
+            self.ordered_nodes = self._get_ordered_nodes(self.cfg)
 
-        self.cfg = self._generate_cfg()
-        self.ordered_nodes = self._get_ordered_nodes(self.cfg)
+            # header stuff
+            self.ncontent = self.ocontent
+            self.segments = None
+            self.original_header_end = None
 
-        # header stuff
-        self.ncontent = self.ocontent
-        self.segments = None
-        self.original_header_end = None
+            # tag to track if already patched
+            self.patched_tag = b"SHELLPHISH\x00"  # should not be longer than 0x20
 
-        # tag to track if already patched
-        self.patched_tag = b"SHELLPHISH\x00"  # should not be longer than 0x20
+            self.name_map = RejectingDict()
 
-        self.name_map = RejectingDict()
+            # where to put the segments in memory
+            self.added_code_segment = 0x06000000
+            self.added_data_segment = 0x07000000
+            current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
+            self.single_segment_header_size = current_hdr["e_phentsize"]
+            assert self.single_segment_header_size >= self.structs.Elf_Phdr.sizeof()
+            # we may need up to 3 additional segments (patch code, patch data, phdr)
+            self.additional_headers_size = 3 * self.single_segment_header_size
 
-        # where to put the segments in memory
-        self.added_code_segment = 0x06000000
-        self.added_data_segment = 0x07000000
-        current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
-        self.single_segment_header_size = current_hdr["e_phentsize"]
-        assert self.single_segment_header_size >= self.structs.Elf_Phdr.sizeof()
-        # we may need up to 3 additional segments (patch code, patch data, phdr)
-        self.additional_headers_size = 3 * self.single_segment_header_size
+            self.added_code = b""
+            self.added_data = b""
+            self.added_code_file_start = None
+            self.added_data_file_start = None
+            self.added_patches = []
+            self.added_rwdata_len = 0
+            self.added_rwinitdata_len = 0
+            self.phdr_segment = None
+            self.to_init_data = b""
+            self.max_convertible_address = (1 << (32 if self.structs.elfclass == 32 else 48)) - 1
 
-        self.added_code = b""
-        self.added_data = b""
-        self.added_code_file_start = None
-        self.added_data_file_start = None
-        self.added_patches = []
-        self.added_rwdata_len = 0
-        self.added_rwinitdata_len = 0
-        self.phdr_segment = None
-        self.to_init_data = b""
-        self.max_convertible_address = (1 << (32 if self.structs.elfclass == 32 else 48)) - 1
+            self.saved_states = OrderedDict()
+            # not all the touched bytes are bad, they are only a serious problem in case of InsertCodePatch
+            self.touched_bytes = set()
 
-        self.saved_states = OrderedDict()
-        # not all the touched bytes are bad, they are only a serious problem in case of InsertCodePatch
-        self.touched_bytes = set()
-
-        # we reused existing data segment if it is the last one in the file, otherwise we use the fallback solution
-        if data_fallback == None:
-            last_segment = self.modded_segments[-1]
-            # TODO if not global rw data in the original program, this segment is not here
-            # for now I assume it will be always here in reasonable programs
-            if self.pflags_to_perms(last_segment["p_flags"]) == "RW":
-                #check that this is actually the last one in the file and no one is overlapping
-                # p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align
-                max_file_start = max([s[1] for s in self.modded_segments[:-1]])
-                max_file_end = max([s[1]+s[4] for s in self.modded_segments[:-1]])
-                if max_file_start < last_segment["p_offset"] and \
-                   max_file_end <= last_segment["p_offset"] + last_segment["p_filesz"]:
-                    l.info("Using standard method for RW memory. " \
-                            "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x" % \
-                            (last_segment["p_offset"],
-                             last_segment["p_offset"] + last_segment["p_filesz"],
-                             max_file_start,
-                             max_file_end))
-                    self.data_fallback = False
+            # we reused existing data segment if it is the last one in the file, otherwise we use the fallback solution
+            if data_fallback == None:
+                last_segment = self.modded_segments[-1]
+                # TODO if not global rw data in the original program, this segment is not here
+                # for now I assume it will be always here in reasonable programs
+                if self.pflags_to_perms(last_segment["p_flags"]) == "RW":
+                    #check that this is actually the last one in the file and no one is overlapping
+                    # p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align
+                    max_file_start = max([s[1] for s in self.modded_segments[:-1]])
+                    max_file_end = max([s[1]+s[4] for s in self.modded_segments[:-1]])
+                    if max_file_start < last_segment["p_offset"] and \
+                       max_file_end <= last_segment["p_offset"] + last_segment["p_filesz"]:
+                        l.info("Using standard method for RW memory. " \
+                                "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x" % \
+                                (last_segment["p_offset"],
+                                 last_segment["p_offset"] + last_segment["p_filesz"],
+                                 max_file_start,
+                                 max_file_end))
+                        self.data_fallback = False
+                    else:
+                        l.info("Using fallback method for RW memory.")
+                        self.data_fallback = True
                 else:
                     l.info("Using fallback method for RW memory.")
                     self.data_fallback = True
             else:
-                l.info("Using fallback method for RW memory.")
-                self.data_fallback = True
-        else:
-            l.info("RW method forced to fallback? %s" % str(data_fallback))
-            self.data_fallback = data_fallback
+                l.info("RW method forced to fallback? %s" % str(data_fallback))
+                self.data_fallback = data_fallback
 
-        if self.data_fallback:
-            # this is the start in memory
-            self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + self.added_data_segment
+            if self.data_fallback:
+                # this is the start in memory
+                self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + self.added_data_segment
+            else:
+                last_segment = self.modded_segments[-1]
+                # at the end of the file there is stuff which is supposely not loaded in memory
+                # but it is present in the file (e.g., segment headers)
+                # we need to account for that
+                self.real_size_last_segment = len(self.ncontent) - last_segment["p_offset"]
+                # this is the start in memory of RWData
+                self.name_map["ADDED_DATA_START"] = last_segment["p_vaddr"] + last_segment["p_memsz"]
         else:
-            last_segment = self.modded_segments[-1]
-            # at the end of the file there is stuff which is supposely not loaded in memory
-            # but it is present in the file (e.g., segment headers)
-            # we need to account for that
-            self.real_size_last_segment = len(self.ncontent) - last_segment["p_offset"]
-            # this is the start in memory of RWData
-            self.name_map["ADDED_DATA_START"] = last_segment["p_vaddr"] + last_segment["p_memsz"]
+            super(DetourBackend, self).__init__(filename,try_pdf_removal)
+
+            self.cfg = self._generate_cfg()
+            self.ordered_nodes = self._get_ordered_nodes(self.cfg)
+
+            # header stuff
+            self.ncontent = self.ocontent
+            self.segments = None
+            self.original_header_end = None
+
+            # tag to track if already patched
+            self.patched_tag = b"SHELLPHISH\x00"  # should not be longer than 0x20
+
+            self.name_map = RejectingDict()
+
+            # where to put the segments in memory
+            self.added_code_segment = 0x06000000
+            self.added_data_segment = 0x07000000
+            self.single_segment_header_size = 32
+            # we may need up to 3 additional segments (1 for pdf removal 2 for patching)
+            self.additional_headers_size = 3*self.single_segment_header_size
+
+            self.added_code = b""
+            self.added_data = b""
+            self.added_code_file_start = None
+            self.added_data_file_start = None
+            self.added_patches = []
+            self.added_rwdata_len = 0
+            self.added_rwinitdata_len = 0
+            self.to_init_data = b""
+            self.max_convertible_address = 0xffffffff
+
+            self.saved_states = OrderedDict()
+            # not all the touched bytes are bad, they are only a serious problem in case of InsertCodePatch
+            self.touched_bytes = set()
+            self.modded_segments = self.dump_segments_cgc()
+
+            if self.try_pdf_removal == True:
+                l.info("Trying to remove the pdf from the binary")
+                should_remove_pdf, pdf_start, pdf_length, check_instruction_addr, check_instruction_size  = self.find_pdf()
+                if should_remove_pdf:
+                    l.info("Removing the pdf from the binary")
+                    self.remove_pdf(pdf_start, pdf_length, check_instruction_addr, check_instruction_size)
+                    self.pdf_removed = True
+                else:
+                    l.warning("I cannot remove the pdf from this binary")
+            else:
+                l.info("Forced not to remove the pdf from the binary")
+
+            # we reused existing data segment if it is the last one in the file, otherwise we use the fallback solution
+            if data_fallback == None:
+                last_segment = self.modded_segments[-1]
+                # TODO if not global rw data in the original program, this segment is not here
+                # for now I assume it will be always here in reasonable programs
+                if self.pflags_to_perms(last_segment[-2]) == "RW":
+                    #check that this is actually the last one in the file and no one is overlapping
+                    # p_type, p_offset, p_vaddr, p_paddr, p_filesz, p_memsz, p_flags, p_align
+                    max_file_start = max([s[1] for s in self.modded_segments[:-1]])
+                    max_file_end = max([s[1]+s[4] for s in self.modded_segments[:-1]])
+                    if max_file_start < last_segment[1] and max_file_end <= last_segment[1]+last_segment[4]:
+                        l.info("Using standard method for RW memory. " \
+                                "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x" % \
+                                (last_segment[1],last_segment[1]+last_segment[4],max_file_start,max_file_end))
+                        self.data_fallback = False
+                    else:
+                        l.info("Using fallback method for RW memory.")
+                        self.data_fallback = True
+                else:
+                    l.info("Using fallback method for RW memory.")
+                    self.data_fallback = True
+            else:
+                l.info("RW method forced to fallback? %s" % str(data_fallback))
+                self.data_fallback = data_fallback
+
+            if self.data_fallback:
+                # this is the start in memory
+                self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + self.added_data_segment
+            else:
+                last_segment = self.modded_segments[-1]
+                self.real_size_last_segment = len(self.ncontent) - last_segment[1]
+                self.name_map["ADDED_DATA_START"] = last_segment[2] + last_segment[5]
+
 
     def find_pdf(self):
         # 1) check if the pdf string is there and get the length
@@ -288,85 +372,108 @@ class DetourBackend(Backend):
         return self.ncontent[start:start + len(self.patched_tag)] == self.patched_tag
 
     def setup_headers(self, segments):
-        if self.is_patched():
-            return
+        #if self.is_patched():
+        #    return
 
         # copying original program headers (potentially modified by patches and/or pdf removal)
         # in the new place (at the  end of the file)
-        self.first_load = None
-        for segment in segments:
-            if segment["p_type"] == "PT_LOAD" and self.first_load is None:
-                self.first_load = segment
-                break
+        if 'ELF' not in magic.from_file(self.filename):
+            # align size of the entire ELF
+            self.ncontent = utils.pad_bytes(self.ncontent, 0x10)
+            # change pointer to program headers to point at the end of the elf
+            self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<I", len(self.ncontent)), 0x1C)
 
-        for segment in segments:
-            if segment["p_type"] == "PT_PHDR":
-                if self.phdr_segment is not None:
-                    raise ValueError("Multiple PHDR segments!")
-                self.phdr_segment = segment
+            # copying original program headers (potentially modified by patches and/or pdf removal)
+            # in the new place (at the  end of the file)
+            for segment in segments:
+                self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<IIIIIIII", *segment))
+            self.original_header_end = len(self.ncontent)
 
-                segment["p_filesz"] += self.additional_headers_size
-                segment["p_memsz"]  += self.additional_headers_size
+            # we overwrite the first original program header,
+            # we do not need it anymore since we have moved original program headers at the bottom of the file
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.patched_tag, 0x34)
 
-                phdr_size = max(segment["p_filesz"], segment["p_memsz"])
+            # adding space for the additional headers
+            # I add two of them, no matter what, if the data one will be used only in case of the fallback solution
+            # Additionally added program headers have been already copied by the for loop above
+            self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size, b"\x00")
 
-                blah = sorted(((s.vaddr - self.project.loader.main_object.mapped_base, s.vaddr + s.memsize - self.project.loader.main_object.mapped_base) for s in self.project.loader.main_object.segments), key=lambda x: x[0])
-                while True:
-                    stuff = []
-                    i = 0
-                    while i < len(blah) - 1:
-                        thing1 = blah[i]
-                        thing2 = blah[i + 1]
-                        if thing1[1] > thing2[0]:
-                            stuff.append((thing1[0], thing2[1]))
-                            i += 2
-                        else:
-                            stuff.append(thing1)
-                            i += 1
-                    if i == len(blah) - 1:
-                        stuff.append(blah[i])
-                    if stuff == blah:
-                        break
-                    blah = stuff
+        else:
+            # for ELF binaries
+            self.first_load = None
+            for segment in segments:
+                if segment["p_type"] == "PT_LOAD" and self.first_load is None:
+                    self.first_load = segment
+                    break
 
-                for prev_seg, next_seg in zip(blah[:-1], blah[1:]):
-                    potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xF) & ~0xF)
-                    if next_seg[0] - potential_base > phdr_size:
-                        self.phdr_start = potential_base
-                        break
-                else:
-                    self.phdr_start = blah[-1][1]
+            for segment in segments:
+                if segment["p_type"] == "PT_PHDR":
+                    if self.phdr_segment is not None:
+                        raise ValueError("Multiple PHDR segments!")
+                    self.phdr_segment = segment
 
-                segment["p_offset"]  = self.phdr_start
-                segment["p_vaddr"]   = self.phdr_start + self.first_load["p_vaddr"]
-                segment["p_paddr"]   = self.phdr_start + self.first_load["p_vaddr"]
+                    segment["p_filesz"] += self.additional_headers_size
+                    segment["p_memsz"]  += self.additional_headers_size
 
-        self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
+                    phdr_size = max(segment["p_filesz"], segment["p_memsz"])
 
-        # change pointer to program headers to point at the end of the elf
-        current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
-        old_phoff = current_hdr["e_phoff"]
-        current_hdr["e_phoff"] = len(self.ncontent)
-        self.ncontent = utils.bytes_overwrite(self.ncontent,
-                                            self.structs.Elf_Ehdr.build(current_hdr),
-                                            0)
+                    blah = sorted(((s.vaddr - self.project.loader.main_object.mapped_base, s.vaddr + s.memsize - self.project.loader.main_object.mapped_base) for s in self.project.loader.main_object.segments), key=lambda x: x[0])
+                    while True:
+                        stuff = []
+                        i = 0
+                        while i < len(blah) - 1:
+                            thing1 = blah[i]
+                            thing2 = blah[i + 1]
+                            if thing1[1] > thing2[0]:
+                                stuff.append((thing1[0], thing2[1]))
+                                i += 2
+                            else:
+                                stuff.append(thing1)
+                                i += 1
+                        if i == len(blah) - 1:
+                            stuff.append(blah[i])
+                        if stuff == blah:
+                            break
+                        blah = stuff
 
-        print("putting them at %#x" % self.phdr_start)
-        print("current len: %#x" % len(self.ncontent))
-        for segment in segments:
-            if segment["p_type"] == "PT_PHDR":
-                segment = self.phdr_segment
-            self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(segment))
-        self.original_header_end = len(self.ncontent)
+                    for prev_seg, next_seg in zip(blah[:-1], blah[1:]):
+                        potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xF) & ~0xF)
+                        if next_seg[0] - potential_base > phdr_size:
+                            self.phdr_start = potential_base
+                            break
+                    else:
+                        self.phdr_start = blah[-1][1]
 
-        # we overwrite the first original program header,
-        # we do not need it anymore since we have moved original program headers at the bottom of the file
-        self.ncontent = utils.bytes_overwrite(self.ncontent, self.patched_tag, old_phoff)
+                    segment["p_offset"]  = self.phdr_start
+                    segment["p_vaddr"]   = self.phdr_start + self.first_load["p_vaddr"]
+                    segment["p_paddr"]   = self.phdr_start + self.first_load["p_vaddr"]
 
-        # adding space for the additional headers
-        # I add two of them, no matter what, if the data one will be used only in case of the fallback solution
-        # Additionally added program headers have been already copied by the for loop above
-        self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size, b"\x00")
+            self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
+
+            # change pointer to program headers to point at the end of the elf
+            current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
+            old_phoff = current_hdr["e_phoff"]
+            current_hdr["e_phoff"] = len(self.ncontent)
+            self.ncontent = utils.bytes_overwrite(self.ncontent,
+                                                self.structs.Elf_Ehdr.build(current_hdr),
+                                                0)
+
+            print("putting them at %#x" % self.phdr_start)
+            print("current len: %#x" % len(self.ncontent))
+            for segment in segments:
+                if segment["p_type"] == "PT_PHDR":
+                    segment = self.phdr_segment
+                self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(segment))
+            self.original_header_end = len(self.ncontent)
+
+            # we overwrite the first original program header,
+            # we do not need it anymore since we have moved original program headers at the bottom of the file
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.patched_tag, old_phoff)
+
+            # adding space for the additional headers
+            # I add two of them, no matter what, if the data one will be used only in case of the fallback solution
+            # Additionally added program headers have been already copied by the for loop above
+            self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size, b"\x00")
 
     def dump_segments_cgc(self, tprint=False):
         # from: https://github.com/CyberGrandChallenge/readcgcef/blob/master/readcgcef-minimal.py
@@ -418,54 +525,84 @@ class DetourBackend(Backend):
         return segments
 
     def set_added_segment_headers(self, nsegments):
-        if self.data_fallback:
-            l.debug("added_data_file_start: %#x", self.added_data_file_start)
-        added_segments = 0
-        original_nsegments = nsegments
+        if 'ELF' not in magic.from_file(self.filename):
+            assert self.ncontent[0x34:0x34+len(self.patched_tag)] == self.patched_tag
+            if self.data_fallback:
+                l.debug("added_data_file_start: %#x", self.added_data_file_start)
+            added_segments = 0
+            original_nsegments = nsegments
 
-        # add a LOAD segment for the PHDR segment
-        phdr_offset = self.phdr_segment["p_offset"]
-        phdr_vaddr = self.phdr_segment["p_vaddr"]
-        phdr_paddr = self.phdr_segment["p_paddr"]
-        phdr_fsize = self.phdr_segment["p_filesz"]
-        phdr_msize = self.phdr_segment["p_memsz"]
-        phdr_segment_header = Container(**{"p_type":   1,          "p_offset": phdr_offset,
-                                           "p_vaddr":  phdr_vaddr, "p_paddr":  phdr_paddr,
-                                           "p_filesz": phdr_fsize, "p_memsz":  phdr_msize,
-                                           "p_flags":  0x4,        "p_align":  0x1000})
-        self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(phdr_segment_header),
-                                              self.original_header_end + (2 * self.structs.Elf_Phdr.sizeof()))
-        added_segments += 1
+            # if the size of a segment is zero, the kernel does not allocate any memory
+            # so, we don't care about empty segments
+            if self.data_fallback:
+                mem_data_location = self.name_map["ADDED_DATA_START"]
+                data_segment_header = (1, self.added_data_file_start, mem_data_location, mem_data_location,
+                                       len(self.added_data), len(self.added_data), 0x6, 0x1000)  # RW
+                self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<IIIIIIII", *data_segment_header),
+                                                      self.original_header_end + 32)
+                added_segments += 1
+            else:
+                pass
+                # in this case the header has been already patched before
 
-
-        # if the size of a segment is zero, the kernel does not allocate any memory
-        # so, we don't care about empty segments
-        if self.data_fallback:
-            mem_data_location = self.name_map["ADDED_DATA_START"]
-            data_segment_header = Container(**{"p_type":   1,                    "p_offset": self.added_data_file_start,
-                                               "p_vaddr":  mem_data_location,    "p_paddr":  mem_data_location,
-                                               "p_filesz": len(self.added_data), "p_memsz":  len(self.added_data),
-                                               "p_flags":  0x6,                  "p_align":  0x1000})
-            self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(data_segment_header),
-                                                  self.original_header_end + self.structs.Elf_Phdr.sizeof())
+            mem_code_location = self.added_code_segment + (self.added_code_file_start % 0x1000)
+            code_segment_header = (1, self.added_code_file_start, mem_code_location, mem_code_location,
+                                   len(self.added_code), len(self.added_code), 0x5, 0x1000)  # RX
+            self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<IIIIIIII", *code_segment_header),
+                                                  self.original_header_end)
             added_segments += 1
+
+            # print original_nsegments,added_segments
+            self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<H", original_nsegments + added_segments), 0x2c)
         else:
-            pass
-            # in this case the header has been already patched before
+            if self.data_fallback:
+                l.debug("added_data_file_start: %#x", self.added_data_file_start)
+            added_segments = 0
+            original_nsegments = nsegments
 
-        self.mem_code_location = self.added_code_segment + (self.added_code_file_start % 0x1000)
-        code_segment_header = Container(**{"p_type":   1,                      "p_offset": self.added_code_file_start,
-                                           "p_vaddr":  self.mem_code_location, "p_paddr":  self.mem_code_location,
-                                           "p_filesz": len(self.added_code),   "p_memsz":  len(self.added_code),
-                                           "p_flags":  0x5,                    "p_align":  0x1000})
-        self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(code_segment_header),
-                                            self.original_header_end)
-        added_segments += 1
+            # add a LOAD segment for the PHDR segment
+            phdr_offset = self.phdr_segment["p_offset"]
+            phdr_vaddr = self.phdr_segment["p_vaddr"]
+            phdr_paddr = self.phdr_segment["p_paddr"]
+            phdr_fsize = self.phdr_segment["p_filesz"]
+            phdr_msize = self.phdr_segment["p_memsz"]
+            phdr_segment_header = Container(**{"p_type":   1,          "p_offset": phdr_offset,
+                                               "p_vaddr":  phdr_vaddr, "p_paddr":  phdr_paddr,
+                                               "p_filesz": phdr_fsize, "p_memsz":  phdr_msize,
+                                               "p_flags":  0x4,        "p_align":  0x1000})
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(phdr_segment_header),
+                                                  self.original_header_end + (2 * self.structs.Elf_Phdr.sizeof()))
+            added_segments += 1
 
-        # print original_nsegments,added_segments
-        current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
-        current_hdr["e_phnum"] += added_segments
-        self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Ehdr.build(current_hdr), 0)
+
+            # if the size of a segment is zero, the kernel does not allocate any memory
+            # so, we don't care about empty segments
+            if self.data_fallback:
+                mem_data_location = self.name_map["ADDED_DATA_START"]
+                data_segment_header = Container(**{"p_type":   1,                    "p_offset": self.added_data_file_start,
+                                                   "p_vaddr":  mem_data_location,    "p_paddr":  mem_data_location,
+                                                   "p_filesz": len(self.added_data), "p_memsz":  len(self.added_data),
+                                                   "p_flags":  0x6,                  "p_align":  0x1000})
+                self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(data_segment_header),
+                                                      self.original_header_end + self.structs.Elf_Phdr.sizeof())
+                added_segments += 1
+            else:
+                pass
+                # in this case the header has been already patched before
+
+            self.mem_code_location = self.added_code_segment + (self.added_code_file_start % 0x1000)
+            code_segment_header = Container(**{"p_type":   1,                      "p_offset": self.added_code_file_start,
+                                               "p_vaddr":  self.mem_code_location, "p_paddr":  self.mem_code_location,
+                                               "p_filesz": len(self.added_code),   "p_memsz":  len(self.added_code),
+                                               "p_flags":  0x5,                    "p_align":  0x1000})
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(code_segment_header),
+                                                self.original_header_end)
+            added_segments += 1
+
+            # print original_nsegments,added_segments
+            current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
+            current_hdr["e_phnum"] += added_segments
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Ehdr.build(current_hdr), 0)
 
     @staticmethod
     def pflags_to_perms(p_flags):
@@ -670,32 +807,33 @@ class DetourBackend(Backend):
                     self.added_patches.append(patch)
                     l.info("Added patch: " + str(patch))
 
-        # add PIE thunk
-        self.name_map["pie_thunk"] = self.get_current_code_position()
-        if self.structs.elfclass == 64:
-            pie_thunk = """
-            _patcherex_begin_patch:
-            call $+5
-            here:
-            pop rax
-            sub rax, (here - _patcherex_begin_patch + {pie_thunk})
-            ret
-            """
-        else:
-            pie_thunk = """
-            _patcherex_begin_patch:
-            call $+5
-            here:
-            pop eax
-            sub eax, (here - _patcherex_begin_patch + {pie_thunk})
-            ret
-            """
-        new_code = utils.compile_asm(pie_thunk,
-                                     self.get_current_code_position(),
-                                     self.name_map,
-                                     bits=self.structs.elfclass)
-        self.added_code += new_code
-        self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+        if 'ELF' in magic.from_file(self.filename):
+            # add PIE thunk
+            self.name_map["pie_thunk"] = self.get_current_code_position()
+            if self.structs.elfclass == 64:
+                pie_thunk = """
+                _patcherex_begin_patch:
+                call $+5
+                here:
+                pop rax
+                sub rax, (here - _patcherex_begin_patch + {pie_thunk})
+                ret
+                """
+            else:
+                pie_thunk = """
+                _patcherex_begin_patch:
+                call $+5
+                here:
+                pop eax
+                sub eax, (here - _patcherex_begin_patch + {pie_thunk})
+                ret
+                """
+            new_code = utils.compile_asm(pie_thunk,
+                                         self.get_current_code_position(),
+                                         self.name_map,
+                                         bits=self.structs.elfclass)
+            self.added_code += new_code
+            self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
 
         # 2) AddCodePatch
         # resolving symbols
@@ -806,10 +944,15 @@ class DetourBackend(Backend):
         # we assume the patch never patches the added code
         for patch in patches:
             if isinstance(patch, InlinePatch):
-                new_code = utils.compile_asm(patch.new_asm,
-                                             patch.instruction_addr,
-                                             self.name_map,
-                                             bits=self.structs.elfclass)
+                if 'ELF' in magic.from_file(self.filename):
+                    new_code = utils.compile_asm(patch.new_asm,
+                                                patch.instruction_addr,
+                                                self.name_map,
+                                                bits=self.structs.elfclass)
+                else:
+                    new_code = utils.compile_asm(patch.new_asm,
+                                                patch.instruction_addr,
+                                                self.name_map) 
                 assert len(new_code) == self.project.factory.block(patch.instruction_addr, num_inst=1).size
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.instruction_addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
@@ -913,19 +1056,32 @@ class DetourBackend(Backend):
     def check_if_movable(self, instruction):
         # the idea here is an instruction is movable if and only if
         # it has the same string representation when moved at different offsets is "movable"
-        def bytes_to_comparable_str(ibytes, offset, bits):
-            return " ".join(utils.instruction_to_str(utils.disassemble(ibytes, offset,
-                                                                       bits=bits)[0]).split()[2:])
+        if 'ELF' not in magic.from_file(self.filename):
+            def bytes_to_comparable_str(ibytes, offset):
+                return " ".join(utils.instruction_to_str(utils.disassemble(ibytes, offset)[0]).split()[2:])
 
-        instruction_bytes = str(instruction.bytes)
-        pos1 = bytes_to_comparable_str(instruction_bytes, 0x0, self.structs.elfclass)
-        pos2 = bytes_to_comparable_str(instruction_bytes, 0x07f00000, self.structs.elfclass)
-        pos3 = bytes_to_comparable_str(instruction_bytes, 0xfe000000, self.structs.elfclass)
-        # print pos1, pos2, pos3
-        if pos1 == pos2 and pos2 == pos3:
-            return True
+            instruction_bytes = str(instruction.bytes)
+            pos1 = bytes_to_comparable_str(instruction_bytes, 0x0)
+            pos2 = bytes_to_comparable_str(instruction_bytes, 0x07f00000)
+            pos3 = bytes_to_comparable_str(instruction_bytes, 0xfe000000)
+            if pos1 == pos2 and pos2 == pos3:
+                return True
+            else:
+                return False
         else:
-            return False
+            def bytes_to_comparable_str(ibytes, offset, bits):
+                return " ".join(utils.instruction_to_str(utils.disassemble(ibytes, offset,
+                                                                           bits=bits)[0]).split()[2:])
+
+            instruction_bytes = str(instruction.bytes)
+            pos1 = bytes_to_comparable_str(instruction_bytes, 0x0, self.structs.elfclass)
+            pos2 = bytes_to_comparable_str(instruction_bytes, 0x07f00000, self.structs.elfclass)
+            pos3 = bytes_to_comparable_str(instruction_bytes, 0xfe000000, self.structs.elfclass)
+            # print pos1, pos2, pos3
+            if pos1 == pos2 and pos2 == pos3:
+                return True
+            else:
+                return False
 
     def maddress_to_baddress(self, addr):
         if addr >= self.max_convertible_address:
@@ -980,7 +1136,10 @@ class DetourBackend(Backend):
         # 2) detect cases like call-pop and dependent instructions (which should not be moved)
         # get movable_instructions in the bb
         original_bbcode = block.bytes
-        instructions = utils.disassemble(original_bbcode, block.addr, bits=self.structs.elfclass)
+        if 'ELF' not in magic.from_file(self.filename):
+            instructions = utils.disassemble(original_bbcode, block.addr)
+        else:
+            instructions = utils.disassemble(original_bbcode, block.addr, bits=self.structs.elfclass)
 
         if self.check_if_movable(instructions[-1]):
             movable_instructions = instructions
@@ -1043,70 +1202,121 @@ class DetourBackend(Backend):
         injected_code = "\n".join([line for line in injected_code.split("\n") if line != ""])
         l.debug("injected code:\n%s", injected_code)
 
-        compiled_code = utils.compile_asm(injected_code,
-                                          base=self.get_current_code_position(),
-                                          name_map=self.name_map,
-                                          bits=self.structs.elfclass)
+        if 'ELF' not in magic.from_file(self.filename):
+            compiled_code = utils.compile_asm(injected_code, base=self.get_current_code_position(), name_map=self.name_map)
+        else:
+            compiled_code = utils.compile_asm(injected_code,
+                                              base=self.get_current_code_position(),
+                                              name_map=self.name_map,
+                                              bits=self.structs.elfclass)
         return compiled_code
 
     def insert_detour(self, patch):
         # TODO allow special case to patch syscall wrapper epilogue
         # (not that important since we do not want to patch epilogue in syscall wrapper)
-        block_addr = self.get_block_containing_inst(patch.addr)
-        mem = self.read_mem_from_file(block_addr, self.project.factory.block(block_addr).size)
-        block = self.project.factory.block(block_addr, byte_string=mem)
+        if 'ELF' not in magic.from_file(self.filename):
+            block_addr = self.get_block_containing_inst(patch.addr)
+            block = self.project.factory.block(block_addr)
 
-        l.debug("inserting detour for patch: %s" % (map(hex, (block_addr, block.size, patch.addr))))
+            l.debug("inserting detour for patch: %s" % (map(hex, (block_addr, block.size, patch.addr))))
 
-        detour_size = 5
-        one_byte_nop = b'\x90'
+            detour_size = 5
+            one_byte_nop = b'\x90'
 
-        # get movable instructions
-        movable_instructions = self.get_movable_instructions(block)
-        if len(movable_instructions) == 0:
-            raise DetourException("No movable instructions found")
+            movable_instructions = self.get_movable_instructions(block)
+            if len(movable_instructions) == 0:
+                raise DetourException("No movable instructions found")
+            detour_pos = self.find_detour_pos(block, detour_size, patch.addr)
+            detour_overwritten_bytes = range(detour_pos, detour_pos+detour_size)
 
-        # figure out where to insert the detour
-        detour_pos = self.find_detour_pos(block, detour_size, patch.addr)
-
-        # classify overwritten instructions
-        detour_overwritten_bytes = range(detour_pos, detour_pos+detour_size)
-
-        for i in movable_instructions:
-            if len(set(detour_overwritten_bytes).intersection(set(range(i.address, i.address+len(i.bytes))))) > 0:
-                if i.address < patch.addr:
-                    i.overwritten = "pre"
-                elif i.address == patch.addr:
-                    i.overwritten = "culprit"
-                else:
-                    i.overwritten = "post"
-            else:
-                i.overwritten = "out"
-        l.debug("\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
-        assert any([i.overwritten != "out" for i in movable_instructions])
-
-        # replace overwritten instructions with nops
-        for i in movable_instructions:
-            if i.overwritten != "out":
-                for b in range(i.address, i.address+len(i.bytes)):
-                    if b in self.touched_bytes:
-                        raise DoubleDetourException("byte has been already touched: %08x" % b)
+            for i in movable_instructions:
+                if len(set(detour_overwritten_bytes).intersection(set(range(i.address, i.address+len(i.bytes))))) > 0:
+                    if i.address < patch.addr:
+                        i.overwritten = "pre"
+                    elif i.address == patch.addr:
+                        i.overwritten = "culprit"
                     else:
-                        self.touched_bytes.add(b)
-                self.patch_bin(i.address, one_byte_nop*len(i.bytes))
+                        i.overwritten = "post"
+                else:
+                    i.overwritten = "out"
+            l.debug("\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
+            assert any([i.overwritten != "out" for i in movable_instructions])
+            # replace overwritten instructions with nops
+            for i in movable_instructions:
+                if i.overwritten != "out":
+                    for b in range(i.address, i.address+len(i.bytes)):
+                        if b in self.touched_bytes:
+                            raise DoubleDetourException("byte has been already touched: %08x" % b)
+                        else:
+                            self.touched_bytes.add(b)
+                    self.patch_bin(i.address, one_byte_nop*len(i.bytes))
 
-        # insert the jump detour
-        offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
-        detour_jmp_code = utils.compile_jmp(detour_pos, self.get_current_code_position() + offset)
-        self.patch_bin(detour_pos, detour_jmp_code)
-        patched_bbcode = self.read_mem_from_file(block_addr, block.size)
-        patched_bbinstructions = utils.disassemble(patched_bbcode, block_addr, bits=self.structs.elfclass)
-        l.debug("patched bb instructions:\n %s",
-                "\n".join([utils.instruction_to_str(i) for i in patched_bbinstructions]))
+            # insert the jump detour
 
-        new_code = self.compile_moved_injected_code(movable_instructions, patch.code, offset=offset)
+            detour_jmp_code = utils.compile_jmp(detour_pos, self.get_current_code_position())
+            self.patch_bin(detour_pos, detour_jmp_code)
+            patched_bbcode = self.read_mem_from_file(block_addr, block.size)
+            patched_bbinstructions = utils.disassemble(patched_bbcode, block_addr)
+            l.debug("patched bb instructions:\n %s",
+                    "\n".join([utils.instruction_to_str(i) for i in patched_bbinstructions]))
+            new_code = self.compile_moved_injected_code(movable_instructions, patch.code)
+            return new_code
+        else:
+            block_addr = self.get_block_containing_inst(patch.addr)
+            mem = self.read_mem_from_file(block_addr, self.project.factory.block(block_addr).size)
+            block = self.project.factory.block(block_addr, byte_string=mem)
 
-        return new_code
+            l.debug("inserting detour for patch: %s" % (map(hex, (block_addr, block.size, patch.addr))))
+
+            detour_size = 5
+            one_byte_nop = b'\x90'
+
+            # get movable instructions
+            movable_instructions = self.get_movable_instructions(block)
+            if len(movable_instructions) == 0:
+                raise DetourException("No movable instructions found")
+
+            # figure out where to insert the detour
+            detour_pos = self.find_detour_pos(block, detour_size, patch.addr)
+
+            # classify overwritten instructions
+            detour_overwritten_bytes = range(detour_pos, detour_pos+detour_size)
+
+            for i in movable_instructions:
+                if len(set(detour_overwritten_bytes).intersection(set(range(i.address, i.address+len(i.bytes))))) > 0:
+                    if i.address < patch.addr:
+                        i.overwritten = "pre"
+                    elif i.address == patch.addr:
+                        i.overwritten = "culprit"
+                    else:
+                        i.overwritten = "post"
+                else:
+                    i.overwritten = "out"
+            l.debug("\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
+            assert any([i.overwritten != "out" for i in movable_instructions])
+
+            # replace overwritten instructions with nops
+            for i in movable_instructions:
+                if i.overwritten != "out":
+                    for b in range(i.address, i.address+len(i.bytes)):
+                        if b in self.touched_bytes:
+                            raise DoubleDetourException("byte has been already touched: %08x" % b)
+                        else:
+                            self.touched_bytes.add(b)
+                    self.patch_bin(i.address, one_byte_nop*len(i.bytes))
+
+            # insert the jump detour
+            offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+            detour_jmp_code = utils.compile_jmp(detour_pos, self.get_current_code_position() + offset)
+            self.patch_bin(detour_pos, detour_jmp_code)
+            patched_bbcode = self.read_mem_from_file(block_addr, block.size)
+            patched_bbinstructions = utils.disassemble(patched_bbcode, block_addr, bits=self.structs.elfclass)
+            l.debug("patched bb instructions:\n %s",
+                    "\n".join([utils.instruction_to_str(i) for i in patched_bbinstructions]))
+
+            new_code = self.compile_moved_injected_code(movable_instructions, patch.code, offset=offset)
+
+            return new_code
 
     def get_final_content(self):
         # print self.modded_segments
