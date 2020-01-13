@@ -20,5 +20,6 @@ setup(
         'python-resources',
         'pyyaml',
         'pyelftools',
+        'python-magic',
    ],
 )
