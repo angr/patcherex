@@ -3,7 +3,7 @@ Patcherex is the component used to create patched binaries in our CRS.
 
 The code has been tested on Ubuntu 16.04 64bit, using PyPy as the Python interpreter.
 
-Note: _DetourBackend passes most of the testcases with CGC and ELF's. Nothing else is guaranteed._
+Note: _DetourBackend passes most of the testcases with CGC and ELF's. Nothing else is guaranteed. Support for CGC was added on top of Paul's work_
 
 # Playing at DEFCON and want to use the IDA plugin? Need the quick setup guide? Go read DEFCON.md
 
