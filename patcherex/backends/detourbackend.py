@@ -944,15 +944,17 @@ class DetourBackend(Backend):
         # we assume the patch never patches the added code
         for patch in patches:
             if isinstance(patch, InlinePatch):
+                obj = self.project.loader.main_object
+                prog_origin = patch.instruction_addr if not obj.pic else obj.addr_to_offset(patch.instruction_addr)
                 if 'ELF' in magic.from_file(self.filename):
                     new_code = utils.compile_asm(patch.new_asm,
-                                                patch.instruction_addr,
+                                                prog_origin,
                                                 self.name_map,
                                                 bits=self.structs.elfclass)
                 else:
                     new_code = utils.compile_asm(patch.new_asm,
-                                                patch.instruction_addr,
-                                                self.name_map) 
+                                                prog_origin,
+                                                self.name_map)
                 assert len(new_code) == self.project.factory.block(patch.instruction_addr, num_inst=1).size
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.instruction_addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
