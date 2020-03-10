@@ -19,4 +19,8 @@ echo "Getting fidget . . ."
 git clone https://github.com/angr/fidget.git
 pip install -e fidget
 
+echo "Getting tracer . . ."
+git clone https://github.com/angr/tracer
+pip install -e tracer
+
 echo "Done!"

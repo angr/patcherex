@@ -12,7 +12,6 @@ setup(
         'psutil',
         'timeout-decorator',
         'subprocess32',
-        'tracer',
         'povsim',
         'compilerex',
         'shellphish-qemu',
