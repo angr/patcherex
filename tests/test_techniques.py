@@ -51,6 +51,7 @@ from patcherex.techniques.backdoor import Backdoor
 from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
 from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
 from patcherex.techniques.noflagprintf import NoFlagPrintfPatcher
+from patcherex.techniques.countdown import Countdown
 
 # TODO ideally these tests should be run in the vm
 
@@ -113,6 +114,12 @@ def reassembler_only(f):
         f(make_edible(ReassemblerBackend), None, True)
     return wrapper
 
+
+def detour_only(f):
+    @wraps(f)
+    def wrapper():
+        f(DetourBackend, None, True)
+    return wrapper
 
 @add_fallback_strategy
 def test_shadowstack(BackendClass, data_fallback, try_pdf_removal):
@@ -1302,6 +1309,31 @@ nick stephens
         '''
 
 
+@detour_only
+def test_countdown_patcher(BackendClass, data_fallback, try_pdf_removal):
+    filepath = os.path.join(bin_location, "irving.bin")
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = BackendClass(filepath, try_pdf_removal=try_pdf_removal)
+        target_addr = backend.project.loader.main_object.offset_to_addr(0x9b12)
+        dst_active = backend.project.loader.main_object.offset_to_addr(0x99ee)
+        #dst_active = 0x99ee
+        dst_zero = backend.project.loader.main_object.offset_to_addr(0x98e7)
+        #dst_zero = 0x98E7
+        cp = Countdown(filepath, backend, target_addr=target_addr, count=2, dst_active=dst_active, dst_zero=dst_zero)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+
+        # We should only see the prompt twice
+        expected_output = b"chess@whatever:/home/chess$ 'foo': not a valid command\nchess@whatever:/home/chess$ 'bar': not a valid command\n"
+        pipe = subprocess.PIPE
+        p = subprocess.Popen([tmp_file, "-s"], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(b"foo\nbar\n")
+        nose.tools.assert_equal(expected_output, res[0])
+
+
 def run_all():
     functions = globals()
     all_functions = dict(filter((lambda x: x[0].startswith('test_')), functions.items()))
@@ -1326,6 +1358,7 @@ if __name__ == "__main__":
     logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
     logging.getLogger("patcherex.techniques.NxStack").setLevel("DEBUG")
     logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
+    logging.getLogger("patcherex.techniques.Countdown").setLevel("DEBUG")
     logging.getLogger('povsim').setLevel("DEBUG")
 
     if len(sys.argv) > 1:
