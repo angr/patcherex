@@ -16,10 +16,14 @@ class Countdown(Technique):
         target_addr: Address of the code we want to monitor
         count: Countdown value
         dst_active: Jump target while countdown is active
-        dst_zero: Jump target after count reached zero
+        dst_zero: Jump target after count reached zero. Special values:
+                - ZERO_TARGET_EXIT: Call exit
     """
     # Unique identifier for countdown variable
     global_countdown_idx = 0
+
+    # Special dst_zero targets
+    ZERO_TARGET_EXIT = "EXIT"
 
     def __init__(self, filename, backend, target_addr, count, dst_active, dst_zero, extra_logic_code=None, extra_is_c=True):
         super(Countdown, self).__init__(filename, backend)
@@ -37,8 +41,12 @@ class Countdown(Technique):
         self.dst_active = self.obj.addr_to_offset(dst_active) if self.obj.pic else dst_active
         l.debug("dst_active == %s", hex(self.dst_active))
         self.dst_active_name = f"dst_active_{Countdown.global_countdown_idx}"
-        self.dst_zero = self.obj.addr_to_offset(dst_zero) if self.obj.pic else dst_zero
-        l.debug("dst_zero == %s", hex(self.dst_zero))
+        if dst_zero == Countdown.ZERO_TARGET_EXIT:
+            l.debug("Calling exit when zero is reached.")
+            self.dst_zero = dst_zero
+        else:
+            self.dst_zero = self.obj.addr_to_offset(dst_zero) if self.obj.pic else dst_zero
+            l.debug("dst_zero == %s", hex(self.dst_zero))
         self.dst_zero_name = f"dst_zero_{Countdown.global_countdown_idx}"
 
         self.extra_logic_code = extra_logic_code if extra_logic_code else self.nop_logic
@@ -76,11 +84,13 @@ class Countdown(Technique):
 
         # 1. Insert count variable
         patches.extend(self._get_count_var())
-        # 2. Label jump outs
+        # 2. Insert special zero targets
+        patches.extend(self._get_special_zero_targets())
+        # 3. Label jump outs
         patches.extend(self._get_return_labels())
-        # 3. Insert logic code
+        # 4. Insert logic code
         patches.extend(self._get_logic())
-        # 4. Insert target jumps
+        # 6. Insert target jumps
         patches.extend(self._get_jump())
         return patches
 
@@ -91,13 +101,38 @@ class Countdown(Technique):
         p1 = AddRWInitDataPatch(struct.pack("<I", self.count), self.count_var_name)
         return [p1]
 
+    def _get_special_zero_targets(self):
+        """
+        Adds code for special zero targets
+        """
+
+        if self.dst_zero == Countdown.ZERO_TARGET_EXIT:
+            reg_a = "rax" if self.arch_bits == 64 else "eax"
+            param_0 = "rdi" if self.arch_bits == 64 else "ebx"
+            exit_num = 60 if self.arch_bits == 64 else 1
+            syscall = "syscall" if self.arch_bits == 64 else "int 0x80"
+            code = """
+                xor %s, %s
+                mov %s, %d
+                %s
+            """ % (param_0, param_0,
+                    reg_a, exit_num,
+                    syscall)
+            p1 = AddCodePatch(code, name=self.dst_zero_name, compiler_flags=self.compiler_flags)
+            return [p1]
+        return []
+
     def _get_return_labels(self):
         """
         Adds labels to the jump out targets
         """
+        ret = []
         p1 = AddLabelPatch(self.dst_active, self.dst_active_name)
-        p2 = AddLabelPatch(self.dst_zero, self.dst_zero_name)
-        return [p1, p2]
+        ret.append(p1)
+        if type(self.dst_zero) != str:
+            p2 = AddLabelPatch(self.dst_zero, self.dst_zero_name)
+            ret.append(p2)
+        return ret
 
     def _get_logic(self):
         """
@@ -137,14 +172,14 @@ class Countdown(Technique):
             pop %s
             pop %s
             pop %s
-            jmp %s
+            jmp {%s}
             _zero_case:
             ; call extra logic and jump to dst_zero
             call {%s}
             pop %s
             pop %s
             pop %s
-            jmp %s
+            jmp {%s}
         ''' % (reg_a,
                 reg_b,
                 reg_sp,
@@ -155,12 +190,12 @@ class Countdown(Technique):
                 reg_sp,
                 reg_b,
                 reg_a,
-                hex(self.dst_active),
+                self.dst_active_name,
                 self.extra_logic_name,
                 reg_sp,
                 reg_b,
                 reg_a,
-                hex(self.dst_zero))
+                self.dst_zero_name)
         p1 = AddCodePatch(self.extra_logic_code, name=self.extra_logic_name, is_c=self.extra_is_c, compiler_flags=self.compiler_flags)
         p2 = AddCodePatch(code, name=self.countdown_logic_name, compiler_flags=self.compiler_flags)
         return [p1, p2]
