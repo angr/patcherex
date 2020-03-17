@@ -1062,7 +1062,7 @@ class DetourBackend(Backend):
             def bytes_to_comparable_str(ibytes, offset):
                 return " ".join(utils.instruction_to_str(utils.disassemble(ibytes, offset)[0]).split()[2:])
 
-            instruction_bytes = str(instruction.bytes)
+            instruction_bytes = instruction.bytes.decode('utf-8')
             pos1 = bytes_to_comparable_str(instruction_bytes, 0x0)
             pos2 = bytes_to_comparable_str(instruction_bytes, 0x07f00000)
             pos3 = bytes_to_comparable_str(instruction_bytes, 0xfe000000)
@@ -1075,7 +1075,7 @@ class DetourBackend(Backend):
                 return " ".join(utils.instruction_to_str(utils.disassemble(ibytes, offset,
                                                                            bits=bits)[0]).split()[2:])
 
-            instruction_bytes = str(instruction.bytes)
+            instruction_bytes = instruction.bytes.decode('utf-8')
             pos1 = bytes_to_comparable_str(instruction_bytes, 0x0, self.structs.elfclass)
             pos2 = bytes_to_comparable_str(instruction_bytes, 0x07f00000, self.structs.elfclass)
             pos3 = bytes_to_comparable_str(instruction_bytes, 0xfe000000, self.structs.elfclass)
