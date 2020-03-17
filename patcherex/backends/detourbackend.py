@@ -955,7 +955,7 @@ class DetourBackend(Backend):
                     new_code = utils.compile_asm(patch.new_asm,
                                                 prog_origin,
                                                 self.name_map)
-                assert len(new_code) == self.project.factory.block(patch.instruction_addr, num_inst=1).size
+                assert len(new_code) <= self.project.factory.block(patch.instruction_addr, num_inst=patch.num_instr).size
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.instruction_addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                 self.added_patches.append(patch)
