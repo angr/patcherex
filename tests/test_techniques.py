@@ -1319,7 +1319,8 @@ def test_countdown_patcher(BackendClass, data_fallback, try_pdf_removal):
         target_addr = backend.project.loader.main_object.offset_to_addr(0x9b12)
         dst_active = backend.project.loader.main_object.offset_to_addr(0x99ee)
         dst_zero = Countdown.ZERO_TARGET_EXIT
-        cp = Countdown(filepath, backend, target_addr=target_addr, count=2, dst_active=dst_active, dst_zero=dst_zero)
+        patch_list = [{"target_addr": target_addr, "dst_active": dst_active, "dst_zero": dst_zero, "num_instr": 1}]
+        cp = Countdown(filepath, backend, patch_list=patch_list, count=2)
         patches = cp.get_patches()
         backend.apply_patches(patches)
         backend.save(tmp_file)

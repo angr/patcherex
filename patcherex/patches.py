@@ -14,9 +14,10 @@ class Patch(object):
 
 
 class InlinePatch(Patch):
-    def __init__(self, instruction_addr, new_asm, name=None):
+    def __init__(self, instruction_addr, new_asm, name=None, num_instr=1):
         super(InlinePatch, self).__init__(name)
         self.instruction_addr = instruction_addr
+        self.num_instr = num_instr
         self.new_asm = new_asm
 
     def __repr__(self):
