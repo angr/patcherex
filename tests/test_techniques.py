@@ -1308,30 +1308,6 @@ nick stephens
         nose.tools.assert_equal(expected_stdout, actual_stdout)
         '''
 
-
-@detour_only
-def test_countdown_patcher(BackendClass, data_fallback, try_pdf_removal):
-    filepath = os.path.join(bin_location, "irving.bin")
-
-    with patcherex.utils.tempdir() as td:
-        tmp_file = os.path.join(td, "patched")
-        backend = BackendClass(filepath, try_pdf_removal=try_pdf_removal)
-        target_addr = backend.project.loader.main_object.offset_to_addr(0x9b12)
-        dst_active = backend.project.loader.main_object.offset_to_addr(0x99ee)
-        dst_zero = Countdown.ZERO_TARGET_EXIT
-        patch_list = [{"target_addr": target_addr, "dst_active": dst_active, "dst_zero": dst_zero, "num_instr": 1}]
-        cp = Countdown(filepath, backend, patch_list=patch_list, count=2)
-        patches = cp.get_patches()
-        backend.apply_patches(patches)
-        backend.save(tmp_file)
-
-        # We should only see the prompt twice
-        expected_output = b"chess@whatever:/home/chess$ 'foo': not a valid command\nchess@whatever:/home/chess$ 'bar': not a valid command\n"
-        pipe = subprocess.PIPE
-        p = subprocess.Popen([tmp_file, "-s"], stdin=pipe, stdout=pipe, stderr=pipe)
-        res = p.communicate(b"foo\nbar\nlast\n")
-        nose.tools.assert_equal(expected_output, res[0])
-
 @detour_only
 def test_countdown_1(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "countdown_test")
