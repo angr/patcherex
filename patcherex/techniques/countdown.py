@@ -192,11 +192,12 @@ class Countdown(Technique):
             ; get address of count_var
 %s
             mov %s, [%s]
-            sub ebx, 1
-            mov [%s], %s
             ; check if we reached zero
             test ebx, ebx
             jle _zero_case
+            ; decrement
+            sub ebx, 1
+            mov [%s], %s
             ; call extra logic and jump to dst_active
             pop %s
             pop %s
