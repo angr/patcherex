@@ -224,7 +224,7 @@ class ReassemblerBackend(Backend):
 
         l.info("Before stripping: %d bytes", len(data))
 
-        if data.startswith("\x7fCGC"):
+        if data.startswith(b"\x7fCGC"):
             cgc_header = data[ : len(elf_header) ]
 
             data = elf_header + data[ len(elf_header) : ]
