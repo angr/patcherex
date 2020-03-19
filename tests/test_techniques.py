@@ -1317,7 +1317,7 @@ def test_countdown_1(BackendClass, data_fallback, try_pdf_removal):
         backend = BackendClass(filepath, try_pdf_removal=try_pdf_removal)
         obj = backend.project.loader.main_object
         patch_list = []
-        patch_list.append({"target_addr": obj.offset_to_addr(0xa31), "dst_active": obj.offset_to_addr(0xa6e), "dst_zero": obj.offset_to_addr(0xa49), "num_instr": 2, "extra_code": "cmp     dword  [rbp - 0x14], 1", "extra_is_c": False})
+        patch_list.append({"target_addr": obj.offset_to_addr(0x0a31), "dst_active": obj.offset_to_addr(0xa6e), "dst_zero": obj.offset_to_addr(0xa49), "num_instr": 2, "extra_code": "cmp     dword  [rbp - 0x14], 1", "extra_is_c": False})
         cp = Countdown(filepath, backend, patch_list=patch_list, count=2)
         patches = cp.get_patches()
         backend.apply_patches(patches)
@@ -1340,7 +1340,7 @@ def test_countdown_2(BackendClass, data_fallback, try_pdf_removal):
         backend = BackendClass(filepath, try_pdf_removal=try_pdf_removal)
         obj = backend.project.loader.main_object
         patch_list = []
-        patch_list.append({"target_addr": obj.offset_to_addr(0x9d2), "dst_active": obj.offset_to_addr(0x09ee), "dst_zero": obj.offset_to_addr(0x09db), "num_instr": 2, "extra_code": "cmp dword [rbp - 4], 3", "extra_is_c": False})
+        patch_list.append({"target_addr": obj.offset_to_addr(0x09d5), "dst_active": obj.offset_to_addr(0x09ee), "dst_zero": obj.offset_to_addr(0x09db), "num_instr": 2, "extra_code": "cmp dword [rbp - 4], 3", "extra_is_c": False})
         cp = Countdown(filepath, backend, patch_list=patch_list, count=2)
         patches = cp.get_patches()
         backend.apply_patches(patches)
