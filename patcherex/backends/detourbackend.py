@@ -57,8 +57,12 @@ class DuplicateLabelsException(PatchingException):
 class DetourBackend(Backend):
     # how do we want to design this to track relocations in the blocks...
     def __init__(self, filename, data_fallback=None, base_address=None, try_pdf_removal=True):
-        if 'ELF' in magic.from_file(filename):
+        with open(filename, "rb") as f:
+            start_bytes = f.read(0x100)
+        magic_string = magic.from_file(filename)
+        if magic_string.startswith('ELF'):
             super(DetourBackend, self).__init__(filename, project_options={"main_opts": {"custom_base_addr": base_address}})
+            self.binary_type = 'ELF'
 
             self.modded_segments = self.dump_segments()
 
@@ -139,8 +143,10 @@ class DetourBackend(Backend):
                 self.real_size_last_segment = len(self.ncontent) - last_segment["p_offset"]
                 # this is the start in memory of RWData
                 self.name_map["ADDED_DATA_START"] = last_segment["p_vaddr"] + last_segment["p_memsz"]
-        else:
+        elif start_bytes.startswith(b"\x7fCGC"):
             super(DetourBackend, self).__init__(filename,try_pdf_removal)
+
+            self.binary_type = "CGC"
 
             self.cfg = self._generate_cfg()
             self.ordered_nodes = self._get_ordered_nodes(self.cfg)
@@ -221,7 +227,8 @@ class DetourBackend(Backend):
                 last_segment = self.modded_segments[-1]
                 self.real_size_last_segment = len(self.ncontent) - last_segment[1]
                 self.name_map["ADDED_DATA_START"] = last_segment[2] + last_segment[5]
-
+        else:
+            raise Exception("Unsupported file type (magic: '%s')" % (magic_string))
 
     def find_pdf(self):
         # 1) check if the pdf string is there and get the length
@@ -368,7 +375,11 @@ class DetourBackend(Backend):
         self.modded_segments = segments[:-1] + [pre_cut_segment,post_cut_segment]
 
     def is_patched(self):
-        start = self.structs.Elf_Ehdr.sizeof()
+        if self.binary_type == "CGC":
+            start = 0x34
+        elif self.binary_type == "ELF":
+            start = self.structs.Elf_Ehdr.sizeof()
+
         return self.ncontent[start:start + len(self.patched_tag)] == self.patched_tag
 
     def setup_headers(self, segments):
@@ -377,7 +388,7 @@ class DetourBackend(Backend):
 
         # copying original program headers (potentially modified by patches and/or pdf removal)
         # in the new place (at the  end of the file)
-        if 'ELF' not in magic.from_file(self.filename):
+        if self.binary_type == "CGC":
             # align size of the entire ELF
             self.ncontent = utils.pad_bytes(self.ncontent, 0x10)
             # change pointer to program headers to point at the end of the elf
@@ -398,7 +409,7 @@ class DetourBackend(Backend):
             # Additionally added program headers have been already copied by the for loop above
             self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size, b"\x00")
 
-        else:
+        elif self.binary_type == "ELF":
             # for ELF binaries
             self.first_load = None
             for segment in segments:
@@ -525,7 +536,7 @@ class DetourBackend(Backend):
         return segments
 
     def set_added_segment_headers(self, nsegments):
-        if 'ELF' not in magic.from_file(self.filename):
+        if self.binary_type == "CGC":
             assert self.ncontent[0x34:0x34+len(self.patched_tag)] == self.patched_tag
             if self.data_fallback:
                 l.debug("added_data_file_start: %#x", self.added_data_file_start)
@@ -554,7 +565,7 @@ class DetourBackend(Backend):
 
             # print original_nsegments,added_segments
             self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<H", original_nsegments + added_segments), 0x2c)
-        else:
+        elif self.binary_type == "ELF":
             if self.data_fallback:
                 l.debug("added_data_file_start: %#x", self.added_data_file_start)
             added_segments = 0
@@ -620,14 +631,20 @@ class DetourBackend(Backend):
         return perms
 
     def set_oep(self, new_oep):
-        # get original entry point
-        current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
-        current_hdr["e_entry"] = new_oep
-        self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Ehdr.build(current_hdr), 0)
+        # set original entry point
+        if self.binary_type == "CGC":
+            self.ncontent = utils.bytes_overwrite(self.ncontent, struct.pack("<I", new_oep), 0x18)
+        elif self.binary_type == "ELF":
+            current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
+            current_hdr["e_entry"] = new_oep
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Ehdr.build(current_hdr), 0)
 
     def get_oep(self):
-        # set original entry point
-        current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
+        # get original entry point
+        if self.binary_type == "CGC":
+            return struct.unpack("<I", self.ncontent[0x18:0x18+4])[0]
+        elif self.binary_type == "ELF":
+                current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
         return current_hdr["e_entry"]
 
     # 3 inserting strategies
@@ -714,6 +731,8 @@ class DetourBackend(Backend):
         # apply all add code patches
         self.added_code_file_start = len(self.ncontent)
         self.name_map.force_insert("ADDED_CODE_START",(len(self.ncontent) % 0x1000) + self.added_code_segment)
+
+        bits = self.structs.elfclass if self.binary_type == "ELF" else 32
 
         # 0) RawPatch:
         for patch in patches:
@@ -807,7 +826,7 @@ class DetourBackend(Backend):
                     self.added_patches.append(patch)
                     l.info("Added patch: " + str(patch))
 
-        if 'ELF' in magic.from_file(self.filename):
+        if self.binary_type == "ELF":
             # add PIE thunk
             self.name_map["pie_thunk"] = self.get_current_code_position()
             if self.structs.elfclass == 64:
@@ -847,7 +866,7 @@ class DetourBackend(Backend):
                 else:
                     code_len = len(utils.compile_asm_fake_symbol(patch.asm_code,
                                                                  current_symbol_pos,
-                                                                 bits=self.structs.elfclass))
+                                                                 bits=bits))
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
@@ -862,7 +881,7 @@ class DetourBackend(Backend):
                     new_code = utils.compile_asm(patch.asm_code,
                                                  self.get_current_code_position(),
                                                  self.name_map,
-                                                 bits=self.structs.elfclass)
+                                                 bits=bits)
                 self.added_code += new_code
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
@@ -883,25 +902,25 @@ class DetourBackend(Backend):
 
             current_symbol_pos += len(utils.compile_asm_fake_symbol("pusha\n",
                                                                     current_symbol_pos,
-                                                                    bits=self.structs.elfclass))
+                                                                    bits=bits))
             for patch in between_restore_entrypoint_patches:
                 code_len = len(utils.compile_asm_fake_symbol(patch.asm_code,
                                                              current_symbol_pos,
-                                                             bits=self.structs.elfclass))
+                                                             bits=bits))
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
             # now compile for real
             new_code = utils.compile_asm(ASM_ENTRY_POINT_PUSH_ENV,
                                          self.get_current_code_position(),
-                                         bits=self.structs.elfclass)
+                                         bits=bits)
             self.added_code += new_code
             self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
             for patch in between_restore_entrypoint_patches:
                 new_code = utils.compile_asm(patch.asm_code,
                                              self.get_current_code_position(),
                                              self.name_map,
-                                             bits=self.structs.elfclass)
+                                             bits=bits)
                 self.added_code += new_code
                 self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
@@ -910,25 +929,25 @@ class DetourBackend(Backend):
             restore_code = ASM_ENTRY_POINT_RESTORE_ENV
             current_symbol_pos += len(utils.compile_asm_fake_symbol(restore_code,
                                                                     current_symbol_pos,
-                                                                    bits=self.structs.elfclass))
+                                                                    bits=bits))
             for patch in after_restore_entrypoint_patches:
                 code_len = len(utils.compile_asm_fake_symbol(patch.asm_code,
                                                              current_symbol_pos,
-                                                             bits=self.structs.elfclass))
+                                                             bits=bits))
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
             # now compile for real
             new_code = utils.compile_asm(restore_code,
                                          self.get_current_code_position(),
-                                         bits=self.structs.elfclass)
+                                         bits=bits)
             self.added_code += new_code
             self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
             for patch in after_restore_entrypoint_patches:
                 new_code = utils.compile_asm(patch.asm_code,
                                              self.get_current_code_position(),
                                              self.name_map,
-                                             bits=self.structs.elfclass)
+                                             bits=bits)
                 self.added_code += new_code
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
@@ -946,12 +965,12 @@ class DetourBackend(Backend):
             if isinstance(patch, InlinePatch):
                 obj = self.project.loader.main_object
                 prog_origin = patch.instruction_addr if not obj.pic else obj.addr_to_offset(patch.instruction_addr)
-                if 'ELF' in magic.from_file(self.filename):
+                if self.binary_type == "ELF":
                     new_code = utils.compile_asm(patch.new_asm,
                                                 prog_origin,
                                                 self.name_map,
-                                                bits=self.structs.elfclass)
-                else:
+                                                bits=bits)
+                elif self.binary_type == "CGC":
                     new_code = utils.compile_asm(patch.new_asm,
                                                 prog_origin,
                                                 self.name_map)
@@ -1058,11 +1077,11 @@ class DetourBackend(Backend):
     def check_if_movable(self, instruction):
         # the idea here is an instruction is movable if and only if
         # it has the same string representation when moved at different offsets is "movable"
-        if 'ELF' not in magic.from_file(self.filename):
+        if self.binary_type == "CGC":
             def bytes_to_comparable_str(ibytes, offset):
                 return " ".join(utils.instruction_to_str(utils.disassemble(ibytes, offset)[0]).split()[2:])
 
-            instruction_bytes = instruction.bytes.decode('utf-8')
+            instruction_bytes = instruction.bytes
             pos1 = bytes_to_comparable_str(instruction_bytes, 0x0)
             pos2 = bytes_to_comparable_str(instruction_bytes, 0x07f00000)
             pos3 = bytes_to_comparable_str(instruction_bytes, 0xfe000000)
@@ -1070,12 +1089,12 @@ class DetourBackend(Backend):
                 return True
             else:
                 return False
-        else:
+        elif self.binary_type == "ELF":
             def bytes_to_comparable_str(ibytes, offset, bits):
                 return " ".join(utils.instruction_to_str(utils.disassemble(ibytes, offset,
                                                                            bits=bits)[0]).split()[2:])
 
-            instruction_bytes = instruction.bytes.decode('utf-8')
+            instruction_bytes = instruction.bytes
             pos1 = bytes_to_comparable_str(instruction_bytes, 0x0, self.structs.elfclass)
             pos2 = bytes_to_comparable_str(instruction_bytes, 0x07f00000, self.structs.elfclass)
             pos3 = bytes_to_comparable_str(instruction_bytes, 0xfe000000, self.structs.elfclass)
@@ -1138,9 +1157,9 @@ class DetourBackend(Backend):
         # 2) detect cases like call-pop and dependent instructions (which should not be moved)
         # get movable_instructions in the bb
         original_bbcode = block.bytes
-        if 'ELF' not in magic.from_file(self.filename):
+        if self.binary_type == "CGC":
             instructions = utils.disassemble(original_bbcode, block.addr)
-        else:
+        elif self.binary_type == "ELF":
             instructions = utils.disassemble(original_bbcode, block.addr, bits=self.structs.elfclass)
 
         if self.check_if_movable(instructions[-1]):
@@ -1204,9 +1223,9 @@ class DetourBackend(Backend):
         injected_code = "\n".join([line for line in injected_code.split("\n") if line != ""])
         l.debug("injected code:\n%s", injected_code)
 
-        if 'ELF' not in magic.from_file(self.filename):
+        if self.binary_type == "CGC":
             compiled_code = utils.compile_asm(injected_code, base=self.get_current_code_position(), name_map=self.name_map)
-        else:
+        elif self.binary_type == "ELF":
             compiled_code = utils.compile_asm(injected_code,
                                               base=self.get_current_code_position(),
                                               name_map=self.name_map,
@@ -1216,7 +1235,7 @@ class DetourBackend(Backend):
     def insert_detour(self, patch):
         # TODO allow special case to patch syscall wrapper epilogue
         # (not that important since we do not want to patch epilogue in syscall wrapper)
-        if 'ELF' not in magic.from_file(self.filename):
+        if self.binary_type == "CGC":
             block_addr = self.get_block_containing_inst(patch.addr)
             block = self.project.factory.block(block_addr)
 
@@ -1263,7 +1282,7 @@ class DetourBackend(Backend):
                     "\n".join([utils.instruction_to_str(i) for i in patched_bbinstructions]))
             new_code = self.compile_moved_injected_code(movable_instructions, patch.code)
             return new_code
-        else:
+        elif self.binary_type == "ELF":
             block_addr = self.get_block_containing_inst(patch.addr)
             mem = self.read_mem_from_file(block_addr, self.project.factory.block(block_addr).size)
             block = self.project.factory.block(block_addr, byte_string=mem)
