@@ -753,7 +753,7 @@ class DetourBackend(Backend):
                     size = list(self.project.arch.capstone.disasm(ins, 0))[0].size
                 else:
                     size = patch.ins_size
-                self.patch_bin(patch.ins_addr, "\x90" * size)
+                self.patch_bin(patch.ins_addr, b"\x90" * size)
                 self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
 
