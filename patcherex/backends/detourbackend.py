@@ -3,6 +3,7 @@ import os
 import magic
 import bisect
 import logging
+import math
 from collections import OrderedDict
 from collections import defaultdict
 from elftools.elf.elffile import ELFFile
@@ -412,10 +413,12 @@ class DetourBackend(Backend):
         elif self.binary_type == "ELF":
             # for ELF binaries
             self.first_load = None
+            blah = []
             for segment in segments:
-                if segment["p_type"] == "PT_LOAD" and self.first_load is None:
-                    self.first_load = segment
-                    break
+                if segment["p_type"] == "PT_LOAD":
+                    if self.first_load is None:
+                        self.first_load = segment
+                    blah.append(((segment["p_vaddr"] - self.first_load["p_vaddr"]) - ((segment["p_vaddr"] - self.first_load["p_vaddr"]) % 0x1000), int(math.ceil((segment["p_vaddr"] + segment["p_memsz"] - self.first_load["p_vaddr"]) / 0x1000) * 0x1000)))
 
             for segment in segments:
                 if segment["p_type"] == "PT_PHDR":
@@ -428,7 +431,7 @@ class DetourBackend(Backend):
 
                     phdr_size = max(segment["p_filesz"], segment["p_memsz"])
 
-                    blah = sorted(((s.vaddr - self.project.loader.main_object.mapped_base, s.vaddr + s.memsize - self.project.loader.main_object.mapped_base) for s in self.project.loader.main_object.segments), key=lambda x: x[0])
+                    blah = sorted(blah, key=lambda x: x[0])
                     while True:
                         stuff = []
                         i = 0
