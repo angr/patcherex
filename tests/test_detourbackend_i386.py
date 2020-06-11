@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-import nose
 import struct
 import subprocess
 import logging
@@ -203,24 +202,24 @@ def test_double_patch_collision():
     p3 = AddRODataPatch(test_str1, "str1")
     p4 = AddRODataPatch(test_str2, "str2")
     backend = run_test("simple_i386_nopie", [p1,p2,p3,p4], expected_output=test_str2 + b"Hi")
-    nose.tools.assert_equal(p1 in backend.added_patches, False)
-    nose.tools.assert_equal(p2 in backend.added_patches, True)
+    assert p1 not in backend.added_patches
+    assert p2 in backend.added_patches
 
     p1 = InsertCodePatch(0x8048457, added_code1, name="p1", priority=1)
     p2 = InsertCodePatch(0x8048457+3, added_code2, name="p2", priority=100)
     p3 = AddRODataPatch(test_str1, "str1")
     p4 = AddRODataPatch(test_str2, "str2")
     backend = run_test("simple_i386_nopie", [p1,p2,p3,p4], expected_output=test_str2 + b"Hi")
-    nose.tools.assert_equal(p1 in backend.added_patches, False)
-    nose.tools.assert_equal(p2 in backend.added_patches, True)
+    assert p1 not in backend.added_patches
+    assert p2 in backend.added_patches
 
     p1 = InsertCodePatch(0x8048457, added_code1, name="p1", priority=1)
     p2 = InsertCodePatch(0x8048457+0x11, added_code2, name="p2", priority=100)
     p3 = AddRODataPatch(test_str1, "str1")
     p4 = AddRODataPatch(test_str2, "str2")
     backend = run_test("simple_i386_nopie", [p1,p2,p3,p4], expected_output=test_str1 + test_str2 + b"Hi")
-    nose.tools.assert_equal(p1 in backend.added_patches, True)
-    nose.tools.assert_equal(p2 in backend.added_patches, True)
+    assert p1 in backend.added_patches
+    assert p2 in backend.added_patches
 
 def test_conflicting_symbols():
     filepath = os.path.join(bin_location, "simple_i386_nopie")
@@ -234,7 +233,7 @@ def test_conflicting_symbols():
         backend.apply_patches(patches)
     except ValueError:
         exc = True
-    nose.tools.assert_true(exc)
+    assert exc
 
     patches = []
     backend = DetourBackend(filepath)
@@ -255,7 +254,7 @@ def test_conflicting_symbols():
         backend.apply_patches(patches)
     except ValueError:
         exc = True
-    nose.tools.assert_true(exc)
+    assert exc
 
 def run_test(file, patches, set_oep=None, input=None, expected_output=None, expected_returnCode=None):
     filepath = os.path.join(bin_location, file)
@@ -272,9 +271,9 @@ def run_test(file, patches, set_oep=None, input=None, expected_output=None, expe
         res = p.communicate(input)
         print(res, p.returncode)
         if expected_output:
-            nose.tools.assert_equal(res[0] == expected_output, True)
+            assert res[0] == expected_output
         if expected_returnCode:
-            nose.tools.assert_equal(p.returncode == expected_returnCode, True)
+            assert p.returncode == expected_returnCode
         return backend
         
 def run_all():
