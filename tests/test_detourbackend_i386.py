@@ -13,14 +13,14 @@ from patcherex.patches import *
 
 l = logging.getLogger("patcherex.test.test_detourbackend")
 
-bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../test_binaries/intel'))
+bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests/i386/patchrex'))
 qemu_location = shellphish_qemu.qemu_path('i386')
 
 def test_InlinePatch():
-    run_test("simple_i386_nopie", [InlinePatch(0x08048442, "LEA EDX, [EAX + 0xffffe4f3]")], expected_output=b"%s", expected_returnCode=0)
+    run_test("printf_nopie", [InlinePatch(0x08048442, "LEA EDX, [EAX + 0xffffe4f3]")], expected_output=b"%s", expected_returnCode=0)
 
 def test_RemoveInstructionPatch():
-    run_test("simple_i386_nopie", [RemoveInstructionPatch(0x08048449, 7), RemoveInstructionPatch(0x080484f0, 1)], expected_output=b"\x90i", expected_returnCode=0)
+    run_test("printf_nopie", [RemoveInstructionPatch(0x08048449, 7), RemoveInstructionPatch(0x080484f0, 1)], expected_output=b"\x90i", expected_returnCode=0)
 
 def test_AddCodePatch():
     added_code = '''
@@ -28,7 +28,7 @@ def test_AddCodePatch():
         mov ebx, 0x32   ;return code
         int 0x80
     '''
-    run_test("simple_i386_nopie", [AddCodePatch(added_code, "added_code")], set_oep="added_code", expected_returnCode=0x32)
+    run_test("printf_nopie", [AddCodePatch(added_code, "added_code")], set_oep="added_code", expected_returnCode=0x32)
 
 def test_InsertCodePatch():
     test_str = b"qwertyuiop\n\x00"
@@ -42,19 +42,19 @@ def test_InsertCodePatch():
     p1 = InsertCodePatch(0x8048457, added_code)
     p2 = AddRODataPatch(test_str, "added_data")
 
-    run_test("simple_i386_nopie", [p1,p2], expected_output=b"qwertyuiop\n\x00Hi", expected_returnCode=0)
+    run_test("printf_nopie", [p1,p2], expected_output=b"qwertyuiop\n\x00Hi", expected_returnCode=0)
 
 def test_AddLabelPatch():
     p1 = AddLabelPatch(0x080484f4, "added_label")
     p2 = InlinePatch(0x08048442, "LEA EDX, [{added_label}]")
 
-    run_test("simple_i386_nopie", [p1,p2], expected_output=b"s", expected_returnCode=0)
+    run_test("printf_nopie", [p1,p2], expected_output=b"s", expected_returnCode=0)
 
 def test_RawFilePatch():
-    run_test("simple_i386_nopie", [RawFilePatch(0x4f0, b"No")], expected_output=b"No", expected_returnCode=0)
+    run_test("printf_nopie", [RawFilePatch(0x4f0, b"No")], expected_output=b"No", expected_returnCode=0)
 
 def test_RawMemPatch():
-    run_test("simple_i386_nopie", [RawMemPatch(0x080484f0, b"No")], expected_output=b"No", expected_returnCode=0)
+    run_test("printf_nopie", [RawMemPatch(0x080484f0, b"No")], expected_output=b"No", expected_returnCode=0)
 
 def test_AddRODataPatch(tlen=5):
     p1 = AddRODataPatch(b"A"*tlen, "added_data")
@@ -67,7 +67,7 @@ def test_AddRODataPatch(tlen=5):
     ''' % tlen
     p2 = InsertCodePatch(0x8048457, added_code, "added_code")
 
-    run_test("simple_i386_nopie", [p1,p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0x0)
+    run_test("printf_nopie", [p1,p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0x0)
 
 def test_AddRWDataPatch(tlen=5):
     p1 = AddRWDataPatch(tlen, "added_data_rw")
@@ -88,7 +88,7 @@ def test_AddRWDataPatch(tlen=5):
     ''' % tlen
     p2 = InsertCodePatch(0x8048457, added_code,"modify_and_print")
 
-    run_test("simple_i386_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0)
+    run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0)
 
 def test_AddRWInitDataPatch(tlen=5):
     p1 = AddRWInitDataPatch(b"A"*tlen, "added_data_rw")
@@ -101,7 +101,7 @@ def test_AddRWInitDataPatch(tlen=5):
     ''' % tlen
     p2 = InsertCodePatch(0x8048457, added_code,"print")
 
-    run_test("simple_i386_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0)
+    run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0)
 
 def test_AddEntryPointPatch():
     added_code = '''
@@ -115,7 +115,7 @@ def test_AddEntryPointPatch():
         mov     ebx, 0x1 ;return code
         int     0x80
     '''
-    run_test("simple_i386_nopie", [AddEntryPointPatch(added_code)], expected_output=b'%s', expected_returnCode=0x1)
+    run_test("printf_nopie", [AddEntryPointPatch(added_code)], expected_output=b'%s', expected_returnCode=0x1)
 
 def test_c_compilation():
     added_code = '''
@@ -127,7 +127,7 @@ def test_c_compilation():
         int 0x80
     ''' % patcherex.utils.get_nasm_c_wrapper_code("c_function",get_return=True)
 
-    run_test("simple_i386_nopie", [InsertCodePatch(0x8048457, added_code, name="p1", priority=1), AddCodePatch("__attribute__((fastcall)) int func(int a){ return a; }", "c_function", is_c=True)], expected_output=b"sHi", expected_returnCode=0x0)
+    run_test("printf_nopie", [InsertCodePatch(0x8048457, added_code, name="p1", priority=1), AddCodePatch("__attribute__((fastcall)) int func(int a){ return a; }", "c_function", is_c=True)], expected_output=b"sHi", expected_returnCode=0x0)
 
 def test_AddDataPatch_long():
     lengths = [0, 1, 5, 10, 100, 1000, 2000, 5000]
@@ -167,7 +167,7 @@ def test_complex1():
         patches.append(AddCodePatch(added_code, "added_function"))
         patches.append(AddRODataPatch(test_str, "added_data"))
 
-        run_test("simple_i386_nopie", patches, expected_output=b'%s' + test_str, expected_returnCode=0x34)
+        run_test("printf_nopie", patches, expected_output=b'%s' + test_str, expected_returnCode=0x34)
 
 def test_double_patch_collision():
     test_str1 = b"1111111111\n\x00"
@@ -195,13 +195,13 @@ def test_double_patch_collision():
     p2 = InsertCodePatch(0x8048457, added_code2, name="p2", priority=1)
     p3 = AddRODataPatch(test_str1, "str1")
     p4 = AddRODataPatch(test_str2, "str2")
-    run_test("simple_i386_nopie", [p1,p2,p3,p4], expected_output=test_str1 + b"Hi")
+    run_test("printf_nopie", [p1,p2,p3,p4], expected_output=test_str1 + b"Hi")
 
     p1 = InsertCodePatch(0x8048457, added_code1, name="p1", priority=1)
     p2 = InsertCodePatch(0x8048457, added_code2, name="p2", priority=100)
     p3 = AddRODataPatch(test_str1, "str1")
     p4 = AddRODataPatch(test_str2, "str2")
-    backend = run_test("simple_i386_nopie", [p1,p2,p3,p4], expected_output=test_str2 + b"Hi")
+    backend = run_test("printf_nopie", [p1,p2,p3,p4], expected_output=test_str2 + b"Hi")
     assert p1 not in backend.added_patches
     assert p2 in backend.added_patches
 
@@ -209,7 +209,7 @@ def test_double_patch_collision():
     p2 = InsertCodePatch(0x8048457+3, added_code2, name="p2", priority=100)
     p3 = AddRODataPatch(test_str1, "str1")
     p4 = AddRODataPatch(test_str2, "str2")
-    backend = run_test("simple_i386_nopie", [p1,p2,p3,p4], expected_output=test_str2 + b"Hi")
+    backend = run_test("printf_nopie", [p1,p2,p3,p4], expected_output=test_str2 + b"Hi")
     assert p1 not in backend.added_patches
     assert p2 in backend.added_patches
 
@@ -217,12 +217,12 @@ def test_double_patch_collision():
     p2 = InsertCodePatch(0x8048457+0x11, added_code2, name="p2", priority=100)
     p3 = AddRODataPatch(test_str1, "str1")
     p4 = AddRODataPatch(test_str2, "str2")
-    backend = run_test("simple_i386_nopie", [p1,p2,p3,p4], expected_output=test_str1 + test_str2 + b"Hi")
+    backend = run_test("printf_nopie", [p1,p2,p3,p4], expected_output=test_str1 + test_str2 + b"Hi")
     assert p1 in backend.added_patches
     assert p2 in backend.added_patches
 
 def test_conflicting_symbols():
-    filepath = os.path.join(bin_location, "simple_i386_nopie")
+    filepath = os.path.join(bin_location, "printf_nopie")
 
     patches = []
     backend = DetourBackend(filepath)
