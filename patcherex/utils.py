@@ -748,7 +748,6 @@ def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
         fp.write(code)
         fp.close()
 
-        print()
         res = exec_cmd("clang -nostdlib -mno-sse -ffreestanding %s -o %s -c %s %s" \
                         % (optimization, object_fname, c_fname, compiler_flags), shell=True)
         if res[2] != 0:
