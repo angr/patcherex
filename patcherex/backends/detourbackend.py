@@ -668,7 +668,7 @@ class DetourBackend(Backend):
 
     def save_state(self,applied_patches):
         #print "inserting", tuple(applied_patches)
-        self.saved_states[tuple(applied_patches)] = (self.ncontent,set(self.touched_bytes))
+        self.saved_states[tuple(applied_patches)] = (self.ncontent,set(self.touched_bytes),self.name_map.copy())
 
     def restore_state(self,applied_patches,removed_patches):
         # find longest sequence of patches for which we have a save state
@@ -676,7 +676,7 @@ class DetourBackend(Backend):
             cut = min([len(applied_patches)]+[applied_patches.index(p) for p in removed_patches if p in applied_patches])
             applied_patches = applied_patches[:cut]
         current_longest = self.saved_states[tuple(applied_patches)]
-        self.ncontent, self.touched_bytes = current_longest
+        self.ncontent, self.touched_bytes, self.name_map = current_longest
         #print "retrieving",applied_patches
 
         # cut dictionary to the current state
