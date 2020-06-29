@@ -649,7 +649,9 @@ def compile_asm(code, base=None, name_map=None, bits=32):
     #if name_map != None: print {k: hex(v) for k,v in name_map.iteritems()}
     try:
         if name_map is not None:
-            code = code.format(**name_map)
+            code = code.format(**name_map) # compile_asm
+        else:
+            code = re.subn(r'{.*?}', "0x41414141", code)[0] # solve symbols
     except KeyError as e:
         raise UndefinedSymbolException(str(e))
 
@@ -658,38 +660,6 @@ def compile_asm(code, base=None, name_map=None, bits=32):
         bin_fname = os.path.join(td, "bin.o")
 
         fp = open(asm_fname, 'wb')
-        fp.write(b"bits %d\n" % bits)
-        if base is not None:
-            fp.write(bytes("org %#x\n" % base, "utf-8"))
-        fp.write(bytes(code, "utf-8"))
-        fp.close()
-
-        res = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)
-        if res[2] != 0:
-            print("NASM error:")
-            print(res[0])
-            print(res[1])
-            fp = open(asm_fname, 'r')
-            fcontent = fp.read()
-            fp.close()
-            print("\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))]))
-            raise NasmException
-
-        fp = open(bin_fname, "rb")
-        compiled = fp.read()
-        fp.close()
-
-    return compiled
-
-
-def compile_asm_fake_symbol(code, base=None, bits=32):
-    code = re.subn(r'{.*?}', "0x41414141", code)[0]
-
-    with tempdir() as td:
-        asm_fname = os.path.join(td, "asm.s")
-        bin_fname = os.path.join(td, "bin.o")
-
-        fp = open(asm_fname, "wb")
         fp.write(b"bits %d\n" % bits)
         if base is not None:
             fp.write(bytes("org %#x\n" % base, "utf-8"))

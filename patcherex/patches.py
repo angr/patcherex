@@ -70,7 +70,7 @@ class CodePatch(Patch):
     """
     Base class for all code patches
     """
-    def __init__(self, name, asm_code, is_c=False, is_att=False, optimization="-Oz", compiler_flags="-m32"):
+    def __init__(self, name, asm_code, is_c=False, is_att=False, optimization="-Oz", compiler_flags="-m32", is_thumb=False):
         super(CodePatch, self).__init__(name)
 
         self.asm_code = asm_code
@@ -78,6 +78,7 @@ class CodePatch(Patch):
         self.optimization = optimization
         self.is_att = is_att
         self.compiler_flags = compiler_flags
+        self.is_thumb = is_thumb
 
     def att_asm(self, c_as_asm=False):
         """
@@ -122,9 +123,9 @@ class CodePatch(Patch):
 
 
 class AddCodePatch(CodePatch):
-    def __init__(self, asm_code, name=None, is_c=False, is_att=False, optimization="-Oz", compiler_flags="-m32"):
+    def __init__(self, asm_code, name=None, is_c=False, is_att=False, optimization="-Oz", compiler_flags="-m32", is_thumb=False):
         super(AddCodePatch, self).__init__(name, asm_code, is_c=is_c, is_att=is_att,
-                                           optimization=optimization, compiler_flags=compiler_flags)
+                                           optimization=optimization, compiler_flags=compiler_flags, is_thumb=is_thumb)
 
     def __repr__(self):
         return "AddCodePatch [%s] (%d) %s %s" % (self.name,len(self.asm_code),self.is_c,self.optimization)
