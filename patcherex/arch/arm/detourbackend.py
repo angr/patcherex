@@ -379,65 +379,24 @@ class DetourBackend(Backend):
         # basically like AddCodePatch but we detour by changing oep
         # and we jump at the end of all of them
         # resolving symbols
-        if any([isinstance(p, AddEntryPointPatch) for p in patches]):
-            pre_entrypoint_code_position = self.get_current_code_position()
-            current_symbol_pos = self.get_current_code_position()
-            entrypoint_patches = [p for p in patches if isinstance(p,AddEntryPointPatch)]
-            between_restore_entrypoint_patches = sorted([p for p in entrypoint_patches if not p.after_restore], \
-                key=lambda x:-1*x.priority)
-            after_restore_entrypoint_patches = sorted([p for p in entrypoint_patches if p.after_restore], \
-                key=lambda x:-1*x.priority)
-
-            # current_symbol_pos += len(utils.compile_asm(ASM_ENTRY_POINT_PUSH_ENV,
-            #                                                         current_symbol_pos))
-            # for patch in between_restore_entrypoint_patches:
-            #     code_len = len(utils.compile_asm(patch.asm_code,
-            #                                                  current_symbol_pos))
-            #     if patch.name is not None:
-            #         self.name_map[patch.name] = current_symbol_pos
-            #     current_symbol_pos += code_len
-            # now compile for real
-            # new_code = utils.compile_asm(ASM_ENTRY_POINT_PUSH_ENV,
-            #                              self.get_current_code_position())
-            # self.added_code += new_code
-            # self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
-            for patch in between_restore_entrypoint_patches:
-                new_code = utils.compile_asm(patch.asm_code,
+        for patch in patches:
+            if isinstance(patch, AddEntryPointPatch):
+                old_oep = self.get_oep()
+                new_oep = self.get_current_code_position()
+                # only r0 (a1) need to be saved, ref: glibc/sysdeps/{ARCH}/start.S
+                instructions = "push {{r0}}"
+                instructions += patch.asm_code 
+                instructions += "pop {{r0}}"
+                instructions += "\nbl {}".format(hex(int(old_oep)))
+                new_code = utils.compile_asm(instructions,
                                              self.get_current_code_position(),
-                                             self.name_map)
+                                             self.name_map,
+                                             is_thumb=patch.is_thumb)
                 self.added_code += new_code
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
-
-            # restore_code = ASM_ENTRY_POINT_RESTORE_ENV
-            # current_symbol_pos += len(utils.compile_asm(restore_code,
-            #                                                         current_symbol_pos))
-            # for patch in after_restore_entrypoint_patches:
-            #     code_len = len(utils.compile_asm(patch.asm_code,
-            #                                                  current_symbol_pos))
-            #     if patch.name is not None:
-            #         self.name_map[patch.name] = current_symbol_pos
-            #     current_symbol_pos += code_len
-            # now compile for real
-            # new_code = utils.compile_asm(restore_code,
-            #                              self.get_current_code_position())
-            # self.added_code += new_code
-            # self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
-            for patch in after_restore_entrypoint_patches:
-                new_code = utils.compile_asm(patch.asm_code,
-                                             self.get_current_code_position(),
-                                             self.name_map)
-                self.added_code += new_code
-                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
-                self.added_patches.append(patch)
+                self.set_oep(new_oep + 1 if patch.is_thumb else new_oep)
                 l.info("Added patch: " + str(patch))
-
-            oep = self.get_oep()
-            self.set_oep(pre_entrypoint_code_position)
-            new_code = utils.compile_jmp(self.get_current_code_position(),oep)
-            self.added_code += new_code
-            self.ncontent += new_code
 
         # 4) InlinePatch
         # we assume the patch never patches the added code
@@ -642,12 +601,12 @@ class DetourBackend(Backend):
 
     def compile_moved_injected_code(self, classified_instructions, patch_code, offset=0, is_thumb=False):
         # create injected_code (pre, injected, culprit, post, jmp_back)
-        injected_code = "push {{lr}}\n_patcherex_begin_patch:\n"
+        injected_code = "_patcherex_begin_patch:\n"
         injected_code += "\n".join([utils.capstone_to_asm(i)
                                     for i in classified_instructions
                                     if i.overwritten == 'pre'])
         injected_code += "\n"
-        injected_code += "; --- custom code start\n" + patch_code + "\n" + "; --- custom code end\n" + "\n"
+        injected_code += patch_code + "\n"
         injected_code += "\n".join([utils.capstone_to_asm(i)
                                     for i in classified_instructions
                                     if i.overwritten == 'culprit'])
@@ -662,8 +621,7 @@ class DetourBackend(Backend):
                 jmp_back_target = i.address+len(i.bytes)
                 break
         assert jmp_back_target is not None
-        injected_code += "pop {{pc}}" + "\n"
-        # injected_code += "b %s" % hex(int(jmp_back_target) - offset) + "\n"
+        injected_code += "b %s" % hex(int(jmp_back_target) - offset) + "\n"
         # removing blank lines
         injected_code = "\n".join([line for line in injected_code.split("\n") if line != ""])
         l.debug("injected code:\n%s", injected_code)

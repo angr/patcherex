@@ -124,12 +124,8 @@ class Tests(unittest.TestCase):
             ldr r1, =0x10450
             mov r2, 2
             svc 0
-
-            mov r7, 0x1
-            mov r0, 0x1
-            svc 0
         '''
-        self.run_test("printf_nopie", [AddEntryPointPatch(added_code)], expected_output=b'%s', expected_returnCode=0x1)
+        self.run_test("printf_nopie", [AddEntryPointPatch(added_code)], expected_output=b'%sHi', expected_returnCode=0)
 
     def test_c_compilation(self):
         added_code = '''
@@ -175,7 +171,7 @@ class Tests(unittest.TestCase):
                 svc 0
                 bx lr
             ''' % (len(test_str))
-            patches.append(AddCodePatch(added_code, "added_function"))
+            patches.append(AddCodePatch(added_code, "added_function", is_thumb=True))
             patches.append(AddRODataPatch(test_str, "added_data"))
 
             self.run_test("printf_nopie", patches, expected_output=b'%s' + test_str, expected_returnCode=0x34)
@@ -216,7 +212,7 @@ class Tests(unittest.TestCase):
         p2 = InsertCodePatch(0x103ec+0x4, added_code2, name="p2", priority=100)
         p3 = AddRODataPatch(test_str1, "str1")
         p4 = AddRODataPatch(test_str2, "str2")
-        backend = self.run_test("printf_nopie", [p1, p2, p3, p4], expected_output=test_str1 + test_str2 + b"Hi")
+        backend = self.run_test("printf_nopie", [p1, p2, p3, p4], expected_output=test_str2 + b"Hi")
         self.assertNotIn(p1, backend.added_patches)
         self.assertIn(p2, backend.added_patches)
 
@@ -254,7 +250,6 @@ class Tests(unittest.TestCase):
 
         with patcherex.utils.tempdir() as td:
             tmp_file = os.path.join(td, "patched")
-            tmp_file = "/tmp/1"
             backend = DetourBackend(filepath)
             backend.apply_patches(patches)
             if set_oep:
