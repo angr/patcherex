@@ -131,8 +131,8 @@ class AddCodePatch(CodePatch):
 
 
 class AddEntryPointPatch(CodePatch):
-    def __init__(self, asm_code, name=None, is_att=False, priority=1, after_restore=False):
-        super(AddEntryPointPatch, self).__init__(name, asm_code, is_att=is_att)
+    def __init__(self, asm_code, name=None, is_att=False, priority=1, after_restore=False, is_thumb=True):
+        super(AddEntryPointPatch, self).__init__(name, asm_code, is_att=is_att, is_thumb=is_thumb)
         self.priority = priority
         self.after_restore = after_restore
 

@@ -124,12 +124,8 @@ class Tests(unittest.TestCase):
             ldr x1, =0x400648
             mov x2, 2
             svc 0
-
-            mov x8, 0x5d
-            mov x0, 0x1
-            svc 0
         '''
-        self.run_test("printf_nopie", [AddEntryPointPatch(added_code)], expected_output=b'%s', expected_returnCode=0x1)
+        self.run_test("printf_nopie", [AddEntryPointPatch(added_code)], expected_output=b'%sHi', expected_returnCode=0)
 
     def test_c_compilation(self):
         added_code = '''
