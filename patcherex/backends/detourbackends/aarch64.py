@@ -175,10 +175,8 @@ class DetourBackendAarch64(DetourBackendElf):
         # we assume the patch never patches the added code
         for patch in patches:
             if isinstance(patch, InlinePatch):
-                obj = self.project.loader.main_object
-                prog_origin = patch.instruction_addr if not obj.pic else obj.addr_to_offset(patch.instruction_addr)
                 new_code = self.compile_asm(patch.new_asm,
-                                                prog_origin,
+                                                patch.instruction_addr,
                                                 self.name_map)
                 # Limiting the inline patch to a single block is not necessary
                 # assert len(new_code) <= self.project.factory.block(patch.instruction_addr, num_inst=patch.num_instr, max_size=).size
@@ -417,6 +415,7 @@ class DetourBackendAarch64(DetourBackendElf):
 
     @staticmethod
     def compile_asm(code, base=None, name_map=None):
+        print(hex(base))
         #print "=" * 10
         #print code
         #if base != None: print hex(base)
