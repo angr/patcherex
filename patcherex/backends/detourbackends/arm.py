@@ -198,10 +198,8 @@ class DetourBackendArm(DetourBackendElf):
         # we assume the patch never patches the added code
         for patch in patches:
             if isinstance(patch, InlinePatch):
-                obj = self.project.loader.main_object
-                prog_origin = patch.instruction_addr if not obj.pic else obj.addr_to_offset(patch.instruction_addr)
                 new_code = self.compile_asm(patch.new_asm,
-                                                prog_origin,
+                                                patch.instruction_addr,
                                                 self.name_map,
                                                 is_thumb=self.check_if_thumb(patch.instruction_addr))
                 # Limiting the inline patch to a single block is not necessary
