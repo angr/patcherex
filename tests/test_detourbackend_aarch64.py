@@ -136,7 +136,7 @@ class Tests(unittest.TestCase):
             mov x2, 1
             svc 0
             
-        ''' % patcherex.arch.aarch64.utils.get_nasm_c_wrapper_code("c_function", get_return=True)
+        ''' % patcherex.backends.detourbackends.aarch64.DetourBackendAarch64.get_c_function_wrapper_code("c_function", get_return=True)
 
         self.run_test("printf_nopie", [InsertCodePatch(0x400580, added_code, name="p1", priority=1), AddCodePatch("__attribute__((fastcall)) int func(int a){ return a + 1; }", "c_function", is_c=True, compiler_flags="")], expected_output=b"sHi", expected_returnCode=0x0)
 
