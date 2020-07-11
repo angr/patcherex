@@ -765,7 +765,7 @@ def find_files(folder,extension,only_exec=False):
 
 
 def round_up_to_page(addr):
-    return (addr + 0x1000 - 1) / 0x1000 * 0x1000
+    return int((addr + 0x1000 - 1) / 0x1000) * 0x1000
 
 
 def string_to_labels(tstr):

@@ -82,7 +82,7 @@ class DetourBackendElf(Backend):
                         # start of the segment, round down to multiple of 0x1000
                         (segment["p_vaddr"] - self.first_load["p_vaddr"]) - ((segment["p_vaddr"] - self.first_load["p_vaddr"]) % 0x1000),
                         # end of the segment, round up to multiple of 0x1000
-                        int((segment["p_vaddr"] + segment["p_memsz"] - self.first_load["p_vaddr"] + 0x1000 - 1) / 0x1000 * 0x1000) ))
+                        int((segment["p_vaddr"] + segment["p_memsz"] - self.first_load["p_vaddr"] + 0x1000 - 1) / 0x1000) * 0x1000 ))
 
         for segment in segments:
             if segment["p_type"] == "PT_PHDR":
