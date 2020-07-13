@@ -306,19 +306,19 @@ class DetourBackendArm(DetourBackendElf):
         # iterates through the instructions to find where the detour can be stored
         movable_instructions = self.get_movable_instructions(block)
 
-        detour_attempts = range(-1*detour_size, 0+1)
-
         movable_bb_start = movable_instructions[0].address
         movable_bb_size = self.project.factory.block(block.addr, num_inst=len(movable_instructions)).size
+
+        possible_detour_starts = [i.address for i in movable_instructions]
+        possible_detour_ends = [(movable_bb_start + movable_bb_size if i.address == movable_bb_start else i.address) - 1 for i in movable_instructions]
+
         l.debug("movable_bb_size: %d", movable_bb_size)
         l.debug("movable bb instructions:\n%s", "\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
 
         # find a spot for the detour
         detour_pos = None
-        for pos in detour_attempts:
-            detour_start = patch_addr + pos
-            detour_end = detour_start + detour_size - 1
-            if detour_start >= movable_bb_start and detour_end < (movable_bb_start + movable_bb_size):
+        for detour_start in range(movable_bb_start, movable_bb_start + movable_bb_size - detour_size, 2):
+            if detour_start in possible_detour_starts and (detour_start + detour_size - 1) in possible_detour_ends:
                 detour_pos = detour_start
                 break
         if detour_pos is None:
@@ -365,8 +365,7 @@ class DetourBackendArm(DetourBackendElf):
         # TODO allow special case to patch syscall wrapper epilogue
         # (not that important since we do not want to patch epilogue in syscall wrapper)
         block_addr = self.get_block_containing_inst(patch.addr)
-        block_addr = block_addr if block_addr % 2 == 0 else block_addr - 1
-        mem = self.read_mem_from_file(block_addr, self.project.factory.block(block_addr).size)
+        mem = self.read_mem_from_file(block_addr if block_addr % 2 == 0 else block_addr - 1, self.project.factory.block(block_addr).size)
         block = self.project.factory.block(block_addr, byte_string=mem)
 
         l.debug("inserting detour for patch: %s" % (map(hex, (block_addr, block.size, patch.addr))))
@@ -426,6 +425,7 @@ class DetourBackendArm(DetourBackendElf):
             return instruction.mnemonic + " " + instruction.op_str.replace('{','{{').replace('}','}}')
 
     def disassemble(self, code, offset=0x0, is_thumb=False):
+        offset = offset - 1 if is_thumb and offset % 2 == 1 else offset
         md = capstone.Cs(capstone.CS_ARCH_ARM, capstone.CS_MODE_THUMB if is_thumb else capstone.CS_MODE_ARM)
         md.detail = True
         if isinstance(code, str):
