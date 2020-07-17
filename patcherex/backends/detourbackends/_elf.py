@@ -18,7 +18,7 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendElf(Backend):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None):
+    def __init__(self, filename, base_address=None, replace_note_segment=False):
         super(DetourBackendElf, self).__init__(filename, project_options={"main_opts": {"base_addr": base_address}})
 
         self.modded_segments = self.dump_segments() # dump_segments also set self.structs
@@ -37,8 +37,8 @@ class DetourBackendElf(Backend):
         self.name_map = RejectingDict()
 
         # where to put the segments in memory
-        self.added_code_segment = 0x06000000
-        self.added_data_segment = 0x07000000
+        self.added_code_segment = 0x0600000
+        self.added_data_segment = 0x0700000
         current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
         self.single_segment_header_size = current_hdr["e_phentsize"]
         assert self.single_segment_header_size >= self.structs.Elf_Phdr.sizeof()
@@ -63,95 +63,112 @@ class DetourBackendElf(Backend):
         self.name_map["ADDED_DATA_START"] = (len(self.ncontent) % 0x1000) + self.added_data_segment
         self.first_load = None
         self.phdr_start = None
+        self.replace_note_segment = replace_note_segment
 
     def is_patched(self):
         return self.ncontent.startswith(self.patched_tag, self.structs.Elf_Ehdr.sizeof())
 
     def setup_headers(self, segments):
-        #if self.is_patched():
-        #    return
+        if self.replace_note_segment:
+            current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
+            note_segment_header_loc = current_hdr["e_phoff"]
 
-        # copying original program headers (potentially modified by patches)
-        # in the new place (at the  end of the file)
-        load_segments_rounded = []
-        for segment in segments:
-            if segment["p_type"] == "PT_LOAD":
-                if self.first_load is None:
-                    self.first_load = segment
-                load_segments_rounded.append((
-                        # start of the segment, round down to multiple of 0x1000
-                        (segment["p_vaddr"] - self.first_load["p_vaddr"]) - ((segment["p_vaddr"] - self.first_load["p_vaddr"]) % 0x1000),
-                        # end of the segment, round up to multiple of 0x1000
-                        int((segment["p_vaddr"] + segment["p_memsz"] - self.first_load["p_vaddr"] + 0x1000 - 1) / 0x1000) * 0x1000 ))
-
-        for segment in segments:
-            if segment["p_type"] == "PT_PHDR":
-                if self.phdr_segment is not None:
-                    raise ValueError("Multiple PHDR segments!")
-                self.phdr_segment = segment
-
-                segment["p_filesz"] += self.additional_headers_size
-                segment["p_memsz"]  += self.additional_headers_size
-
-                phdr_size = max(segment["p_filesz"], segment["p_memsz"])
-
-                load_segments_rounded = sorted(load_segments_rounded, key=lambda x: x[0])
-
-                # combine overlapping load segments
-                while True:
-                    new_load_segments_rounded = []
-                    i = 0
-                    while i < len(load_segments_rounded) - 1:
-                        prev_seg = load_segments_rounded[i]
-                        next_seg = load_segments_rounded[i + 1]
-                        if prev_seg[1] > next_seg[0]: # two segments overlap
-                            new_load_segments_rounded.append((prev_seg[0], next_seg[1])) # append combine of two segments
-                            i += 2
-                        else:
-                            new_load_segments_rounded.append(prev_seg) # append segment without overlap
-                            i += 1
-                    if i == len(load_segments_rounded) - 1:
-                        new_load_segments_rounded.append(load_segments_rounded[i]) # append last segment if without overlapping
-                    if new_load_segments_rounded == load_segments_rounded: # if no overlap
-                        break
-                    load_segments_rounded = new_load_segments_rounded # combined segments, run again
-
-                for prev_seg, next_seg in zip(load_segments_rounded[:-1], load_segments_rounded[1:]):
-                    potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xF) & ~0xF) # round up to 0x10
-                    if next_seg[0] - potential_base > phdr_size: # if there is space between segments, put phdr here
-                        self.phdr_start = potential_base
-                        break
+            for segment in segments:
+                if segment["p_type"] == "PT_NOTE":
+                    segment = Container(**{ "p_type":   1,                                            "p_offset": self.added_data_file_start,
+                                            "p_vaddr":  self.name_map["ADDED_DATA_START"],            "p_paddr":  self.name_map["ADDED_DATA_START"],
+                                            "p_filesz": self.added_code_file_start - self.added_data_file_start + len(self.added_code),
+                                            "p_memsz":  self.added_code_file_start - self.added_data_file_start + len(self.added_code),
+                                            "p_flags":  0x7,                                          "p_align":  0x1000})
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(segment), note_segment_header_loc)
+                    break
                 else:
-                    self.phdr_start = load_segments_rounded[-1][1] # otherwise put it after the last load segment
+                    note_segment_header_loc += current_hdr["e_phentsize"]
+        else:
+            #if self.is_patched():
+            #    return
 
-                segment["p_offset"]  = self.phdr_start
-                segment["p_vaddr"]   = self.phdr_start + self.first_load["p_vaddr"]
-                segment["p_paddr"]   = self.phdr_start + self.first_load["p_vaddr"]
+            # copying original program headers (potentially modified by patches)
+            # in the new place (at the  end of the file)
+            load_segments_rounded = []
+            for segment in segments:
+                if segment["p_type"] == "PT_LOAD":
+                    if self.first_load is None:
+                        self.first_load = segment
+                    load_segments_rounded.append((
+                            # start of the segment, round down to multiple of 0x1000
+                            (segment["p_vaddr"] - self.first_load["p_vaddr"]) - ((segment["p_vaddr"] - self.first_load["p_vaddr"]) % 0x1000),
+                            # end of the segment, round up to multiple of 0x1000
+                            int((segment["p_vaddr"] + segment["p_memsz"] - self.first_load["p_vaddr"] + 0x1000 - 1) / 0x1000) * 0x1000 ))
 
-        self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
+            for segment in segments:
+                if segment["p_type"] == "PT_PHDR":
+                    if self.phdr_segment is not None:
+                        raise ValueError("Multiple PHDR segments!")
+                    self.phdr_segment = segment
 
-        # change pointer to program headers to point at the end of the elf
-        current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
-        old_phoff = current_hdr["e_phoff"]
-        current_hdr["e_phoff"] = len(self.ncontent)
-        self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Ehdr.build(current_hdr), 0)
+                    segment["p_filesz"] += self.additional_headers_size
+                    segment["p_memsz"]  += self.additional_headers_size
 
-        print("putting them at %#x" % self.phdr_start)
-        print("current len: %#x" % len(self.ncontent))
-        for segment in segments:
-            if segment["p_type"] == "PT_PHDR":
-                segment = self.phdr_segment
-            self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(segment))
-        self.original_header_end = len(self.ncontent)
+                    phdr_size = max(segment["p_filesz"], segment["p_memsz"])
 
-        # we overwrite the first original program header,
-        # we do not need it anymore since we have moved original program headers at the bottom of the file
-        self.ncontent = utils.bytes_overwrite(self.ncontent, self.patched_tag, old_phoff)
+                    load_segments_rounded = sorted(load_segments_rounded, key=lambda x: x[0])
 
-        # adding space for the additional headers
-        # I add two of them, no matter what, if the data one will be used only in case of the fallback solution
-        # Additionally added program headers have been already copied by the for loop above
-        self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size, b"\x00")
+                    # combine overlapping load segments
+                    while True:
+                        new_load_segments_rounded = []
+                        i = 0
+                        while i < len(load_segments_rounded) - 1:
+                            prev_seg = load_segments_rounded[i]
+                            next_seg = load_segments_rounded[i + 1]
+                            if prev_seg[1] > next_seg[0]: # two segments overlap
+                                new_load_segments_rounded.append((prev_seg[0], next_seg[1])) # append combine of two segments
+                                i += 2
+                            else:
+                                new_load_segments_rounded.append(prev_seg) # append segment without overlap
+                                i += 1
+                        if i == len(load_segments_rounded) - 1:
+                            new_load_segments_rounded.append(load_segments_rounded[i]) # append last segment if without overlapping
+                        if new_load_segments_rounded == load_segments_rounded: # if no overlap
+                            break
+                        load_segments_rounded = new_load_segments_rounded # combined segments, run again
+
+                    for prev_seg, next_seg in zip(load_segments_rounded[:-1], load_segments_rounded[1:]):
+                        potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xF) & ~0xF) # round up to 0x10
+                        if next_seg[0] - potential_base > phdr_size: # if there is space between segments, put phdr here
+                            self.phdr_start = potential_base
+                            break
+                    else:
+                        self.phdr_start = load_segments_rounded[-1][1] # otherwise put it after the last load segment
+
+                    segment["p_offset"]  = self.phdr_start
+                    segment["p_vaddr"]   = self.phdr_start + self.first_load["p_vaddr"]
+                    segment["p_paddr"]   = self.phdr_start + self.first_load["p_vaddr"]
+
+            self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
+
+            # change pointer to program headers to point at the end of the elf
+            current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
+            old_phoff = current_hdr["e_phoff"]
+            current_hdr["e_phoff"] = len(self.ncontent)
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Ehdr.build(current_hdr), 0)
+
+            print("putting them at %#x" % self.phdr_start)
+            print("current len: %#x" % len(self.ncontent))
+            for segment in segments:
+                if segment["p_type"] == "PT_PHDR":
+                    segment = self.phdr_segment
+                self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(segment))
+            self.original_header_end = len(self.ncontent)
+
+            # we overwrite the first original program header,
+            # we do not need it anymore since we have moved original program headers at the bottom of the file
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.patched_tag, old_phoff)
+
+            # adding space for the additional headers
+            # I add two of them, no matter what, if the data one will be used only in case of the fallback solution
+            # Additionally added program headers have been already copied by the for loop above
+            self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size, b"\x00")
 
     def dump_segments(self):
         with open(self.filename, "rb") as f:
@@ -164,6 +181,8 @@ class DetourBackendElf(Backend):
         return segments
 
     def set_added_segment_headers(self):
+        if self.replace_note_segment:
+            return
         l.debug("added_data_file_start: %#x", self.added_data_file_start)
         added_segments = 0
 
