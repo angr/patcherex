@@ -19,9 +19,8 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendArm(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None):
-        super(DetourBackendArm, self).__init__(filename, base_address=base_address)
-        self.added_code_segment = 0x0600000
+    def __init__(self, filename, base_address=None, replace_note_segment=False):
+        super(DetourBackendArm, self).__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
 
     def get_block_containing_inst(self, inst_addr):
         index = bisect.bisect_right(self.ordered_nodes, inst_addr) - 1
@@ -134,7 +133,10 @@ class DetourBackendArm(DetourBackendElf):
         self.ncontent = utils.pad_bytes(self.ncontent, 0x10)  # some minimal alignment may be good
 
         self.added_code_file_start = len(self.ncontent)
-        self.name_map.force_insert("ADDED_CODE_START", (len(self.ncontent) % 0x1000) + self.added_code_segment)
+        if self.replace_note_segment:
+            self.name_map.force_insert("ADDED_CODE_START", int((curr_data_position + 0x10 - 1) / 0x10) * 0x10)
+        else:
+            self.name_map.force_insert("ADDED_CODE_START", (len(self.ncontent) % 0x1000) + self.added_code_segment)
 
         # 2) AddCodePatch
         # resolving symbols

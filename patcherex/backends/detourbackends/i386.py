@@ -17,8 +17,8 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendi386(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None):
-        super(DetourBackendi386, self).__init__(filename, base_address=base_address)
+    def __init__(self, filename, base_address=None, replace_note_segment=False):
+        super(DetourBackendi386, self).__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
 
     def apply_patches(self, patches):
         # deal with stackable patches
@@ -91,6 +91,7 @@ class DetourBackendi386(DetourBackendElf):
                 self.added_patches.append(patch)
                 l.info("Added patch: " + str(patch))
 
+        # 1) Add{RO/RW/RWInit}DataPatch
         self.added_data_file_start = len(self.ncontent)
         curr_data_position = self.name_map["ADDED_DATA_START"]
         for patch in patches:
@@ -110,7 +111,10 @@ class DetourBackendi386(DetourBackendElf):
         self.ncontent = utils.pad_bytes(self.ncontent, 0x10)  # some minimal alignment may be good
 
         self.added_code_file_start = len(self.ncontent)
-        self.name_map.force_insert("ADDED_CODE_START", (len(self.ncontent) % 0x1000) + self.added_code_segment)
+        if self.replace_note_segment:
+            self.name_map.force_insert("ADDED_CODE_START", int((curr_data_position + 0x10 - 1) / 0x10) * 0x10)
+        else:
+            self.name_map.force_insert("ADDED_CODE_START", (len(self.ncontent) % 0x1000) + self.added_code_segment)
 
         # add PIE thunk
         self.name_map["pie_thunk"] = self.get_current_code_position()
