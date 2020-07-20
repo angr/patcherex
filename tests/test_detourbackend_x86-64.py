@@ -1,12 +1,10 @@
 #test cases for x86-64 enabled binaries
 import unittest
 import os
-import struct
 import subprocess
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
-from patcherex.backends.reassembler_backend import ReassemblerBackend
-from patcherex.patches import *
+from patcherex.patches import AddCodePatch, AddRODataPatch, InsertCodePatch
 
 class MyTestCase(unittest.TestCase):
 

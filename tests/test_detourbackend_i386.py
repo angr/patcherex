@@ -1,16 +1,16 @@
 #!/usr/bin/env python
 
 import os
-import struct
+#import struct
 import subprocess
 import logging
 import unittest
-from functools import wraps
+#from functools import wraps
 
 import patcherex
 import shellphish_qemu
 from patcherex.backends.detourbackend import DetourBackend
-from patcherex.patches import *
+from patcherex.patches import AddCodePatch, AddRODataPatch, InsertCodePatch, AddLabelPatch, AddRWDataPatch, AddRWInitDataPatch, AddEntryPointPatch, InlinePatch, RawFilePatch, RawMemPatch,RemoveInstructionPatch
 
 
 class Tests(unittest.TestCase):
@@ -261,7 +261,7 @@ class Tests(unittest.TestCase):
             exc = True
         self.assertTrue(exc)
 
-    def run_test(self, file, patches, set_oep=None, input=None, expected_output=None, expected_returnCode=None):
+    def run_test(self, file, patches, set_oep=None, inputs=None, expected_output=None, expected_returnCode=None):
         filepath = os.path.join(self.bin_location, file)
         pipe = subprocess.PIPE
 
@@ -273,7 +273,7 @@ class Tests(unittest.TestCase):
                 backend.set_oep(backend.name_map[set_oep])
             backend.save(tmp_file)
             p = subprocess.Popen([tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-            res = p.communicate(input)
+            res = p.communicate(inputs)
             if expected_output:
                 self.assertEqual(res[0], expected_output)
             if expected_returnCode:
@@ -281,7 +281,7 @@ class Tests(unittest.TestCase):
             return backend
 
 if __name__ == "__main__":
-    import sys
+    #import sys
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
     logging.getLogger("patcherex.test.test_detourbackend").setLevel("INFO")
     unittest.main()
