@@ -41,7 +41,7 @@ class Countdown(Technique):
         
         self.arch_bits = self.patcher.structs.elfclass
         self.obj = self.patcher.project.loader.main_object
-        self.compiler_flags = (f"-m{self.arch_bits}",)
+        self.compiler_flags = f"-m{self.arch_bits}"
         l.debug("Got %d bit %s binary", self.arch_bits, "PIE" if self.obj.pic else "NO-PIE")
 
         self.count_var_name = f"countdown_var_{Countdown.global_countdown_idx}"
