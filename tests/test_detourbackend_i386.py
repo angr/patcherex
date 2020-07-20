@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 
 import os
-#import struct
 import subprocess
 import logging
 import unittest
-#from functools import wraps
 
 import patcherex
 import shellphish_qemu
@@ -281,7 +279,6 @@ class Tests(unittest.TestCase):
             return backend
 
 if __name__ == "__main__":
-    #import sys
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
     logging.getLogger("patcherex.test.test_detourbackend").setLevel("INFO")
     unittest.main()
