@@ -1,22 +1,25 @@
 #!/usr/bin/env python
 
-import os
-import struct
-import subprocess
 import logging
+import os
+import subprocess
 import unittest
-from functools import wraps
+
+import shellphish_qemu
 
 import patcherex
-import shellphish_qemu
 from patcherex.backends.detourbackend import DetourBackend
-from patcherex.patches import *
-
+from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
+                               AddRODataPatch, AddRWDataPatch,
+                               AddRWInitDataPatch, InlinePatch,
+                               InsertCodePatch, RawFilePatch, RawMemPatch,
+                               RemoveInstructionPatch)
+from patcherex.backends.detourbackends.aarch64 import DetourBackendAarch64
 
 class Tests(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(Tests, self).__init__(*args, **kwargs)
         self.l = logging.getLogger("patcherex.test.test_detourbackend")
         self.bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)),  '../../binaries/tests/aarch64/patchrex'))
         self.qemu_location = shellphish_qemu.qemu_path('aarch64')
@@ -136,7 +139,7 @@ class Tests(unittest.TestCase):
             mov x2, 1
             svc 0
             
-        ''' % patcherex.backends.detourbackends.aarch64.DetourBackendAarch64.get_c_function_wrapper_code("c_function", get_return=True)
+        ''' % DetourBackendAarch64.get_c_function_wrapper_code("c_function")
 
         self.run_test("printf_nopie", [InsertCodePatch(0x400580, added_code, name="p1", priority=1), AddCodePatch("__attribute__((fastcall)) int func(int a){ return a + 1; }", "c_function", is_c=True, compiler_flags="")], expected_output=b"sHi", expected_returnCode=0x0)
 
@@ -244,8 +247,8 @@ class Tests(unittest.TestCase):
             exc = True
         self.assertTrue(exc)
 
-    def run_test(self, file, patches, set_oep=None, input=None, expected_output=None, expected_returnCode=None):
-        filepath = os.path.join(self.bin_location, file)
+    def run_test(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None):
+        filepath = os.path.join(self.bin_location, filename)
         pipe = subprocess.PIPE
 
         with patcherex.utils.tempdir() as td:
@@ -256,7 +259,7 @@ class Tests(unittest.TestCase):
                 backend.set_oep(backend.name_map[set_oep])
             backend.save(tmp_file)
             p = subprocess.Popen([self.qemu_location, "-L", "/usr/aarch64-linux-gnu", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-            res = p.communicate(input)
+            res = p.communicate(inputvalue)
             if expected_output:
                 self.assertEqual(res[0], expected_output)
             if expected_returnCode:
@@ -264,7 +267,6 @@ class Tests(unittest.TestCase):
             return backend
 
 if __name__ == "__main__":
-    import sys
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
     logging.getLogger("patcherex.test.test_detourbackend").setLevel("INFO")
     unittest.main()

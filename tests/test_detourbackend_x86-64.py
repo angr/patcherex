@@ -1,15 +1,17 @@
 #test cases for x86-64 enabled binaries
-import unittest
 import os
 import subprocess
+import unittest
+
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import AddCodePatch, AddRODataPatch, InsertCodePatch
 
-class MyTestCase(unittest.TestCase):
+
+class Tests(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(Tests, self).__init__(*args, **kwargs)
         # binaries location
         self.binary_path = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests/x86_64/patchrex/'))
 

@@ -2,13 +2,11 @@ import os
 import re
 import sys
 import shutil
-import struct
 import capstone
 import tempfile
 import contextlib
 import subprocess
 import fnmatch
-import os
 import string
 
 from .errors import ASMConverterError, ASMConverterNotImplementedError
@@ -298,6 +296,7 @@ class ASMConverter(object):
         if m:
             imm = m.group(1)
             return "$%s" % imm
+        return None
 
     @staticmethod
     def to_att(op, mnemonic=None):
@@ -689,14 +688,12 @@ def get_nasm_c_wrapper_code(function_symbol, get_return=False, debug=False):
     wcode = []
     wcode.append("pusha")
     # TODO add param list handling, right two params in ecx/edx are supported
-    '''
-    assert len(param_list) <= 2 # TODO support more parameters
-    if len(param_list) == 1:
-        wcode.append("mov ecx, %s" % param_list[0])
-    if len(param_list) == 2:
-        wcode.append("mov ecx, %s" % param_list[0])
-        wcode.append("mov edx, %s" % param_list[1])
-    '''
+    # assert len(param_list) <= 2 # TODO support more parameters
+    # if len(param_list) == 1:
+    #     wcode.append("mov ecx, %s" % param_list[0])
+    # if len(param_list) == 2:
+    #     wcode.append("mov ecx, %s" % param_list[0])
+    #     wcode.append("mov edx, %s" % param_list[1])
     if debug:
         wcode.append("int 0x3")
     wcode.append("call {%s}" % function_symbol)
@@ -707,7 +704,7 @@ def get_nasm_c_wrapper_code(function_symbol, get_return=False, debug=False):
     return "\n".join(wcode)
 
 
-def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
+def compile_c(code, optimization='-Oz', compiler_flags="-m32"):
     # TODO symbol support in c code
     with tempdir() as td:
         c_fname = os.path.join(td, "code.c")
@@ -756,7 +753,7 @@ def redirect_stdout(new_target1, new_target2):
 
 def find_files(folder,extension,only_exec=False):
     matches = []
-    for root, dirnames, filenames in os.walk(folder):
+    for root, _, filenames in os.walk(folder):
         for filename in fnmatch.filter(filenames, extension):
             full_name = os.path.join(root, filename)
             if not only_exec or os.access(full_name, os.X_OK):

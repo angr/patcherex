@@ -3,17 +3,26 @@ import logging
 import os
 from collections import OrderedDict, defaultdict
 
+from patcherex import utils
 from patcherex.backend import Backend
-from patcherex.backends.detourbackends._utils import *
-from patcherex.backends.misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
-from patcherex.patches import *
-from patcherex.utils import *
+from patcherex.backends.detourbackends._utils import (
+    DetourException, DoubleDetourException, DuplicateLabelsException,
+    IncompatiblePatchesException, InvalidVAddrException, MissingBlockException,
+    RejectingDict)
+from patcherex.backends.misc import (ASM_ENTRY_POINT_PUSH_ENV,
+                                     ASM_ENTRY_POINT_RESTORE_ENV)
+from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
+                               AddRODataPatch, AddRWDataPatch,
+                               AddRWInitDataPatch, AddSegmentHeaderPatch,
+                               InlinePatch, InsertCodePatch, RawFilePatch,
+                               RawMemPatch, RemoveInstructionPatch,
+                               SegmentHeaderPatch, struct)
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendCgc(Backend):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, data_fallback=None, base_address=None, try_pdf_removal=True):
+    def __init__(self, filename, data_fallback=None, try_pdf_removal=True):
         super(DetourBackendCgc, self).__init__(filename,try_pdf_removal)
 
         self.cfg = self._generate_cfg()
@@ -51,7 +60,7 @@ class DetourBackendCgc(Backend):
         self.touched_bytes = set()
         self.modded_segments = self.dump_segments()
 
-        if self.try_pdf_removal == True:
+        if self.try_pdf_removal:
             l.info("Trying to remove the pdf from the binary")
             should_remove_pdf, pdf_start, pdf_length, check_instruction_addr, check_instruction_size  = self.find_pdf()
             if should_remove_pdf:
@@ -64,7 +73,7 @@ class DetourBackendCgc(Backend):
             l.info("Forced not to remove the pdf from the binary")
 
         # we reused existing data segment if it is the last one in the file, otherwise we use the fallback solution
-        if data_fallback == None:
+        if data_fallback is None:
             last_segment = self.modded_segments[-1]
             # TODO if not global rw data in the original program, this segment is not here
             # for now I assume it will be always here in reasonable programs
@@ -75,8 +84,8 @@ class DetourBackendCgc(Backend):
                 max_file_end = max([s[1]+s[4] for s in self.modded_segments[:-1]])
                 if max_file_start < last_segment[1] and max_file_end <= last_segment[1]+last_segment[4]:
                     l.info("Using standard method for RW memory. " \
-                            "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x" % \
-                            (last_segment[1],last_segment[1]+last_segment[4],max_file_start,max_file_end))
+                            "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x", \
+                            last_segment[1], last_segment[1]+last_segment[4], max_file_start, max_file_end)
                     self.data_fallback = False
                 else:
                     l.info("Using fallback method for RW memory.")
@@ -85,7 +94,7 @@ class DetourBackendCgc(Backend):
                 l.info("Using fallback method for RW memory.")
                 self.data_fallback = True
         else:
-            l.info("RW method forced to fallback? %s" % str(data_fallback))
+            l.info("RW method forced to fallback? %s", str(data_fallback))
             self.data_fallback = data_fallback
 
         if self.data_fallback:
@@ -165,7 +174,7 @@ class DetourBackendCgc(Backend):
 
         # 5) check for _start structure
         instructions = utils.disassemble(self.read_mem_from_file(self.get_oep(), 30), self.get_oep())
-        i1, i2 = instructions[:2]
+        i1, _ = instructions[:2]
         if not (i1.mnemonic == u'call' and i1.mnemonic == u'call'):
             l.warning("unexpected instructions at entry points")
             return False, None, None, None, None
@@ -186,21 +195,21 @@ class DetourBackendCgc(Backend):
             return False, None, None, None, None
 
         # 7) check for pdf acceses from cfg
-        if False: # TODO, see issue: https://git.seclab.cs.ucsb.edu/cgc/patcherex/issues
-            l.warning("unexpected acceses to the pdf")
-            return False, None, None, None, None
+        # if False: # TODO, see issue: https://git.seclab.cs.ucsb.edu/cgc/patcherex/issues
+        #     l.warning("unexpected acceses to the pdf")
+        #     return False, None, None, None, None
 
         return True, pdf_beginning_pos, pdf_length, instructions[3].address, len(instructions[3].bytes)
 
     def remove_pdf(self, pdf_start, pdf_length, check_instruction_addr, check_instruction_size):
-        l.info("pdf is between %08x and %08x" % (pdf_start,  pdf_start + pdf_length))
+        l.info("pdf is between %08x and %08x", pdf_start, pdf_start + pdf_length)
         last_segment = self.modded_segments[-1]
         cut_end = (pdf_start+pdf_length) & 0xfffff000
         cut_start = (pdf_start & 0xfffff000) + 0x1000
         cut_size = cut_end-cut_start
         cut_start_mem = cut_start - last_segment[1] + last_segment[2]
-        cut_end_mem = cut_end - last_segment[1] + last_segment[2]
-        l.info("cutting the pdf from: %08x to %08x" % (cut_start,cut_end))
+        # cut_end_mem = cut_end - last_segment[1] + last_segment[2]
+        l.info("cutting the pdf from: %08x to %08x", cut_start, cut_end)
         self.ncontent = self.ocontent[:cut_start]+self.ocontent[cut_end:]
 
         # remove pointer to section headers, so that it loads fine in gdb, ida, ...
@@ -216,9 +225,10 @@ class DetourBackendCgc(Backend):
 
         header_size = 16 + 2*2 + 4*5 + 2*6
         buf = self.ocontent[0:header_size]
-        (cgcef_type, cgcef_machine, cgcef_version, cgcef_entry, cgcef_phoff,
-            cgcef_shoff, cgcef_flags, cgcef_ehsize, cgcef_phentsize, cgcef_phnum,
-            cgcef_shentsize, cgcef_shnum, cgcef_shstrndx) = struct.unpack("<xxxxxxxxxxxxxxxxHHLLLLLHHHHHH", buf)
+        # (cgcef_type, cgcef_machine, cgcef_version, cgcef_entry, cgcef_phoff,
+        #     cgcef_shoff, cgcef_flags, cgcef_ehsize, cgcef_phentsize, cgcef_phnum,
+        #     cgcef_shentsize, cgcef_shnum, cgcef_shstrndx) = struct.unpack("<xxxxxxxxxxxxxxxxHHLLLLLHHHHHH", buf)
+        (_, _, _, _, _, _, _, _, cgcef_phentsize, cgcef_phnum, _, _, _) = struct.unpack("<xxxxxxxxxxxxxxxxHHLLLLLHHHHHH", buf)
         phent_size = 8 * 4
         assert cgcef_phnum != 0
         assert cgcef_phentsize == phent_size
@@ -269,14 +279,14 @@ class DetourBackendCgc(Backend):
         # Additionally added program headers have been already copied by the for loop above
         self.ncontent = self.ncontent.ljust(len(self.ncontent)+self.additional_headers_size, b"\x00")
 
-        
     def dump_segments(self, tprint=False):
         # from: https://github.com/CyberGrandChallenge/readcgcef/blob/master/readcgcef-minimal.py
         header_size = 16 + 2 * 2 + 4 * 5 + 2 * 6
         buf = self.ncontent[0:header_size]
-        (cgcef_type, cgcef_machine, cgcef_version, cgcef_entry, cgcef_phoff,
-         cgcef_shoff, cgcef_flags, cgcef_ehsize, cgcef_phentsize, cgcef_phnum,
-         cgcef_shentsize, cgcef_shnum, cgcef_shstrndx) = struct.unpack("<xxxxxxxxxxxxxxxxHHLLLLLHHHHHH", buf)
+        # (cgcef_type, cgcef_machine, cgcef_version, cgcef_entry, cgcef_phoff,
+        #     cgcef_shoff, cgcef_flags, cgcef_ehsize, cgcef_phentsize, cgcef_phnum,
+        #     cgcef_shentsize, cgcef_shnum, cgcef_shstrndx) = struct.unpack("<xxxxxxxxxxxxxxxxHHLLLLLHHHHHH", buf)
+        (_, _, _, _, cgcef_phoff, _, _, _, cgcef_phentsize, cgcef_phnum, _, _, _) = struct.unpack("<xxxxxxxxxxxxxxxxHHLLLLLHHHHHH", buf)
         phent_size = 8 * 4
         assert cgcef_phnum != 0
         assert cgcef_phentsize == phent_size
@@ -424,8 +434,7 @@ class DetourBackendCgc(Backend):
 
         # check for duplicate labels, it is not very necessary for this backend
         # but it is better to behave in the same way of the reassembler backend
-        relevant_patches = [p for p in patches if (isinstance(p, AddCodePatch) or
-                isinstance(p, InsertCodePatch) or isinstance(p, AddEntryPointPatch))]
+        relevant_patches = [p for p in patches if (isinstance(p, (AddCodePatch, InsertCodePatch, AddEntryPointPatch)))]
         all_code = ""
         for p in relevant_patches:
             if isinstance(p, InsertCodePatch):
@@ -434,7 +443,7 @@ class DetourBackendCgc(Backend):
                 code = p.asm_code
             all_code += "\n" + code + "\n"
         labels = utils.string_to_labels(all_code)
-        duplicates = set([x for x in labels if labels.count(x) > 1])
+        duplicates = set(x for x in labels if labels.count(x) > 1)
         if len(duplicates) > 1:
             raise DuplicateLabelsException("found duplicate assembly labels: %s" % (str(duplicates)))
 
@@ -448,12 +457,12 @@ class DetourBackendCgc(Backend):
             if isinstance(patch, RawFilePatch):
                 self.ncontent = utils.bytes_overwrite(self.ncontent, patch.data, patch.file_addr)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
         for patch in patches:
             if isinstance(patch, RawMemPatch):
                 self.patch_bin(patch.addr,patch.data)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
         for patch in patches:
             if isinstance(patch, RemoveInstructionPatch):
@@ -464,15 +473,14 @@ class DetourBackendCgc(Backend):
                     size = patch.ins_size
                 self.patch_bin(patch.ins_addr, b"\x90" * size)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
         if self.data_fallback:
             # 1)
             self.added_data_file_start = len(self.ncontent)
             curr_data_position = self.name_map["ADDED_DATA_START"]
             for patch in patches:
-                if isinstance(patch, AddRWDataPatch) or isinstance(patch, AddRODataPatch) or \
-                        isinstance(patch, AddRWInitDataPatch):
+                if isinstance(patch, (AddRWDataPatch, AddRODataPatch, AddRWInitDataPatch)):
                     if hasattr(patch, "data"):
                         final_patch_data = patch.data
                     else:
@@ -483,7 +491,7 @@ class DetourBackendCgc(Backend):
                     curr_data_position += len(final_patch_data)
                     self.ncontent = utils.bytes_overwrite(self.ncontent, final_patch_data)
                     self.added_patches.append(patch)
-                    l.info("Added patch: " + str(patch))
+                    l.info("Added patch: %s", str(patch))
             self.ncontent = utils.pad_bytes(self.ncontent, 0x10)  # some minimal alignment may be good
 
             self.added_code_file_start = len(self.ncontent)
@@ -496,7 +504,7 @@ class DetourBackendCgc(Backend):
                         self.name_map[patch.name] = self.name_map["ADDED_DATA_START"] + self.added_rwdata_len
                     self.added_rwdata_len += patch.len
                     self.added_patches.append(patch)
-                    l.info("Added patch: " + str(patch))
+                    l.info("Added patch: %s", str(patch))
 
             # 1.2) AddRWInitDataPatch
             for patch in patches:
@@ -507,7 +515,7 @@ class DetourBackendCgc(Backend):
                                 self.added_rwinitdata_len
                     self.added_rwinitdata_len += len(patch.data)
                     self.added_patches.append(patch)
-                    l.info("Added patch: " + str(patch))
+                    l.info("Added patch: %s", str(patch))
             if self.to_init_data != b"":
                 code = '''
                 jmp _skip_data
@@ -533,7 +541,7 @@ class DetourBackendCgc(Backend):
                     self.added_code += patch.data
                     self.ncontent = utils.bytes_overwrite(self.ncontent, patch.data)
                     self.added_patches.append(patch)
-                    l.info("Added patch: " + str(patch))
+                    l.info("Added patch: %s", str(patch))
 
         # 2) AddCodePatch
         # resolving symbols
@@ -563,7 +571,7 @@ class DetourBackendCgc(Backend):
                 self.added_code += new_code
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
         # 3) AddEntryPointPatch
         # basically like AddCodePatch but we detour by changing oep
@@ -597,7 +605,7 @@ class DetourBackendCgc(Backend):
                                              self.name_map)
                 self.added_code += new_code
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
 
             restore_code = ASM_ENTRY_POINT_RESTORE_ENV
@@ -621,7 +629,7 @@ class DetourBackendCgc(Backend):
                 self.added_code += new_code
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
             oep = self.get_oep()
             self.set_oep(pre_entrypoint_code_position)
@@ -643,23 +651,23 @@ class DetourBackendCgc(Backend):
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.instruction_addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
         # 5) InsertCodePatch
         # these patches specify an address in some basic block, In general we will move the basic block
         # and fix relative offsets
         # With this backend heer we can fail applying a patch, in case, resolve dependencies
         insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
-        insert_code_patches = sorted([p for p in insert_code_patches],key=lambda x:-1*x.priority)
+        insert_code_patches = sorted(insert_code_patches, key=lambda x:-1*x.priority)
         applied_patches = []
         while True:
             name_list = [str(p) if (p is None or p.name is None) else p.name for p in applied_patches]
-            l.info("applied_patches is: |" + "-".join(name_list)+"|")
+            l.info("applied_patches is: |%s|", "-".join(name_list))
             assert all([a == b for a, b in zip(applied_patches, insert_code_patches)])
             for patch in insert_code_patches[len(applied_patches):]:
                 self.save_state(applied_patches)
                 try:
-                    l.info("Trying to add patch: " + str(patch))
+                    l.info("Trying to add patch: %s", str(patch))
                     if patch.name is not None:
                         self.name_map[patch.name] = self.get_current_code_position()
                     new_code = self.insert_detour(patch)
@@ -667,13 +675,13 @@ class DetourBackendCgc(Backend):
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                     applied_patches.append(patch)
                     self.added_patches.append(patch)
-                    l.info("Added patch: " + str(patch))
+                    l.info("Added patch: %s", str(patch))
                 except (DetourException, MissingBlockException, DoubleDetourException) as e:
                     l.warning(e)
                     insert_code_patches, removed = self.handle_remove_patch(insert_code_patches,patch)
                     #print map(str,removed)
                     applied_patches = self.restore_state(applied_patches, removed)
-                    l.warning("One patch failed, rolling back InsertCodePatch patches. Failed patch: "+str(patch))
+                    l.warning("One patch failed, rolling back InsertCodePatch patches. Failed patch: %s", str(patch))
                     break
                     # TODO: right now rollback goes back to 0 patches, we may want to go back less
                     # the solution is to save touched_bytes and ncontent indexed by applied patfch
@@ -693,10 +701,10 @@ class DetourBackendCgc(Backend):
             if len(segment_header_patches) > 1:
                 msg = "more than one patch tries to change segment headers: " + "|".join([str(p) for p in segment_header_patches])
                 raise IncompatiblePatchesException(msg)
-            elif len(segment_header_patches) == 1:
+            if len(segment_header_patches) == 1:
                 segment_patch = segment_header_patches[0]
                 segments = segment_patch.segment_headers
-                l.info("Added patch: " + str(segment_patch))
+                l.info("Added patch: %s", str(segment_patch))
             else:
                 segments = self.modded_segments
 
@@ -712,13 +720,14 @@ class DetourBackendCgc(Backend):
                 segments[-1] = last_segment
             self.setup_headers(segments)
             self.set_added_segment_headers(len(segments))
-            l.debug("final symbol table: "+ repr([(k,hex(v)) for k,v in self.name_map.items()]))
+            l.debug("final symbol table: %s", repr([(k,hex(v)) for k,v in self.name_map.items()]))
         else:
             l.info("no patches, the binary will not be touched")
 
-    def handle_remove_patch(self,patches,patch):
+    @staticmethod
+    def handle_remove_patch(patches,patch):
         # note the patches contains also "future" patches
-        l.info("Handling removal of patch: "+str(patch))
+        l.info("Handling removal of patch: %s", str(patch))
         cleaned_patches = [p for p in patches if p != patch]
         removed_patches = [patch]
         while True:
@@ -729,17 +738,18 @@ class DetourBackendCgc(Backend):
                 for d in p.dependencies:
                     #print "\t",d.name, map(lambda x:x.name,cleaned_patches)
                     if d not in cleaned_patches:
-                        l.info("Removing depending patch: "+str(p)+" depends from "+str(d))
+                        l.info("Removing depending patch: %s depends from %s", str(p), str(d))
                         removed = True
                         if p in cleaned_patches:
                             cleaned_patches.remove(p)
                         if p not in removed_patches:
                             removed_patches.append(p)
-            if removed == False:
+            if not removed:
                 break
         return cleaned_patches,removed_patches
 
-    def check_if_movable(self, instruction):
+    @staticmethod
+    def check_if_movable(instruction):
         # the idea here is an instruction is movable if and only if
         # it has the same string representation when moved at different offsets is "movable"
         def bytes_to_comparable_str(ibytes, offset):
@@ -749,10 +759,7 @@ class DetourBackendCgc(Backend):
         pos1 = bytes_to_comparable_str(instruction_bytes, 0x0)
         pos2 = bytes_to_comparable_str(instruction_bytes, 0x07f00000)
         pos3 = bytes_to_comparable_str(instruction_bytes, 0xfe000000)
-        if pos1 == pos2 and pos2 == pos3:
-            return True
-        else:
-            return False
+        return pos1 == pos2 and pos2 == pos3
 
     def maddress_to_baddress(self, addr):
         if addr >= self.max_convertible_address:
@@ -761,8 +768,7 @@ class DetourBackendCgc(Backend):
         baddr = self.project.loader.main_object.addr_to_offset(addr)
         if baddr is None:
             raise InvalidVAddrException(hex(addr))
-        else:
-            return baddr
+        return baddr
 
     def get_memory_translation_list(self, address, size):
         # returns a list of address ranges that map to a given virtual address and size
@@ -771,18 +777,19 @@ class DetourBackendCgc(Backend):
         # print hex(start), hex(end)
         start_p = address & 0xfffffff000
         end_p = end & 0xfffffff000
+        mlist = list()
+
         if start_p == end_p:
-            return [(self.maddress_to_baddress(start), self.maddress_to_baddress(end)+1)]
+            mlist.append((self.maddress_to_baddress(start), self.maddress_to_baddress(end)+1))
         else:
             first_page_baddress = self.maddress_to_baddress(start)
-            mlist = list()
             mlist.append((first_page_baddress, (first_page_baddress & 0xfffffff000)+0x1000))
             nstart = (start & 0xfffffff000) + 0x1000
             while nstart != end_p:
                 mlist.append((self.maddress_to_baddress(nstart), self.maddress_to_baddress(nstart)+0x1000))
                 nstart += 0x1000
             mlist.append((self.maddress_to_baddress(nstart), self.maddress_to_baddress(end)+1))
-            return mlist
+        return mlist
 
     def patch_bin(self, address, new_content):
         # since the content could theoretically be split into different segments we will handle it here
@@ -838,8 +845,7 @@ class DetourBackendCgc(Backend):
         if detour_pos is None:
             raise DetourException("No space in bb", hex(block.addr), hex(block.size),
                                   hex(movable_bb_start), hex(movable_bb_size))
-        else:
-            l.debug("detour fits at %s", hex(detour_pos))
+        l.debug("detour fits at %s", hex(detour_pos))
 
         return detour_pos
 
@@ -880,7 +886,7 @@ class DetourBackendCgc(Backend):
         block_addr = self.get_block_containing_inst(patch.addr)
         block = self.project.factory.block(block_addr)
 
-        l.debug("inserting detour for patch: %s" % (map(hex, (block_addr, block.size, patch.addr))))
+        l.debug("inserting detour for patch: %s", (map(hex, (block_addr, block.size, patch.addr))))
 
         detour_size = 5
         one_byte_nop = b'\x90'
@@ -909,8 +915,7 @@ class DetourBackendCgc(Backend):
                 for b in range(i.address, i.address+len(i.bytes)):
                     if b in self.touched_bytes:
                         raise DoubleDetourException("byte has been already touched: %08x" % b)
-                    else:
-                        self.touched_bytes.add(b)
+                    self.touched_bytes.add(b)
                 self.patch_bin(i.address, one_byte_nop*len(i.bytes))
 
         # insert the jump detour

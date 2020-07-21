@@ -1,17 +1,19 @@
-import bisect
 import logging
-import os
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 
-from elftools.construct.lib import Container
-from elftools.elf.elffile import ELFFile
-
-from patcherex.backend import Backend
-from patcherex.backends.detourbackends._utils import *
-from patcherex.backends.detourbackends._elf import *
-from patcherex.backends.misc import ASM_ENTRY_POINT_PUSH_ENV, ASM_ENTRY_POINT_RESTORE_ENV
-from patcherex.patches import *
-from patcherex.utils import *
+from patcherex import utils
+from patcherex.backends.detourbackends._elf import DetourBackendElf, l
+from patcherex.backends.detourbackends._utils import (
+    DetourException, DoubleDetourException, DuplicateLabelsException,
+    IncompatiblePatchesException, MissingBlockException)
+from patcherex.backends.misc import (ASM_ENTRY_POINT_PUSH_ENV,
+                                     ASM_ENTRY_POINT_RESTORE_ENV)
+from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
+                               AddRODataPatch, AddRWDataPatch,
+                               AddRWInitDataPatch, AddSegmentHeaderPatch,
+                               InlinePatch, InsertCodePatch, RawFilePatch,
+                               RawMemPatch, RemoveInstructionPatch,
+                               SegmentHeaderPatch)
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
@@ -47,8 +49,7 @@ class DetourBackendi386(DetourBackendElf):
 
         # check for duplicate labels, it is not very necessary for this backend
         # but it is better to behave in the same way of the reassembler backend
-        relevant_patches = [p for p in patches if (isinstance(p, AddCodePatch) or
-                isinstance(p, InsertCodePatch) or isinstance(p, AddEntryPointPatch))]
+        relevant_patches = [p for p in patches if isinstance(p, (AddCodePatch, AddEntryPointPatch, InsertCodePatch))]
         all_code = ""
         for p in relevant_patches:
             if isinstance(p, InsertCodePatch):
@@ -57,7 +58,7 @@ class DetourBackendi386(DetourBackendElf):
                 code = p.asm_code
             all_code += "\n" + code + "\n"
         labels = utils.string_to_labels(all_code)
-        duplicates = set([x for x in labels if labels.count(x) > 1])
+        duplicates = set(x for x in labels if labels.count(x) > 1)
         if len(duplicates) > 1:
             raise DuplicateLabelsException("found duplicate assembly labels: %s" % (str(duplicates)))
 
@@ -73,12 +74,12 @@ class DetourBackendi386(DetourBackendElf):
             if isinstance(patch, RawFilePatch):
                 self.ncontent = utils.bytes_overwrite(self.ncontent, patch.data, patch.file_addr)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
         for patch in patches:
             if isinstance(patch, RawMemPatch):
                 self.patch_bin(patch.addr,patch.data)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
         for patch in patches:
             if isinstance(patch, RemoveInstructionPatch):
@@ -89,14 +90,13 @@ class DetourBackendi386(DetourBackendElf):
                     size = patch.ins_size
                 self.patch_bin(patch.ins_addr, b"\x90" * size)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
         # 1) Add{RO/RW/RWInit}DataPatch
         self.added_data_file_start = len(self.ncontent)
         curr_data_position = self.name_map["ADDED_DATA_START"]
         for patch in patches:
-            if isinstance(patch, AddRWDataPatch) or isinstance(patch, AddRODataPatch) or \
-                    isinstance(patch, AddRWInitDataPatch):
+            if isinstance(patch, (AddRWDataPatch, AddRODataPatch, AddRWInitDataPatch)):
                 if hasattr(patch, "data"):
                     final_patch_data = patch.data
                 else:
@@ -107,7 +107,7 @@ class DetourBackendi386(DetourBackendElf):
                 curr_data_position += len(final_patch_data)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, final_patch_data)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
         self.ncontent = utils.pad_bytes(self.ncontent, 0x10)  # some minimal alignment may be good
 
         self.added_code_file_start = len(self.ncontent)
@@ -174,7 +174,7 @@ class DetourBackendi386(DetourBackendElf):
                 self.added_code += new_code
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
         # 3) AddEntryPointPatch
         # basically like AddCodePatch but we detour by changing oep
@@ -212,7 +212,7 @@ class DetourBackendi386(DetourBackendElf):
                                              bits=bits)
                 self.added_code += new_code
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
 
             restore_code = ASM_ENTRY_POINT_RESTORE_ENV
@@ -240,7 +240,7 @@ class DetourBackendi386(DetourBackendElf):
                 self.added_code += new_code
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
             oep = self.get_oep()
             self.set_oep(pre_entrypoint_code_position)
@@ -263,23 +263,23 @@ class DetourBackendi386(DetourBackendElf):
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.instruction_addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
         # 5) InsertCodePatch
         # these patches specify an address in some basic block, In general we will move the basic block
         # and fix relative offsets
         # With this backend heer we can fail applying a patch, in case, resolve dependencies
         insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
-        insert_code_patches = sorted([p for p in insert_code_patches],key=lambda x:-1*x.priority)
+        insert_code_patches = sorted(insert_code_patches, key=lambda x:-1*x.priority)
         applied_patches = []
         while True:
             name_list = [str(p) if (p is None or p.name is None) else p.name for p in applied_patches]
-            l.info("applied_patches is: |" + "-".join(name_list)+"|")
+            l.info("applied_patches is: |%s|", "-".join(name_list))
             assert all([a == b for a, b in zip(applied_patches, insert_code_patches)])
             for patch in insert_code_patches[len(applied_patches):]:
                 self.save_state(applied_patches)
                 try:
-                    l.info("Trying to add patch: " + str(patch))
+                    l.info("Trying to add patch: %s", str(patch))
                     if patch.name is not None:
                         self.name_map[patch.name] = self.get_current_code_position()
                     new_code = self.insert_detour(patch)
@@ -287,13 +287,13 @@ class DetourBackendi386(DetourBackendElf):
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                     applied_patches.append(patch)
                     self.added_patches.append(patch)
-                    l.info("Added patch: " + str(patch))
+                    l.info("Added patch: %s", str(patch))
                 except (DetourException, MissingBlockException, DoubleDetourException) as e:
                     l.warning(e)
                     insert_code_patches, removed = self.handle_remove_patch(insert_code_patches,patch)
                     #print map(str,removed)
                     applied_patches = self.restore_state(applied_patches, removed)
-                    l.warning("One patch failed, rolling back InsertCodePatch patches. Failed patch: "+str(patch))
+                    l.warning("One patch failed, rolling back InsertCodePatch patches. Failed patch: %s", str(patch))
                     break
                     # TODO: right now rollback goes back to 0 patches, we may want to go back less
                     # the solution is to save touched_bytes and ncontent indexed by applied patfch
@@ -313,10 +313,10 @@ class DetourBackendi386(DetourBackendElf):
             if len(segment_header_patches) > 1:
                 msg = "more than one patch tries to change segment headers: " + "|".join([str(p) for p in segment_header_patches])
                 raise IncompatiblePatchesException(msg)
-            elif len(segment_header_patches) == 1:
+            if len(segment_header_patches) == 1:
                 segment_patch = segment_header_patches[0]
                 segments = segment_patch.segment_headers
-                l.info("Added patch: " + str(segment_patch))
+                l.info("Added patch: %s", str(segment_patch))
             else:
                 segments = self.modded_segments
 
@@ -326,11 +326,11 @@ class DetourBackendi386(DetourBackendElf):
 
             self.setup_headers(segments)
             self.set_added_segment_headers()
-            l.debug("final symbol table: "+ repr([(k,hex(v)) for k,v in self.name_map.items()]))
+            l.debug("final symbol table: %s", repr([(k,hex(v)) for k,v in self.name_map.items()]))
         else:
             l.info("no patches, the binary will not be touched")
 
-    def check_if_movable(self, instruction):
+    def check_if_movable(self, instruction, is_thumb=False):
         # the idea here is an instruction is movable if and only if
         # it has the same string representation when moved at different offsets is "movable"
         def bytes_to_comparable_str(ibytes, offset, bits):
@@ -341,11 +341,7 @@ class DetourBackendi386(DetourBackendElf):
         pos1 = bytes_to_comparable_str(instruction_bytes, 0x0, self.structs.elfclass)
         pos2 = bytes_to_comparable_str(instruction_bytes, 0x07f00000, self.structs.elfclass)
         pos3 = bytes_to_comparable_str(instruction_bytes, 0xfe000000, self.structs.elfclass)
-        # print pos1, pos2, pos3
-        if pos1 == pos2 and pos2 == pos3:
-            return True
-        else:
-            return False
+        return pos1 == pos2 and pos2 == pos3
 
     def get_movable_instructions(self, block):
         # TODO there are two improvements here:
@@ -362,7 +358,7 @@ class DetourBackendi386(DetourBackendElf):
 
         return movable_instructions
 
-    def compile_moved_injected_code(self, classified_instructions, patch_code, offset=0):
+    def compile_moved_injected_code(self, classified_instructions, patch_code, offset=0, is_thumb=False):
         # create injected_code (pre, injected, culprit, post, jmp_back)
         injected_code = "_patcherex_begin_patch:\n"
         injected_code += "\n".join([utils.capstone_to_nasm(i)
@@ -402,7 +398,7 @@ class DetourBackendi386(DetourBackendElf):
         mem = self.read_mem_from_file(block_addr, self.project.factory.block(block_addr).size)
         block = self.project.factory.block(block_addr, byte_string=mem)
 
-        l.debug("inserting detour for patch: %s" % (map(hex, (block_addr, block.size, patch.addr))))
+        l.debug("inserting detour for patch: %s", (map(hex, (block_addr, block.size, patch.addr))))
 
         detour_size = 5
         one_byte_nop = b'\x90'
@@ -437,8 +433,7 @@ class DetourBackendi386(DetourBackendElf):
                 for b in range(i.address, i.address+len(i.bytes)):
                     if b in self.touched_bytes:
                         raise DoubleDetourException("byte has been already touched: %08x" % b)
-                    else:
-                        self.touched_bytes.add(b)
+                    self.touched_bytes.add(b)
                 self.patch_bin(i.address, one_byte_nop*len(i.bytes))
 
         # insert the jump detour

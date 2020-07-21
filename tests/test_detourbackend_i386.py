@@ -1,20 +1,25 @@
 #!/usr/bin/env python
 
+import logging
 import os
 import subprocess
-import logging
 import unittest
 
-import patcherex
 import shellphish_qemu
+
+import patcherex
 from patcherex.backends.detourbackend import DetourBackend
-from patcherex.patches import AddCodePatch, AddRODataPatch, InsertCodePatch, AddLabelPatch, AddRWDataPatch, AddRWInitDataPatch, AddEntryPointPatch, InlinePatch, RawFilePatch, RawMemPatch,RemoveInstructionPatch
+from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
+                               AddRODataPatch, AddRWDataPatch,
+                               AddRWInitDataPatch, InlinePatch,
+                               InsertCodePatch, RawFilePatch, RawMemPatch,
+                               RemoveInstructionPatch)
 
 
 class Tests(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
+        super(Tests, self).__init__(*args, **kwargs)
         self.l = logging.getLogger("patcherex.test.test_detourbackend")
         self.bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests/i386/patchrex'))
         self.qemu_location = shellphish_qemu.qemu_path('i386')
@@ -259,8 +264,8 @@ class Tests(unittest.TestCase):
             exc = True
         self.assertTrue(exc)
 
-    def run_test(self, file, patches, set_oep=None, inputs=None, expected_output=None, expected_returnCode=None):
-        filepath = os.path.join(self.bin_location, file)
+    def run_test(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None):
+        filepath = os.path.join(self.bin_location, filename)
         pipe = subprocess.PIPE
 
         with patcherex.utils.tempdir() as td:
@@ -271,7 +276,7 @@ class Tests(unittest.TestCase):
                 backend.set_oep(backend.name_map[set_oep])
             backend.save(tmp_file)
             p = subprocess.Popen([tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-            res = p.communicate(inputs)
+            res = p.communicate(inputvalue)
             if expected_output:
                 self.assertEqual(res[0], expected_output)
             if expected_returnCode:

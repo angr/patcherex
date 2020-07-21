@@ -1,18 +1,17 @@
 import bisect
 import logging
 import os
-import re
-from collections import OrderedDict, defaultdict
+from collections import OrderedDict
 
-import capstone
-import keystone
 from elftools.construct.lib import Container
 from elftools.elf.elffile import ELFFile
 
+from patcherex import utils
 from patcherex.backend import Backend
-from patcherex.backends.detourbackends._utils import *
-from patcherex.patches import *
-from patcherex.utils import CLangException, ObjcopyException, UndefinedSymbolException
+from patcherex.backends.detourbackends._utils import (DetourException,
+                                                      InvalidVAddrException,
+                                                      MissingBlockException,
+                                                      RejectingDict)
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
@@ -82,8 +81,8 @@ class DetourBackendElf(Backend):
                                             "p_flags":  0x7,                                          "p_align":  0x1000})
                     self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(segment), note_segment_header_loc)
                     break
-                else:
-                    note_segment_header_loc += current_hdr["e_phentsize"]
+
+                note_segment_header_loc += current_hdr["e_phentsize"]
         else:
             #if self.is_patched():
             #    return
@@ -280,7 +279,7 @@ class DetourBackendElf(Backend):
             for p in cleaned_patches:
                 for d in p.dependencies:
                     if d not in cleaned_patches:
-                        l.info("Removing depending patch: "+str(p)+" depends from "+str(d))
+                        l.info("Removing depending patch: %s depends from %s", str(p), str(d))
                         removed = True
                         if p in cleaned_patches:
                             cleaned_patches.remove(p)
@@ -290,7 +289,7 @@ class DetourBackendElf(Backend):
                 break
         return cleaned_patches,removed_patches
 
-    def check_if_movable(self, instruction):
+    def check_if_movable(self, instruction, is_thumb=False):
         raise NotImplementedError()
 
     def maddress_to_baddress(self, addr):
@@ -300,8 +299,7 @@ class DetourBackendElf(Backend):
         baddr = self.project.loader.main_object.addr_to_offset(addr)
         if baddr is None:
             raise InvalidVAddrException(hex(addr))
-        else:
-            return baddr
+        return baddr
 
     def get_memory_translation_list(self, address, size):
         # returns a list of address ranges that map to a given virtual address and size
@@ -363,12 +361,11 @@ class DetourBackendElf(Backend):
         if detour_pos is None:
             raise DetourException("No space in bb", hex(block.addr), hex(block.size),
                                   hex(movable_bb_start), hex(movable_bb_size))
-        else:
-            l.debug("detour fits at %s", hex(detour_pos))
+        l.debug("detour fits at %s", hex(detour_pos))
 
         return detour_pos
 
-    def compile_moved_injected_code(self, classified_instructions, patch_code, offset=0):
+    def compile_moved_injected_code(self, classified_instructions, patch_code, offset=0, is_thumb=False):
         raise NotImplementedError()
 
     def insert_detour(self, patch):

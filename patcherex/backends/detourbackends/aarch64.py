@@ -2,18 +2,24 @@ import bisect
 import logging
 import os
 import re
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 
 import capstone
 import keystone
-from elftools.construct.lib import Container
-from elftools.elf.elffile import ELFFile
 
-from patcherex.backend import Backend
-from patcherex.backends.detourbackends._utils import *
-from patcherex.backends.detourbackends._elf import *
-from patcherex.patches import *
-from patcherex.utils import CLangException, ObjcopyException, UndefinedSymbolException
+from patcherex import utils
+from patcherex.backends.detourbackends._elf import DetourBackendElf, l
+from patcherex.backends.detourbackends._utils import (
+    DetourException, DoubleDetourException, DuplicateLabelsException,
+    IncompatiblePatchesException, MissingBlockException)
+from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
+                               AddRODataPatch, AddRWDataPatch,
+                               AddRWInitDataPatch, AddSegmentHeaderPatch,
+                               InlinePatch, InsertCodePatch, RawFilePatch,
+                               RawMemPatch, RemoveInstructionPatch,
+                               SegmentHeaderPatch)
+from patcherex.utils import (CLangException, ObjcopyException,
+                             UndefinedSymbolException)
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
@@ -66,7 +72,7 @@ class DetourBackendAarch64(DetourBackendElf):
                 code = p.asm_code
             all_code += "\n" + code + "\n"
         labels = utils.string_to_labels(all_code)
-        duplicates = set([x for x in labels if labels.count(x) > 1])
+        duplicates = set(x for x in labels if labels.count(x) > 1)
         if len(duplicates) > 1:
             raise DuplicateLabelsException("found duplicate assembly labels: %s" % (str(duplicates)))
 
@@ -193,7 +199,7 @@ class DetourBackendAarch64(DetourBackendElf):
         # and fix relative offsets
         # With this backend heer we can fail applying a patch, in case, resolve dependencies
         insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
-        insert_code_patches = sorted([p for p in insert_code_patches],key=lambda x:-1*x.priority)
+        insert_code_patches = sorted(insert_code_patches, key=lambda x:-1*x.priority)
         applied_patches = []
         while True:
             name_list = [str(p) if (p is None or p.name is None) else p.name for p in applied_patches]
@@ -236,7 +242,7 @@ class DetourBackendAarch64(DetourBackendElf):
             if len(segment_header_patches) > 1:
                 msg = "more than one patch tries to change segment headers: %s", "|".join([str(p) for p in segment_header_patches])
                 raise IncompatiblePatchesException(msg)
-            elif len(segment_header_patches) == 1:
+            if len(segment_header_patches) == 1:
                 segment_patch = segment_header_patches[0]
                 segments = segment_patch.segment_headers
                 l.info("Added patch: %s", str(segment_patch))
@@ -253,7 +259,7 @@ class DetourBackendAarch64(DetourBackendElf):
         else:
             l.info("no patches, the binary will not be touched")
 
-    def check_if_movable(self, instruction):
+    def check_if_movable(self, instruction, is_thumb=False):
         # the idea here is an instruction is movable if and only if
         # it has the same string representation when moved at different offsets is "movable"
         def bytes_to_comparable_str(ibytes, offset):
@@ -290,7 +296,7 @@ class DetourBackendAarch64(DetourBackendElf):
         l.debug("movable bb instructions:\n%s", "\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
 
         # find a spot for the detour
-        detour_pos = None 
+        detour_pos = None
         for detour_start in range(movable_bb_start, movable_bb_start + movable_bb_size - detour_size, 4):
             if detour_start in [i.address for i in movable_instructions]:
                 detour_pos = detour_start
@@ -298,12 +304,11 @@ class DetourBackendAarch64(DetourBackendElf):
         if detour_pos is None:
             raise DetourException("No space in bb", hex(block.addr), hex(block.size),
                                   hex(movable_bb_start), hex(movable_bb_size))
-        else:
-            l.debug("detour fits at %s", hex(detour_pos))
+        l.debug("detour fits at %s", hex(detour_pos))
 
         return detour_pos
 
-    def compile_moved_injected_code(self, classified_instructions, patch_code, offset=0):
+    def compile_moved_injected_code(self, classified_instructions, patch_code, offset=0, is_thumb=False):
         # create injected_code (pre, injected, culprit, post, jmp_back)
         injected_code = "_patcherex_begin_patch:\n"
         injected_code += "\n".join([self.capstone_to_asm(i)
@@ -377,8 +382,7 @@ class DetourBackendAarch64(DetourBackendElf):
                 for b in range(i.address, i.address+len(i.bytes)):
                     if b in self.touched_bytes:
                         raise DoubleDetourException("byte has been already touched: %08x" % b)
-                    else:
-                        self.touched_bytes.add(b)
+                    self.touched_bytes.add(b)
                 self.patch_bin(i.address, arm_nop)
 
         # insert the jump detour
@@ -414,7 +418,6 @@ class DetourBackendAarch64(DetourBackendElf):
 
     @staticmethod
     def compile_asm(code, base=None, name_map=None):
-        print(hex(base))
         #print "=" * 10
         #print code
         #if base != None: print hex(base)
@@ -436,17 +439,9 @@ class DetourBackendAarch64(DetourBackendElf):
         return bytes(encoding)
 
     @staticmethod
-    def get_c_function_wrapper_code(function_symbol, get_return=False, debug=False):
-        # TODO maybe with better calling convention on llvm this can be semplified
+    def get_c_function_wrapper_code(function_symbol):
         wcode = []
-        # wcode.append("pusha")
-        # TODO add param list handling, right two params in ecx/edx are supported
-        # if debug:
-        #     wcode.append("int 0x3")
         wcode.append("bl {%s}" % function_symbol)
-        # if get_return:
-        #     wcode.append("mov [esp+28], eax") #FIXME check
-        # wcode.append("popa")
 
         return "\n".join(wcode)
 
