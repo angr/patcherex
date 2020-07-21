@@ -54,4 +54,5 @@ class NxStack(object):
 
         return patches
 
-
+def init_technique(program_name, backend, options):
+    return NxStack(program_name, backend, **options)

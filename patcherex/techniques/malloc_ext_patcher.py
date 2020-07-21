@@ -5,7 +5,7 @@ from collections import defaultdict
 from itertools import chain
 
 import patcherex.cfg_utils as cfg_utils
-from patcherex.patches import *
+from patcherex.patches import AddRWDataPatch, AddEntryPointPatch, InsertCodePatch
 
 l = logging.getLogger("patcherex.techniques.malloc_ext_patcher")
 
@@ -18,7 +18,7 @@ class RegUsed(Exception):
     pass
 
 
-class MallocExtPatcher(object):
+class MallocExtPatcher:
 
     def __init__(self,binary_fname,backend):
         self.binary_fname = binary_fname
@@ -81,7 +81,7 @@ class MallocExtPatcher(object):
 
             try:
                 bl = self.patcher.project.factory.block(n.addr, size=n.size)
-            except angr.AngrTranslationError:
+            except angr.errors.SimTranslationError:
                 l.warning("angr translation at block %#x", n.addr)
                 continue
             used_regs = set()
@@ -97,8 +97,8 @@ class MallocExtPatcher(object):
                         reg = self.get_reg_name(self.patcher.project.arch, e.offset)
                         if reg not in used_regs:
                             free_regs.add(reg)
-            free_regs = set([r for r in free_regs if r in self.relevant_registers])
-            used_regs = set([r for r in used_regs if r in self.relevant_registers])
+            free_regs = {r for r in free_regs if r in self.relevant_registers}
+            used_regs = {r for r in used_regs if r in self.relevant_registers}
             reg_free_map[n.addr] = free_regs
             reg_not_free_map[n.addr] = used_regs
 
@@ -130,7 +130,7 @@ class MallocExtPatcher(object):
 
     def last_block_to_return_locations(self,addr):
         node = self.patcher.cfg.get_any_node(addr)
-        if node == None:
+        if node is None:
             return []
         function = self.patcher.cfg.functions[node.function_address]
         if node.addr not in [n.addr for n in function.endpoints]:
@@ -164,7 +164,10 @@ class MallocExtPatcher(object):
                 return [], True
         return all_succ, False
 
-    def _is_reg_free(self,addr,reg,ignore_current_bb,level,total_steps,debug=False,prev=list()):
+    def _is_reg_free(self,addr,reg,ignore_current_bb,level,total_steps,debug=False,prev=None):
+        if prev is None:
+            prev = []
+
         if level >= self.cfg_exploration_depth:
             raise RegUsed("Max depth %#x %s" % (addr,map(hex,prev)))
 
@@ -191,17 +194,17 @@ class MallocExtPatcher(object):
             # something weird is happening in the cfg, let's assume no reg is free
             raise RegUsed("CFG error %#x %s" % (addr,map(hex,prev)))
 
-        free_regs_in_succ_list = []
-        chain = []
+        # free_regs_in_succ_list = []
+        chain_ = []
         for s in succ:
             if s in prev:
                 continue # avoid exploring already explored nodes (except the first one).
             new_prev = list(prev)
             new_prev.append(s)
             pchain = self._is_reg_free(s,reg,False,level=level+1,total_steps=total_steps,prev=new_prev,debug=debug)
-            chain.append(pchain)
-        chain.append(addr)
-        return chain
+            chain_.append(pchain)
+        chain_.append(addr)
+        return chain_
 
     def get_patches(self):
 
@@ -267,3 +270,6 @@ add DWORD [esp+%d], %s;
         self.patches.append(InsertCodePatch(malloc_addr, code))
 
         return list(self.patches)
+
+def init_technique(program_name, backend, options):
+    return MallocExtPatcher(program_name, backend, **options)

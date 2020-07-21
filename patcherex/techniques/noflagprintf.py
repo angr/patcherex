@@ -180,3 +180,6 @@ class NoFlagPrintfPatcher(object):
                         name="hash_list_{format_spec_char}".format(format_spec_char=ord(fspec))))
         # print "\n".join(map(str,patches))
         return patches
+
+def init_technique(program_name, backend, options):
+    return NoFlagPrintfPatcher(program_name, backend, **options)

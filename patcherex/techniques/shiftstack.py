@@ -28,7 +28,7 @@ class ShiftStack(object):
             or DWORD [ebx],1
             shl DWORD [ebx], %d
             and DWORD [ebx], %d
-        ''' % (self.min_value_pow, ((1 << self.max_value_pow) -1))  
+        ''' % (self.min_value_pow, ((1 << self.max_value_pow) -1))
         patches.append(AddEntryPointPatch(added_code, name="rnd_shiftstack_setup"))
         added_code = '''
             sub esp, DWORD [{rnd_shiftstack}]
@@ -41,3 +41,5 @@ class ShiftStack(object):
 
         return patches
 
+def init_technique(program_name, backend, options):
+    return ShiftStack(program_name, backend, **options)

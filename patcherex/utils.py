@@ -185,7 +185,7 @@ class ASMConverter(object):
                 if base_reg is None: raise ASMConverterError('Unsupported base register "%s"' % part_0)
                 index_reg = ASMConverter.reg_to_att(part_1)
                 if index_reg is None: raise ASMConverterError('Unsupported index register "%s"' % part_1)
-                
+
                 disp = str((int(part_2,base=0)))
 
                 if sign_2 == '-':
@@ -372,7 +372,7 @@ class ASMConverter(object):
 
     @staticmethod
     def intel_to_att(asm):
-        
+
         # convert each line from intel syntax to AT&T syntax
 
         converted = []
@@ -560,16 +560,16 @@ def exec_cmd(args, cwd=None, shell=False, debug=False):
     std = p.communicate()
     retcode = p.poll()
     res = (std[0], std[1], retcode)
-    
+
     if debug:
         print("RESULT:", repr(res))
 
     return res
 
 
-def compile_asm_template(template_name, substitution_dict):
+def compile_asm_template(template_name, substitution_dict, bits=32):
     formatted_template_content = get_asm_template(template_name, substitution_dict)
-    return compile_asm(formatted_template_content)
+    return compile_asm(formatted_template_content, bits=bits)
 
 
 def get_asm_template(template_name, substitution_dict):
@@ -606,8 +606,13 @@ def bytes_to_asm(in_str, comment=None):
         return tstr
 
 
-def disassemble(code, offset=0x0):
-    md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+def disassemble(code, offset=0x0, bits=32):
+    if bits == 32:
+        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_32)
+    elif bits == 64:
+        md = capstone.Cs(capstone.CS_ARCH_X86, capstone.CS_MODE_64)
+    else:
+        raise Exception("disassemble(): Unsupported bits %d." % bits)
     md.detail = True
     if isinstance(code, str):
         code = bytes(map(ord, code))
@@ -637,7 +642,7 @@ def get_multiline_str():
     return "\n".join(input_list)
 
 
-def compile_asm(code, base=None, name_map=None):
+def compile_asm(code, base=None, name_map=None, bits=32):
     #print "=" * 10
     #print code
     #if base != None: print hex(base)
@@ -651,14 +656,14 @@ def compile_asm(code, base=None, name_map=None):
     with tempdir() as td:
         asm_fname = os.path.join(td, "asm.s")
         bin_fname = os.path.join(td, "bin.o")
-        
+
         fp = open(asm_fname, 'wb')
-        fp.write(b"bits 32\n")
+        fp.write(b"bits %d\n" % bits)
         if base is not None:
             fp.write(bytes("org %#x\n" % base, "utf-8"))
         fp.write(bytes(code, "utf-8"))
         fp.close()
-        
+
         res = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)
         if res[2] != 0:
             print("NASM error:")
@@ -677,7 +682,7 @@ def compile_asm(code, base=None, name_map=None):
     return compiled
 
 
-def compile_asm_fake_symbol(code, base=None, ):
+def compile_asm_fake_symbol(code, base=None, bits=32):
     code = re.subn(r'{.*?}', "0x41414141", code)[0]
 
     with tempdir() as td:
@@ -685,7 +690,7 @@ def compile_asm_fake_symbol(code, base=None, ):
         bin_fname = os.path.join(td, "bin.o")
 
         fp = open(asm_fname, "wb")
-        fp.write(b"bits 32\n")
+        fp.write(b"bits %d\n" % bits)
         if base is not None:
             fp.write(bytes("org %#x\n" % base, "utf-8"))
         fp.write(bytes(code, "utf-8"))
@@ -732,7 +737,7 @@ def get_nasm_c_wrapper_code(function_symbol, get_return=False, debug=False):
     return "\n".join(wcode)
 
 
-def compile_c(code, optimization='-Oz', name_map=None):
+def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
     # TODO symbol support in c code
     with tempdir() as td:
         c_fname = os.path.join(td, "code.c")
@@ -743,7 +748,8 @@ def compile_c(code, optimization='-Oz', name_map=None):
         fp.write(code)
         fp.close()
 
-        res = exec_cmd("clang -m32 -nostdlib -mno-sse -ffreestanding %s -o %s -c %s" % (optimization, object_fname, c_fname), shell=True)
+        res = exec_cmd("clang -nostdlib -mno-sse -ffreestanding %s -o %s -c %s %s" \
+                        % (optimization, object_fname, c_fname, compiler_flags), shell=True)
         if res[2] != 0:
             print("CLang error:")
             print(res[0])
@@ -753,7 +759,7 @@ def compile_c(code, optimization='-Oz', name_map=None):
             fp.close()
             print("\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))]))
             raise CLangException
-        res = exec_cmd("objcopy -O binary %s %s" % (object_fname, bin_fname), shell=True)
+        res = exec_cmd("objcopy -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
         if res[2] != 0:
             print("objcopy error:")
             print(res[0])

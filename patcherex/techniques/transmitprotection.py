@@ -134,7 +134,7 @@ class TransmitProtection(Technique):
         cfg = self.patcher.cfg
 
         transmit_wrapper = [ff for ff in cfg.functions.values() if \
-                cfg_utils.detect_syscall_wrapper(self.patcher,ff) == 2] 
+                cfg_utils.detect_syscall_wrapper(self.patcher,ff) == 2]
         if len(transmit_wrapper) != 1:
             l.warning("Found %d transmit_wrapper... better not to touch anything"%len(transmit_wrapper))
             return []
@@ -148,3 +148,6 @@ class TransmitProtection(Technique):
 
 
         return patches
+
+def init_technique(program_name, backend, options):
+    return TransmitProtection(program_name, backend, **options)

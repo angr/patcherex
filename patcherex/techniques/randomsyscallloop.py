@@ -35,4 +35,5 @@ class RandomSyscallLoop(object):
 
         return patches
 
-
+def init_technique(program_name, backend, options):
+    return RandomSyscallLoop(program_name, backend, **options)

@@ -6,7 +6,7 @@ from collections import defaultdict
 from angr.errors import SimEngineError, SimMemoryError
 
 import patcherex.cfg_utils as cfg_utils
-from patcherex.patches import *
+from patcherex.patches import InsertCodePatch
 
 l = logging.getLogger("patcherex.techniques.uninitialized_patcher")
 
@@ -19,7 +19,7 @@ class RegUsed(Exception):
     pass
 
 
-class UninitializedPatcher(object):
+class UninitializedPatcher:
 
     def __init__(self,binary_fname,backend):
         self.binary_fname = binary_fname
@@ -32,6 +32,7 @@ class UninitializedPatcher(object):
         self.reg_free_map, self.reg_not_free_map = self.get_reg_free_map()
         self.inv_callsites = self.map_callsites()
         self.patches = []
+        self.safe_addrs = None
 
     def map_callsites(self):
         callsites = dict()
@@ -75,7 +76,7 @@ class UninitializedPatcher(object):
 
             if self.patcher.project.is_hooked(n.addr):
                 continue
-            elif self.patcher.project.simos.is_syscall_addr(n.addr):
+            if self.patcher.project.simos.is_syscall_addr(n.addr):
                 continue
 
             try:
@@ -84,7 +85,7 @@ class UninitializedPatcher(object):
                 bl = None
 
             # no weird or duplicate nodes
-            if bl == None or (n.addr in reg_free_map) or n.addr == 0:
+            if bl is None or (n.addr in reg_free_map) or n.addr == 0:
                 continue
 
             used_regs = set()
@@ -100,8 +101,8 @@ class UninitializedPatcher(object):
                         reg = self.get_reg_name(self.patcher.project.arch, e.offset)
                         if reg not in used_regs:
                             free_regs.add(reg)
-            free_regs = set([r for r in free_regs if r in self.relevant_registers])
-            used_regs = set([r for r in used_regs if r in self.relevant_registers])
+            free_regs = {r for r in free_regs if r in self.relevant_registers}
+            used_regs = {r for r in used_regs if r in self.relevant_registers}
             reg_free_map[n.addr] = free_regs
             reg_not_free_map[n.addr] = used_regs
 
@@ -131,9 +132,9 @@ class UninitializedPatcher(object):
     def is_reg_free(self,addr,reg,ignore_current_bb,debug=False):
         try:
             tsteps = [0]
-            chain = self._is_reg_free(addr,reg,ignore_current_bb,level=0,prev=[],total_steps=tsteps,debug=debug)
+            chain_ = self._is_reg_free(addr,reg,ignore_current_bb,level=0,prev=[],total_steps=tsteps,debug=debug)
             if debug:
-                print(chain) # the explored tree
+                print(chain_) # the explored tree
                 print(tsteps) # global number of steps
             return True
         except RegUsed as e:
@@ -154,7 +155,7 @@ class UninitializedPatcher(object):
 
     def last_block_to_return_locations(self,addr):
         node = self.patcher.cfg.get_any_node(addr)
-        if node == None:
+        if node is None:
             return []
         function = self.patcher.cfg.functions[node.function_address]
         if node.addr not in [n.addr for n in function.endpoints]:
@@ -188,7 +189,9 @@ class UninitializedPatcher(object):
                 return [], True
         return all_succ, False
 
-    def _is_reg_free(self,addr,reg,ignore_current_bb,level,total_steps,debug=False,prev=list()):
+    def _is_reg_free(self,addr,reg,ignore_current_bb,level,total_steps,debug=False,prev=None):
+        if prev is None:
+            prev = []
         if level >= self.cfg_exploration_depth:
             raise RegUsed("Max depth %#x %s" % (addr,map(hex,prev)))
 
@@ -218,16 +221,16 @@ class UninitializedPatcher(object):
             raise RegUsed("CFG error %#x %s" % (addr,map(hex,prev)))
 
         free_regs_in_succ_list = []
-        chain = []
+        chain_ = []
         for s in succ:
             if s in prev:
                 continue # avoid exploring already explored nodes (except the first one).
             new_prev = list(prev)
             new_prev.append(s)
             pchain = self._is_reg_free(s,reg,False,level=level+1,total_steps=total_steps,prev=new_prev,debug=debug)
-            chain.append(pchain)
-        chain.append(addr)
-        return chain
+            chain_.append(pchain)
+        chain_.append(addr)
+        return chain_
 
     @staticmethod
     def _make_groups(vals, step=-4):
@@ -442,3 +445,6 @@ class UninitializedPatcher(object):
             self._handle_func(ff)
 
         return list(self.patches)
+
+def init_technique(program_name, backend, options):
+    return UninitializedPatcher(program_name, backend, **options)

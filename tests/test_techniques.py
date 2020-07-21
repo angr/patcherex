@@ -51,6 +51,7 @@ from patcherex.techniques.backdoor import Backdoor
 from patcherex.techniques.uninitialized_patcher import UninitializedPatcher
 from patcherex.techniques.malloc_ext_patcher import MallocExtPatcher
 from patcherex.techniques.noflagprintf import NoFlagPrintfPatcher
+from patcherex.techniques.countdown import Countdown
 
 # TODO ideally these tests should be run in the vm
 
@@ -113,6 +114,12 @@ def reassembler_only(f):
         f(make_edible(ReassemblerBackend), None, True)
     return wrapper
 
+
+def detour_only(f):
+    @wraps(f)
+    def wrapper():
+        f(DetourBackend, None, True)
+    return wrapper
 
 @add_fallback_strategy
 def test_shadowstack(BackendClass, data_fallback, try_pdf_removal):
@@ -1301,6 +1308,76 @@ nick stephens
         nose.tools.assert_equal(expected_stdout, actual_stdout)
         '''
 
+@detour_only
+def test_countdown_1(BackendClass, data_fallback, try_pdf_removal):
+    filepath = os.path.join(bin_location, "countdown_test")
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = BackendClass(filepath, try_pdf_removal=try_pdf_removal)
+        obj = backend.project.loader.main_object
+        patch_list = []
+        patch_list.append({"target_addr": obj.offset_to_addr(0x0a31), "dst_active": obj.offset_to_addr(0xa6e), "dst_zero": obj.offset_to_addr(0xa49), "num_instr": 2, "extra_code": "cmp     dword  [rbp - 0x14], 1", "extra_is_c": False})
+        cp = Countdown(filepath, backend, patch_list=patch_list, count=2)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+
+        # We should only see the "Usage error"
+        expected_output =  b"$> foo\nWrong length!\n\n$> test\nUnkown command!\n\n$> "
+        pipe = subprocess.PIPE
+        p = subprocess.Popen([tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(b"foo\ntest\n")
+        nose.tools.assert_equal(expected_output, res[0])
+
+
+@detour_only
+def test_countdown_2(BackendClass, data_fallback, try_pdf_removal):
+    filepath = os.path.join(bin_location, "countdown_test")
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = BackendClass(filepath, try_pdf_removal=try_pdf_removal)
+        obj = backend.project.loader.main_object
+        patch_list = []
+        patch_list.append({"target_addr": obj.offset_to_addr(0x09d5), "dst_active": obj.offset_to_addr(0x09ee), "dst_zero": obj.offset_to_addr(0x09db), "num_instr": 2, "extra_code": "cmp dword [rbp - 4], 3", "extra_is_c": False})
+        cp = Countdown(filepath, backend, patch_list=patch_list, count=2)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+
+        # We should not see the "Wrong length" error
+        expected_output = b"$> foo\nUnkown command!\n\n$> "
+        pipe = subprocess.PIPE
+        p = subprocess.Popen([tmp_file, "-run"], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(b"foo\n")
+        nose.tools.assert_equal(expected_output, res[0])
+
+
+@detour_only
+def test_countdown_3(BackendClass, data_fallback, try_pdf_removal):
+    filepath = os.path.join(bin_location, "countdown_test")
+
+    with patcherex.utils.tempdir() as td:
+        tmp_file = os.path.join(td, "patched")
+        backend = BackendClass(filepath, try_pdf_removal=try_pdf_removal)
+        obj = backend.project.loader.main_object
+        patch_list = []
+        patch_list.append({"target_addr": obj.offset_to_addr(0x0a42), "dst_active": obj.offset_to_addr(0x0a6e), "dst_zero": obj.offset_to_addr(0x0a49), "num_instr": 3, "extra_code": "movzx eax, byte [rax]\ncmp al, 0x2d", "extra_is_c": False})
+        patch_list.append({"target_addr": obj.offset_to_addr(0x0b32), "dst_active": obj.offset_to_addr(0x0a6e), "dst_zero": Countdown.ZERO_TARGET_EXIT, "num_instr": 1,})
+        patch_list.append({"target_addr": obj.offset_to_addr(0x0b2c), "dst_active": obj.offset_to_addr(0x0a6e), "dst_zero": Countdown.ZERO_TARGET_EXIT, "num_instr": 1})
+        cp = Countdown(filepath, backend, patch_list=patch_list, count=2)
+        patches = cp.get_patches()
+        backend.apply_patches(patches)
+        backend.save(tmp_file)
+
+        # We should only see the prompt twice
+        expected_output = b"$> foo\nWrong length!\n\n$> test\nUnkown command!\n\n"
+        pipe = subprocess.PIPE
+        p = subprocess.Popen([tmp_file, "-run"], stdin=pipe, stdout=pipe, stderr=pipe)
+        res = p.communicate(b"foo\ntest\n")
+        nose.tools.assert_equal(expected_output, res[0])
+
 
 def run_all():
     functions = globals()
@@ -1326,6 +1403,7 @@ if __name__ == "__main__":
     logging.getLogger("patcherex.techniques.Adversarial").setLevel("DEBUG")
     logging.getLogger("patcherex.techniques.NxStack").setLevel("DEBUG")
     logging.getLogger("patcherex.techniques.ShiftStack").setLevel("DEBUG")
+    logging.getLogger("patcherex.techniques.Countdown").setLevel("DEBUG")
     logging.getLogger('povsim').setLevel("DEBUG")
 
     if len(sys.argv) > 1:

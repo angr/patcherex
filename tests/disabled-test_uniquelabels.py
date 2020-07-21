@@ -2,8 +2,8 @@
 
 import os
 import sys
-import re
 from collections import defaultdict
+
 import nose
 
 import patcherex.utils as utils
@@ -21,7 +21,7 @@ def test_uniquelabels():
     # print patcherex_main_folder,all_py_files
 
     labels_dict = defaultdict(list)
-    for i,pyfile in enumerate(all_py_files):
+    for pyfile in all_py_files:
         labels = []
 
         # not really necessary:
