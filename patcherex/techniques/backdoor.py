@@ -305,7 +305,7 @@ __attribute__((fastcall)) int SHA1(int MESSAGE[] )
                 mov ecx, esp
                 add ecx, 8
                 ; int 3
-                call {sha1_block}
+                call {SHA1}
                 ; int 3
                 ; now we have the result in eax
                 cmp eax, DWORD [{random_value}] ; this is the challenge/response check!

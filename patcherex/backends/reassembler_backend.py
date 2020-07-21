@@ -124,7 +124,7 @@ class ReassemblerBackend(Backend):
         os.write(fd, assembly.encode("utf-8"))
         os.close(fd)
 
-        l.info("Generating assembly manifest at %s", tmp_file_path)
+        l.info("Generating assembly file at %s", tmp_file_path)
 
         dirpath = os.path.dirname(filename)
         try:
