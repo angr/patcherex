@@ -6,7 +6,7 @@ from .utils import ASMConverter
 import compilerex
 
 
-class Patch(object):
+class Patch:
     def __init__(self, name):
         self.name = name
         self.dependencies = []
@@ -108,7 +108,8 @@ class CodePatch(Patch):
 
         if self.is_att:
             raise NotImplementedError("Conversion of Intel to ATT syntax not supported")
-        elif not self.is_c:
+
+        if not self.is_c:
             return self.asm_code
         else:
             if not c_as_asm:

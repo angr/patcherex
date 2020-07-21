@@ -4,7 +4,8 @@ import patcherex.patches
 
 l = logging.getLogger("patcherex.techniques.ManualPatcher")
 
-class ManualPatcher(object):
+
+class ManualPatcher:
     def __init__(self, binary_fname, backend, patch_file):
         with open(patch_file, "rb") as patch_file_obj:
             self.patches = json.load(patch_file_obj)

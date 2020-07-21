@@ -1,10 +1,9 @@
-import patcherex
-import angr
+import struct
+import logging
 
 from ..technique import Technique
 
-import logging
-from patcherex.patches import *
+from patcherex.patches import AddRWInitDataPatch, AddCodePatch, AddLabelPatch, InlinePatch
 
 
 l = logging.getLogger("patcherex.techniques.Countdown")
@@ -38,7 +37,7 @@ class Countdown(Technique):
         self.count = count
         self.has_ZERO_TARGET_EXIT = False
         self.local_countdown_idx = 0
-        
+
         self.arch_bits = self.patcher.structs.elfclass
         self.obj = self.patcher.project.loader.main_object
         self.compiler_flags = f"-m{self.arch_bits}"
@@ -71,10 +70,6 @@ class Countdown(Technique):
 
 
         Countdown.global_countdown_idx += 1
-
-
-
-
 
     @property
     def patcher(self):
@@ -140,7 +135,8 @@ class Countdown(Technique):
             return [p1]
         return []
 
-    def _get_return_labels(self, patch):
+    @staticmethod
+    def _get_return_labels(patch):
         """
         Adds labels to the jump out targets
         """
@@ -215,7 +211,7 @@ class Countdown(Technique):
                 reg_b,
                 reg_sp,
                 get_counter,
-                reg_b, reg_a, 
+                reg_b, reg_a,
                 reg_a, reg_b,
                 reg_sp,
                 reg_b,
@@ -230,10 +226,11 @@ class Countdown(Technique):
         p1 = AddCodePatch(code, name=patch["countdown_logic_name"], compiler_flags=self.compiler_flags)
         return [p1]
 
-    def _get_jump(self, patch):
+    @staticmethod
+    def _get_jump(patch):
         """
         Inserts jump to new countdown code
-        """ 
+        """
 
         code = """
             jmp {%s}
@@ -250,4 +247,4 @@ class CountdownCallSite:
 
 
 def init_technique(program_name, backend, options):
-    return OmitFunction(program_name, backend, **options)
+    return Countdown(program_name, backend, **options)
