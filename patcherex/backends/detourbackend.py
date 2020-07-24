@@ -16,6 +16,8 @@ def DetourBackend(filename, data_fallback=None, base_address=None, try_pdf_remov
                 detourbackendclass = getattr(importlib.import_module("patcherex.backends.detourbackends.aarch64"), "DetourBackendAarch64")
             elif start_bytes.startswith(b"\x28\x00", 0x12): # EM_ARM
                 detourbackendclass = getattr(importlib.import_module("patcherex.backends.detourbackends.arm"), "DetourBackendArm")
+            elif start_bytes.startswith(b"\x08\x00", 0x12) or start_bytes.startswith(b"\x00\x08", 0x12): # EM_MIPS
+                detourbackendclass = getattr(importlib.import_module("patcherex.backends.detourbackends.mips"), "DetourBackendMips")
             else:
                 raise Exception("Unsupported architecture.")
             return detourbackendclass(filename, base_address=base_address, replace_note_segment=replace_note_segment)
