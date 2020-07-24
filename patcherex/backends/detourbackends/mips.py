@@ -478,7 +478,7 @@ class DetourBackendMips(DetourBackendElf):
                 fp.close()
                 print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
                 raise CLangException
-            res = utils.exec_cmd("%s-objcopy -O binary -j .text %s %s" % (target, object_fname, bin_fname), shell=True)
+            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
             if res[2] != 0:
                 print("objcopy error:")
                 print(res[0])

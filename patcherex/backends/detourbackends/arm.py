@@ -472,7 +472,7 @@ class DetourBackendArm(DetourBackendElf):
         return "\n".join(wcode)
 
     @staticmethod
-    def compile_c(code, optimization='-Oz', compiler_flags="-m32", is_thumb=False):
+    def compile_c(code, optimization='-Oz', compiler_flags="", is_thumb=False):
         # TODO symbol support in c code
         with utils.tempdir() as td:
             c_fname = os.path.join(td, "code.c")
@@ -494,7 +494,7 @@ class DetourBackendArm(DetourBackendElf):
                 fp.close()
                 print("\n".join(["%02d\t%s"%(i+1,j) for i, j in enumerate(fcontent.split("\n"))]))
                 raise CLangException
-            res = utils.exec_cmd("arm-linux-gnueabihf-objcopy -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
+            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
             if res[2] != 0:
                 print("objcopy error:")
                 print(res[0])

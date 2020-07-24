@@ -446,7 +446,7 @@ class DetourBackendAarch64(DetourBackendElf):
         return "\n".join(wcode)
 
     @staticmethod
-    def compile_c(code, optimization='-Oz', compiler_flags="-m32"):
+    def compile_c(code, optimization='-Oz', compiler_flags=""):
         # TODO symbol support in c code
         with utils.tempdir() as td:
             c_fname = os.path.join(td, "code.c")
@@ -468,7 +468,7 @@ class DetourBackendAarch64(DetourBackendElf):
                 fp.close()
                 print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
                 raise CLangException
-            res = utils.exec_cmd("aarch64-linux-gnu-objcopy -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
+            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
             if res[2] != 0:
                 print("objcopy error:")
                 print(res[0])
