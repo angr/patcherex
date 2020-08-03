@@ -20,6 +20,7 @@ setup(
         'pyyaml',
         'pyelftools',
         'python-magic',
+        'termcolor',
         'tracer @ git+https://github.com/angr/tracer.git',
    ],
 )
