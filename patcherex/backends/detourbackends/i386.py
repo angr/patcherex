@@ -1,4 +1,5 @@
 import logging
+import os
 from collections import defaultdict
 
 from patcherex import utils
@@ -13,7 +14,8 @@ from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                AddRWInitDataPatch, AddSegmentHeaderPatch,
                                InlinePatch, InsertCodePatch, RawFilePatch,
                                RawMemPatch, RemoveInstructionPatch,
-                               SegmentHeaderPatch)
+                               ReplaceFunctionPatch, SegmentHeaderPatch)
+from patcherex.utils import CLangException, ObjcopyException
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
@@ -302,8 +304,28 @@ class DetourBackendi386(DetourBackendElf):
                 break #at this point we applied everything in current insert_code_patches
                 # TODO symbol name, for now no name_map for InsertCode patches
 
+        # 5.5) ReplaceFunctionPatch
+        for patch in patches:
+            if isinstance(patch, ReplaceFunctionPatch):
+                new_code = self.compile_function(patch.asm_code)
+                file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
+                self.ncontent = utils.bytes_overwrite(self.ncontent, b"\x90" * patch.size, file_offset)
+                if(patch.size >= len(new_code)):
+                    file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
+                else:
+                    detour_pos = self.get_current_code_position()
+                    offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+                    self.added_code += new_code
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                    # compile jmp
+                    jmp_code = utils.compile_jmp(patch.addr, detour_pos + offset)
+                    self.patch_bin(patch.addr, jmp_code)
+                self.added_patches.append(patch)
+                l.info("Added patch: %s", str(patch))
+
         header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
-                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
+                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch, ReplaceFunctionPatch]
         if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
                 any([isinstance(p,SegmentHeaderPatch) for p in patches]):
             # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers
@@ -448,3 +470,37 @@ class DetourBackendi386(DetourBackendElf):
         new_code = self.compile_moved_injected_code(movable_instructions, patch.code, offset=offset)
 
         return new_code
+
+    @staticmethod
+    def compile_function(code, compiler_flags=""):
+        # TODO symbol support in c code
+        with utils.tempdir() as td:
+            c_fname = os.path.join(td, "code.c")
+            object_fname = os.path.join(td, "code.o")
+            bin_fname = os.path.join(td, "code.bin")
+
+            fp = open(c_fname, 'w')
+            fp.write(code)
+            fp.close()
+
+            res = utils.exec_cmd("clang -o %s -c %s %s" \
+                            % (object_fname, c_fname, compiler_flags), shell=True)
+            if res[2] != 0:
+                print("CLang error:")
+                print(res[0])
+                print(res[1])
+                fp = open(c_fname, 'r')
+                fcontent = fp.read()
+                fp.close()
+                print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
+                raise CLangException
+            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
+            if res[2] != 0:
+                print("objcopy error:")
+                print(res[0])
+                print(res[1])
+                raise ObjcopyException
+            fp = open(bin_fname, "rb")
+            compiled = fp.read()
+            fp.close()
+        return compiled

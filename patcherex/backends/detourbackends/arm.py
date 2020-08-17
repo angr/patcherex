@@ -17,7 +17,7 @@ from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                AddRWInitDataPatch, AddSegmentHeaderPatch,
                                InlinePatch, InsertCodePatch, RawFilePatch,
                                RawMemPatch, RemoveInstructionPatch,
-                               SegmentHeaderPatch)
+                               ReplaceFunctionPatch, SegmentHeaderPatch)
 from patcherex.utils import (CLangException, ObjcopyException,
                              UndefinedSymbolException)
 
@@ -252,8 +252,30 @@ class DetourBackendArm(DetourBackendElf):
                 break #at this point we applied everything in current insert_code_patches
                 # TODO symbol name, for now no name_map for InsertCode patches
 
+        # 5.5) ReplaceFunctionPatch
+        for patch in patches:
+            if isinstance(patch, ReplaceFunctionPatch):
+                is_thumb = self.check_if_thumb(patch.addr)
+                patch.addr = patch.addr - (patch.addr % 2)
+                new_code = self.compile_function(patch.asm_code, is_thumb=is_thumb)
+                file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
+                self.ncontent = utils.bytes_overwrite(self.ncontent, (b"\x00\xF0\x20\xE3" * (patch.size // 4)) if is_thumb else (b"\x00\xBF" * (patch.size // 2)), file_offset)
+                if(patch.size >= len(new_code)):
+                    file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
+                else:
+                    detour_pos = self.get_current_code_position()
+                    offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+                    self.added_code += new_code
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                    # compile jmp
+                    jmp_code = self.compile_jmp(patch.addr, detour_pos + offset, is_thumb=is_thumb)
+                    self.patch_bin(patch.addr, jmp_code)
+                self.added_patches.append(patch)
+                l.info("Added patch: %s", str(patch))
+
         header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
-                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
+                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch, ReplaceFunctionPatch]
         if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
                 any([isinstance(p,SegmentHeaderPatch) for p in patches]):
             # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers
@@ -484,7 +506,7 @@ class DetourBackendArm(DetourBackendElf):
             fp.close()
 
             res = utils.exec_cmd("clang -nostdlib -mno-sse -target arm-linux-gnueabihf -ffreestanding %s %s -o %s -c %s %s" \
-                            % ("-mthumb" if is_thumb else "", optimization, object_fname, c_fname, compiler_flags), shell=True)
+                            % ("-mthumb" if is_thumb else "-mno-thumb", optimization, object_fname, c_fname, compiler_flags), shell=True)
             if res[2] != 0:
                 print("CLang error:")
                 print(res[0])
@@ -493,6 +515,40 @@ class DetourBackendArm(DetourBackendElf):
                 fcontent = fp.read()
                 fp.close()
                 print("\n".join(["%02d\t%s"%(i+1,j) for i, j in enumerate(fcontent.split("\n"))]))
+                raise CLangException
+            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
+            if res[2] != 0:
+                print("objcopy error:")
+                print(res[0])
+                print(res[1])
+                raise ObjcopyException
+            fp = open(bin_fname, "rb")
+            compiled = fp.read()
+            fp.close()
+        return compiled
+
+    @staticmethod
+    def compile_function(code, compiler_flags="", is_thumb=False):
+        # TODO symbol support in c code
+        with utils.tempdir() as td:
+            c_fname = os.path.join(td, "code.c")
+            object_fname = os.path.join(td, "code.o")
+            bin_fname = os.path.join(td, "code.bin")
+
+            fp = open(c_fname, 'w')
+            fp.write(code)
+            fp.close()
+
+            res = utils.exec_cmd("clang -target arm-linux-gnueabihf -o %s -c %s %s %s" \
+                            % (object_fname, c_fname, compiler_flags, "-mthumb" if is_thumb else "-mno-thumb"), shell=True)
+            if res[2] != 0:
+                print("CLang error:")
+                print(res[0])
+                print(res[1])
+                fp = open(c_fname, 'r')
+                fcontent = fp.read()
+                fp.close()
+                print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
                 raise CLangException
             res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
             if res[2] != 0:
