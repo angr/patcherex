@@ -2,6 +2,7 @@ import logging
 import os
 from collections import defaultdict
 
+import cle
 from patcherex import utils
 from patcherex.backends.detourbackends._elf import DetourBackendElf, l
 from patcherex.backends.detourbackends._utils import (
@@ -15,14 +16,14 @@ from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                InlinePatch, InsertCodePatch, RawFilePatch,
                                RawMemPatch, RemoveInstructionPatch,
                                ReplaceFunctionPatch, SegmentHeaderPatch)
-from patcherex.utils import CLangException, ObjcopyException
+from patcherex.utils import CLangException
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendi386(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
     def __init__(self, filename, base_address=None, replace_note_segment=False):
-        super(DetourBackendi386, self).__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
+        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
 
     def apply_patches(self, patches):
         # deal with stackable patches
@@ -307,7 +308,7 @@ class DetourBackendi386(DetourBackendElf):
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
-                new_code = self.compile_function(patch.asm_code)
+                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=patch.addr, symbols=patch.symbols)
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, b"\x90" * patch.size, file_offset)
                 if(patch.size >= len(new_code)):
@@ -316,6 +317,7 @@ class DetourBackendi386(DetourBackendElf):
                 else:
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+                    new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=detour_pos + offset, symbols=patch.symbols)
                     self.added_code += new_code
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                     # compile jmp
@@ -472,35 +474,33 @@ class DetourBackendi386(DetourBackendElf):
         return new_code
 
     @staticmethod
-    def compile_function(code, compiler_flags=""):
-        # TODO symbol support in c code
+    def compile_function(code, compiler_flags="", bits=32, entry=0x0, symbols=None):
         with utils.tempdir() as td:
             c_fname = os.path.join(td, "code.c")
             object_fname = os.path.join(td, "code.o")
-            bin_fname = os.path.join(td, "code.bin")
+            object2_fname = os.path.join(td, "code.2.o")
+            linker_script_fname = os.path.join(td, "code.lds")
 
-            fp = open(c_fname, 'w')
-            fp.write(code)
-            fp.close()
+            with open(c_fname, 'w') as fp:
+                fp.write(code)
 
-            res = utils.exec_cmd("clang -o %s -c %s %s" \
-                            % (object_fname, c_fname, compiler_flags), shell=True)
+            linker_script = "SECTIONS { .text : { *(.text) "
+            if symbols is not None:
+                for i in symbols:
+                    linker_script += i + " = " + hex(symbols[i] - entry) + ";"
+            linker_script += "}}"
+
+            with open(linker_script_fname, 'w') as fp:
+                fp.write(linker_script)
+
+            res = utils.exec_cmd("clang -o %s %s -c %s %s" % (object_fname, "-m32" if bits == 32 else "-m64", c_fname, compiler_flags), shell=True)
             if res[2] != 0:
-                print("CLang error:")
-                print(res[0])
-                print(res[1])
-                fp = open(c_fname, 'r')
-                fcontent = fp.read()
-                fp.close()
-                print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
-                raise CLangException
-            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
+                raise CLangException("CLang error: " + str(res[0] + res[1], 'utf-8'))
+
+            res = utils.exec_cmd("ld.lld -relocatable %s -T %s -o %s" % (object_fname, linker_script_fname, object2_fname), shell=True)
             if res[2] != 0:
-                print("objcopy error:")
-                print(res[0])
-                print(res[1])
-                raise ObjcopyException
-            fp = open(bin_fname, "rb")
-            compiled = fp.read()
-            fp.close()
+                raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
+
+            ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0})
+            compiled = ld.memory.load(ld.all_objects[0].entry, 0xFFFFFFFFFFFFFFFF)
         return compiled

@@ -6,7 +6,9 @@ from collections import defaultdict
 
 import capstone
 import keystone
+from elftools.elf.elffile import ELFFile
 
+import cle
 from patcherex import utils
 from patcherex.backends.detourbackends._elf import DetourBackendElf, l
 from patcherex.backends.detourbackends._utils import (
@@ -26,7 +28,7 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 class DetourBackendAarch64(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
     def __init__(self, filename, base_address=None, replace_note_segment=False):
-        super(DetourBackendAarch64, self).__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
+        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
 
     def get_block_containing_inst(self, inst_addr):
         index = bisect.bisect_right(self.ordered_nodes, inst_addr) - 1
@@ -102,6 +104,11 @@ class DetourBackendAarch64(DetourBackendElf):
                 self.patch_bin(patch.ins_addr, b"\x1f\x20\x03\xd5" * int((size + 4 - 1) / 4))
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
+
+        # 5.5) ReplaceFunctionPatch (preprocessing data)
+        for patch in patches:
+            if isinstance(patch, ReplaceFunctionPatch):
+                patches += self.compile_function(patch.asm_code, entry=patch.addr, symbols=patch.symbols, data_only=True, prefix="_RFP" + str(patches.index(patch)))
 
         # 1) Add{RO/RW/RWInit}DataPatch
         self.added_data_file_start = len(self.ncontent)
@@ -234,7 +241,10 @@ class DetourBackendAarch64(DetourBackendElf):
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
-                new_code = self.compile_function(patch.asm_code)
+                for k, v in self.name_map.items():
+                    if k.startswith("_RFP" + str(patches.index(patch))):
+                        patch.symbols[k[len("_RFP" + str(patches.index(patch))):]] = v
+                new_code = self.compile_function(patch.asm_code, entry=patch.addr, symbols=patch.symbols)
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, b"\x1f\x20\x03\xd5" * (patch.size // 4), file_offset)
                 if(patch.size >= len(new_code)):
@@ -243,6 +253,7 @@ class DetourBackendAarch64(DetourBackendElf):
                 else:
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+                    new_code = self.compile_function(patch.asm_code, entry=detour_pos + offset, symbols=patch.symbols)
                     self.added_code += new_code
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                     # compile jmp
@@ -448,7 +459,7 @@ class DetourBackendAarch64(DetourBackendElf):
             else:
                 code = re.subn(r'{.*?}', "0x41414141", code)[0]  # solve symbols
         except KeyError as e:
-            raise UndefinedSymbolException(str(e))
+            raise UndefinedSymbolException(str(e)) from e
 
         try:
             ks = keystone.Ks(keystone.KS_ARCH_ARM64, keystone.KS_MODE_LITTLE_ENDIAN)
@@ -500,35 +511,95 @@ class DetourBackendAarch64(DetourBackendElf):
         return compiled
 
     @staticmethod
-    def compile_function(code, compiler_flags=""):
-        # TODO symbol support in c code
+    def compile_function(code, compiler_flags="", entry=0x0, symbols=None, data_only=False, prefix=""):
         with utils.tempdir() as td:
             c_fname = os.path.join(td, "code.c")
             object_fname = os.path.join(td, "code.o")
-            bin_fname = os.path.join(td, "code.bin")
+            object2_fname = os.path.join(td, "code.2.o")
+            linker_script_fname = os.path.join(td, "code.lds")
+            data_fname = os.path.join(td, "data")
+            rodata_sec_index = rodata_sym_index_old = rodata_sym_index_new = -1
 
-            fp = open(c_fname, 'w')
-            fp.write(code)
-            fp.close()
+            # C -> Object File
+            with open(c_fname, 'w') as fp:
+                fp.write(code)
+            res = utils.exec_cmd("clang -target aarch64-linux-gnu -o %s -c %s %s" % (object_fname, c_fname, compiler_flags), shell=True)
+            if res[2] != 0:
+                raise CLangException("CLang error: " + str(res[0] + res[1], 'utf-8'))
 
-            res = utils.exec_cmd("clang -target aarch64-linux-gnu -o %s -c %s %s" \
-                            % (object_fname, c_fname, compiler_flags), shell=True)
+            # Setup Linker Script
+            linker_script = "SECTIONS { .text : { *(.text) "
+            if symbols:
+                for i in symbols:
+                    if i == ".rodata":
+                        linker_script += i + " = " + hex(symbols[i] - ((entry - 0x400000) & ~0xFFFF)) + ";"
+                    else:
+                        linker_script += i + " = " + hex(symbols[i] - entry) + ";"
+            linker_script += "} .rodata : { *(.rodata*) } }"
+            with open(linker_script_fname, 'w') as fp:
+                fp.write(linker_script)
+
+            # Object File --LinkerScript--> Object File
+            res = utils.exec_cmd("ld.lld -relocatable %s -T %s -o %s" % (object_fname, linker_script_fname, object2_fname), shell=True)
             if res[2] != 0:
-                print("CLang error:")
-                print(res[0])
-                print(res[1])
-                fp = open(c_fname, 'r')
-                fcontent = fp.read()
-                fp.close()
-                print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
-                raise CLangException
-            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
-            if res[2] != 0:
-                print("objcopy error:")
-                print(res[0])
-                print(res[1])
-                raise ObjcopyException
-            fp = open(bin_fname, "rb")
-            compiled = fp.read()
-            fp.close()
-        return compiled
+                raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
+
+            # Load Object File
+            ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0}, perform_relocations=False)
+
+            # Figure Out .text Section Size
+            for section in ld.all_objects[0].sections:
+                    if section.name == ".text":
+                        text_section_size = section.filesize
+                        break
+
+            # Modify Symbols in Object File to Trick Loader
+            with open(object2_fname, "rb+") as f:
+                elf = ELFFile(f)
+
+                # Find the Index of .rodata Section
+                for i in range(elf.num_sections()):
+                    if elf.get_section(i).name == ".rodata":
+                        rodata_sec_index = i
+                        break
+
+                # Find the Index of the src and dest Symbol
+                symtab_section = elf.get_section_by_name(".symtab")
+                for i in range(symtab_section.num_symbols()):
+                    if symtab_section.get_symbol(i)['st_shndx'] == rodata_sec_index and symtab_section.get_symbol(i)['st_info']['type'] == 'STT_SECTION':
+                        rodata_sym_index_old = i
+                    if symtab_section.get_symbol(i).name == ".rodata":
+                        rodata_sym_index_new = i
+
+                # Rewrite the Symbol
+                if rodata_sym_index_new != -1 and rodata_sec_index != -1 and rodata_sym_index_old != -1:
+                    for i in range(elf.num_sections()):
+                        if elf.get_section(i).header['sh_name'] == symtab_section.header['sh_name']:
+                            f.seek(0)
+                            content = f.read()
+                            f.seek(symtab_section['sh_offset'] + rodata_sym_index_new * symtab_section['sh_entsize'])
+                            rodata_sym_new = f.read(symtab_section['sh_entsize'])
+                            content = utils.bytes_overwrite(content, rodata_sym_new, symtab_section['sh_offset'] + rodata_sym_index_old * symtab_section['sh_entsize'])
+
+                            f.seek(0)
+                            f.write(content)
+                            f.truncate()
+                            break
+
+            # Load the Modified Object File and Return compiled Data or Code
+            ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0})
+            if data_only:
+                patches = []
+                for section in ld.all_objects[0].sections:
+                    if section.name == ".rodata":
+                        res = utils.exec_cmd("objcopy -B i386 -O binary -j %s %s %s" % (section.name, object2_fname, data_fname), shell=True)
+                        if res[2] != 0:
+                            raise ObjcopyException("Objcopy Error: " + str(res[0] + res[1], 'utf-8'))
+
+                        with open(data_fname, "rb") as fp:
+                            patches.append(AddRODataPatch(fp.read(), name=prefix + section.name))
+                        break
+                return patches
+            else:
+                compiled = ld.memory.load(ld.all_objects[0].entry, text_section_size)
+                return compiled

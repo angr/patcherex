@@ -18,7 +18,7 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 class DetourBackendElf(Backend):
     # how do we want to design this to track relocations in the blocks...
     def __init__(self, filename, base_address=None, replace_note_segment=False):
-        super(DetourBackendElf, self).__init__(filename, project_options={"main_opts": {"base_addr": base_address}})
+        super().__init__(filename, project_options={"main_opts": {"base_addr": base_address}})
 
         self.modded_segments = self.dump_segments() # dump_segments also set self.structs
 

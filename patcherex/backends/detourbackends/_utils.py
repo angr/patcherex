@@ -3,10 +3,10 @@ class RejectingDict(dict):
     def __setitem__(self, k, v):
         if k in self:
             raise ValueError("Key is already present: " + repr(k))
-        return super(RejectingDict, self).__setitem__(k, v)
+        return super().__setitem__(k, v)
 
     def force_insert(self, k, v):
-        return super(RejectingDict, self).__setitem__(k, v)
+        return super().__setitem__(k, v)
 
 
 class PatchingException(Exception):

@@ -5,7 +5,9 @@ import re
 from collections import defaultdict
 
 import capstone
+import cle
 import keystone
+from elftools.elf.elffile import ELFFile
 
 from patcherex import utils
 from patcherex.backends.detourbackends._elf import DetourBackendElf, l
@@ -26,7 +28,7 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 class DetourBackendPpc(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
     def __init__(self, filename, base_address=None, replace_note_segment=False):
-        super(DetourBackendPpc, self).__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
+        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
         self.added_code_segment = 0x10600000
         self.added_data_segment = 0x10700000
         self.name_map.update(ADDED_DATA_START = (len(self.ncontent) % 0x1000) + self.added_data_segment)
@@ -36,14 +38,14 @@ class DetourBackendPpc(DetourBackendElf):
             current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
             return int.from_bytes(self.read_mem_from_file(current_hdr["e_entry"], 8), "big")
         else:
-            return super(DetourBackendPpc, self).get_oep()
+            return super().get_oep()
 
     def set_oep(self, new_oep):
         if self.structs.elfclass == 64 and not self.structs.little_endian:
             current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
             self.patch_bin(current_hdr["e_entry"], b"\x00\x00\x00\x00" + new_oep.to_bytes(4, 'big'))
         else:
-            super(DetourBackendPpc, self).set_oep(new_oep)
+            super().set_oep(new_oep)
 
     def get_block_containing_inst(self, inst_addr):
         index = bisect.bisect_right(self.ordered_nodes, inst_addr) - 1
@@ -119,6 +121,11 @@ class DetourBackendPpc(DetourBackendElf):
                 self.patch_bin(patch.ins_addr, b"\x60\x00\x00\x00" * int((size + 4 - 1) / 4))
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
+
+        # 5.5) ReplaceFunctionPatch (preprocessing rodata)
+        for patch in patches:
+            if isinstance(patch, ReplaceFunctionPatch):
+                patches += self.compile_function(patch.asm_code, entry=patch.addr, symbols=patch.symbols, data_only=True, prefix="_RFP" + str(patches.index(patch)))
 
         # 1) Add{RO/RW/RWInit}DataPatch
         self.added_data_file_start = len(self.ncontent)
@@ -250,7 +257,13 @@ class DetourBackendPpc(DetourBackendElf):
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
-                new_code = self.compile_function(patch.asm_code, bits=self.structs.elfclass, little_endian=self.structs.little_endian)
+                if self.structs.elfclass == 64:
+                    # reloc type not supported (TOC info is in executables but not in object file, but relocs in object file will need TOC info.)
+                    raise Exception("ReplaceFunctionPatch: PPC64 not yet supported")
+                for k, v in self.name_map.items():
+                    if k.startswith("_RFP" + str(patches.index(patch))):
+                        patch.symbols[k[len("_RFP" + str(patches.index(patch))):]] = v
+                new_code = self.compile_function(patch.asm_code, bits=self.structs.elfclass, little_endian=self.structs.little_endian, entry=patch.addr, symbols=patch.symbols)
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, b"\x60\x00\x00\x00" * (patch.size // 4), file_offset)
                 if(patch.size >= len(new_code)):
@@ -259,6 +272,7 @@ class DetourBackendPpc(DetourBackendElf):
                 else:
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+                    new_code = self.compile_function(patch.asm_code, bits=self.structs.elfclass, little_endian=self.structs.little_endian, entry=detour_pos + offset, symbols=patch.symbols)
                     self.added_code += new_code
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                     # compile jmp
@@ -465,7 +479,7 @@ class DetourBackendPpc(DetourBackendElf):
                 code = re.subn(r'{.*?}', "0x41414141", code)[0]  # solve symbols
             code = re.subn(r'r(\d+)', r"\1", code)[0]  # remvoe "r" before register
         except KeyError as e:
-            raise UndefinedSymbolException(str(e))
+            raise UndefinedSymbolException(str(e)) from e
         try:
             ks = keystone.Ks(keystone.KS_ARCH_PPC, (keystone.KS_MODE_LITTLE_ENDIAN if little_endian else keystone.KS_MODE_BIG_ENDIAN) | (keystone.KS_MODE_PPC32 if bits == 32 else keystone.KS_MODE_PPC64))
             encoding, _ = ks.asm(code, base)
@@ -518,36 +532,112 @@ class DetourBackendPpc(DetourBackendElf):
         return compiled
 
     @staticmethod
-    def compile_function(code, compiler_flags="", bits=32, little_endian=False):
-        # TODO symbol support in c code
+    def compile_function(code, compiler_flags="", bits=32, little_endian=False, entry=0x0, symbols=None, data_only=False, prefix=""):
         with utils.tempdir() as td:
             c_fname = os.path.join(td, "code.c")
             object_fname = os.path.join(td, "code.o")
-            bin_fname = os.path.join(td, "code.bin")
+            object2_fname = os.path.join(td, "code.2.o")
+            linker_script_fname = os.path.join(td, "code.lds")
+            data_fname = os.path.join(td, "data")
+            rodata_sec_index = rodata_sym_index_old = rodata_sym_index_new = -1
 
-            fp = open(c_fname, 'w')
-            fp.write(code)
-            fp.close()
-
+            # C -> Object File
+            with open(c_fname, 'w') as fp:
+                fp.write(code)
             target = ("powerpcle-linux-gnu" if little_endian else "powerpc-linux-gnu") if bits == 32 else ("powerpc64le-linux-gnu" if little_endian else "powerpc64-linux-gnu")
             res = utils.exec_cmd("clang -target %s -o %s -c %s %s" \
                             % (target, object_fname, c_fname, compiler_flags), shell=True)
             if res[2] != 0:
-                print("CLang error:")
-                print(res[0])
-                print(res[1])
-                fp = open(c_fname, 'r')
-                fcontent = fp.read()
-                fp.close()
-                print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
-                raise CLangException
-            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
+                raise CLangException("CLang error: " + str(res[0] + res[1], 'utf-8'))
+
+            # Setup Linker Script
+            linker_script = "SECTIONS { .text : { *(.text) "
+            if symbols:
+                for i in symbols:
+                    if i == ".rodata":
+                        linker_script += i + " = " + hex(symbols[i] - ((entry - 0x10700000) & ~0xFFFF)) + ";"
+                    else:
+                        linker_script += i + " = " + hex(symbols[i] - entry) + ";"
+            linker_script += "} .rodata : { *(.rodata*) } }"
+            with open(linker_script_fname, 'w') as fp:
+                fp.write(linker_script)
+
+            # Object File --LinkerScript--> Object File
+            res = utils.exec_cmd("ld.lld -relocatable %s -T %s -o %s" % (object_fname, linker_script_fname, object2_fname), shell=True)
             if res[2] != 0:
-                print("objcopy error:")
-                print(res[0])
-                print(res[1])
-                raise ObjcopyException
-            fp = open(bin_fname, "rb")
-            compiled = fp.read()
-            fp.close()
-        return compiled
+                raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
+
+            # Load Object File
+            ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0}, perform_relocations=False)
+
+            # Figure Out .text Section Size
+            for section in ld.all_objects[0].sections:
+                    if section.name == ".text":
+                        text_section_size = section.filesize
+                        break
+
+            # Modify Symbols in Object File to Trick Loader
+            with open(object2_fname, "rb+") as f:
+                elf = ELFFile(f)
+
+                # Find the Index of .rodata Section
+                for i in range(elf.num_sections()):
+                    if elf.get_section(i).name == ".rodata":
+                        rodata_sec_index = i
+                        break
+
+                # Find the Index of the src and dest Symbol
+                symtab_section = elf.get_section_by_name(".symtab")
+                for i in range(symtab_section.num_symbols()):
+                    if symtab_section.get_symbol(i)['st_shndx'] == rodata_sec_index and symtab_section.get_symbol(i)['st_info']['type'] == 'STT_SECTION':
+                        rodata_sym_index_old = i
+                    if symtab_section.get_symbol(i).name == ".rodata":
+                        rodata_sym_index_new = i
+
+                # Rewrite the Symbol
+                if rodata_sym_index_new != -1 and rodata_sec_index != -1 and rodata_sym_index_old != -1:
+                    for i in range(elf.num_sections()):
+                        if elf.get_section(i).header['sh_name'] == symtab_section.header['sh_name']:
+                            f.seek(0)
+                            content = f.read()
+                            f.seek(symtab_section['sh_offset'] + rodata_sym_index_new * symtab_section['sh_entsize'])
+                            rodata_sym_new = f.read(symtab_section['sh_entsize'])
+                            content = utils.bytes_overwrite(content, rodata_sym_new, symtab_section['sh_offset'] + rodata_sym_index_old * symtab_section['sh_entsize'])
+                            f.seek(0)
+                            f.write(content)
+                            f.truncate()
+                            break
+
+                # Replace all R_PPC_PLTREL24 to R_PPC_REL24
+                rela_section = elf.get_section_by_name(".rela.text")
+                for i in range(rela_section.num_relocations()):
+                    if rela_section.get_relocation(i)['r_info_type'] == 18:
+                        reloc = rela_section.get_relocation(i).entry
+                        reloc['r_info'] -= 8
+
+                        for j in range(elf.num_sections()):
+                            if elf.get_section(j).header['sh_name'] == rela_section.header['sh_name']:
+                                f.seek(0)
+                                content = f.read()
+                                content = utils.bytes_overwrite(content, elf.structs.Elf_Rela.build(reloc), rela_section['sh_offset'] + i * rela_section['sh_entsize'])
+                                f.seek(0)
+                                f.write(content)
+                                f.truncate()
+                                break
+
+            # Load the Modified Object File and Return compiled Data or Code
+            ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0, "entry_point": 0x0})
+            if data_only:
+                patches = []
+                for section in ld.all_objects[0].sections:
+                    if section.name == ".rodata":
+                        res = utils.exec_cmd("objcopy -B i386 -O binary -j %s %s %s" % (section.name, object2_fname, data_fname), shell=True)
+                        if res[2] != 0:
+                            raise ObjcopyException("Objcopy Error: " + str(res[0] + res[1], 'utf-8'))
+                        with open(data_fname, "rb") as fp:
+                            patches.append(AddRODataPatch(fp.read(), name=prefix + section.name))
+                        break
+                return patches
+            else:
+                compiled = ld.memory.load(ld.all_objects[0].entry, text_section_size)
+                return compiled

@@ -19,7 +19,7 @@ from patcherex.backends.detourbackends.arm import DetourBackendArm
 class Tests(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
-        super(Tests, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.l = logging.getLogger("patcherex.test.test_detourbackend")
         self.bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)),  '../../binaries/tests/armhf/patchrex'))
         self.qemu_location = shellphish_qemu.qemu_path('arm')

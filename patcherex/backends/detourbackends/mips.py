@@ -5,6 +5,7 @@ import re
 from collections import defaultdict
 
 import capstone
+import cle
 import keystone
 
 from patcherex import utils
@@ -26,7 +27,7 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 class DetourBackendMips(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
     def __init__(self, filename, base_address=None, replace_note_segment=False):
-        super(DetourBackendMips, self).__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
+        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
         if self.structs.elfclass == 64:
             self.added_code_segment = 0x120600000
             self.added_data_segment = 0x120700000
@@ -244,22 +245,25 @@ class DetourBackendMips(DetourBackendElf):
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
-                new_code = self.compile_function(patch.asm_code, bits=self.structs.elfclass, little_endian=self.structs.little_endian)
-                file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
-                self.ncontent = utils.bytes_overwrite(self.ncontent, b"\x00\x00\x00\x00" * (patch.size // 4), file_offset)
-                if(patch.size >= len(new_code)):
-                    file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
-                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
-                else:
-                    detour_pos = self.get_current_code_position()
-                    offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
-                    self.added_code += new_code
-                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
-                    # compile jmp
-                    jmp_code = self.compile_jmp(patch.addr, detour_pos + offset)
-                    self.patch_bin(patch.addr, jmp_code)
-                self.added_patches.append(patch)
-                l.info("Added patch: %s", str(patch))
+                # Due to the lack of support for some relocation types in angr/cle, MIPS is not yet supported
+                raise Exception("ReplaceFunctionPatch not supported for MIPS.")
+                # new_code = self.compile_function(patch.asm_code, bits=self.structs.elfclass, little_endian=self.structs.little_endian, entry=patch.addr, symbols=patch.symbols)
+                # file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
+                # self.ncontent = utils.bytes_overwrite(self.ncontent, b"\x00\x00\x00\x00" * (patch.size // 4), file_offset)
+                # if(patch.size >= len(new_code)):
+                #     file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
+                #     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
+                # else:
+                #     detour_pos = self.get_current_code_position()
+                #     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+                #     new_code = self.compile_function(patch.asm_code, bits=self.structs.elfclass, little_endian=self.structs.little_endian, entry=detour_pos + offset, symbols=patch.symbols)
+                #     self.added_code += new_code
+                #     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                #     # compile jmp
+                #     jmp_code = self.compile_jmp(patch.addr, detour_pos + offset)
+                #     self.patch_bin(patch.addr, jmp_code)
+                # self.added_patches.append(patch)
+                # l.info("Added patch: %s", str(patch))
 
         header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch, ReplaceFunctionPatch]
@@ -458,7 +462,7 @@ class DetourBackendMips(DetourBackendElf):
             else:
                 code = re.subn(r'{.*?}', "0x41414141", code)[0]  # solve symbols
         except KeyError as e:
-            raise UndefinedSymbolException(str(e))
+            raise UndefinedSymbolException(str(e)) from e
         try:
             ks = keystone.Ks(keystone.KS_ARCH_MIPS, (keystone.KS_MODE_LITTLE_ENDIAN if little_endian else keystone.KS_MODE_BIG_ENDIAN) | (keystone.KS_MODE_MIPS32 if bits == 32 else keystone.KS_MODE_MIPS64))
             encoding, _ = ks.asm(code, base)
@@ -510,36 +514,35 @@ class DetourBackendMips(DetourBackendElf):
         return compiled
 
     @staticmethod
-    def compile_function(code, compiler_flags="-fPIE", bits=32, little_endian=False):
-        # TODO symbol support in c code
+    def compile_function(code, compiler_flags="-fPIE", bits=32, little_endian=False, entry=0x0, symbols=None):
         with utils.tempdir() as td:
             c_fname = os.path.join(td, "code.c")
             object_fname = os.path.join(td, "code.o")
-            bin_fname = os.path.join(td, "code.bin")
+            object2_fname = os.path.join(td, "code.2.o")
+            linker_script_fname = os.path.join(td, "code.lds")
 
-            fp = open(c_fname, 'w')
-            fp.write(code)
-            fp.close()
+            with open(c_fname, 'w') as fp:
+                fp.write(code)
+
+            linker_script = "SECTIONS { .text : { *(.text) "
+            if symbols:
+                for i in symbols:
+                    linker_script += i + " = " + hex(symbols[i] - entry) + ";"
+            linker_script += "}}"
+
+            with open(linker_script_fname, 'w') as fp:
+                fp.write(linker_script)
 
             target = ("mipsel-linux-gnu" if little_endian else "mips-linux-gnu") if bits == 32 else ("mips64el-linux-gnuabi64" if little_endian else "mips64-linux-gnuabi64")
             res = utils.exec_cmd("clang -target %s -o %s -c %s %s" \
                             % (target, object_fname, c_fname, compiler_flags), shell=True)
             if res[2] != 0:
-                print("CLang error:")
-                print(res[0])
-                print(res[1])
-                fp = open(c_fname, 'r')
-                fcontent = fp.read()
-                fp.close()
-                print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
-                raise CLangException
-            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
+                raise CLangException("CLang error: " + str(res[0] + res[1], 'utf-8'))
+
+            res = utils.exec_cmd("ld.lld -relocatable %s -T %s -o %s" % (object_fname, linker_script_fname, object2_fname), shell=True)
             if res[2] != 0:
-                print("objcopy error:")
-                print(res[0])
-                print(res[1])
-                raise ObjcopyException
-            fp = open(bin_fname, "rb")
-            compiled = fp.read()
-            fp.close()
+                raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
+            ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0})
+
+            compiled = ld.memory.load(ld.all_objects[0].entry, 0xFFFFFFFFFFFFFFFF)
         return compiled

@@ -19,7 +19,7 @@ from patcherex.backends.detourbackends.mips import DetourBackendMips
 class Tests(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
-        super(Tests, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.l = logging.getLogger("patcherex.test.test_detourbackend")
         self.bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)),  '../../binaries/tests/mips64/patchrex'))
         self.qemu_location = shellphish_qemu.qemu_path('mips64')

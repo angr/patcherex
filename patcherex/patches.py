@@ -157,10 +157,11 @@ class InsertCodePatch(CodePatch):
         return "InsertCodePatch [%s] %08x (%d), pr: %d" % (self.name,self.addr,len(self.code),self.priority)
 
 class ReplaceFunctionPatch(CodePatch):
-    def __init__(self, addr, size, code, name=None, is_att=False, priority=1):
+    def __init__(self, addr, size, code, name=None, is_att=False, priority=1, symbols=None):
         super(ReplaceFunctionPatch, self).__init__(name, asm_code=code, is_att=is_att)
         self.addr = addr
         self.size = size
+        self.symbols = symbols
         self.priority = priority
 
     def __repr__(self):

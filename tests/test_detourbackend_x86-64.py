@@ -11,7 +11,7 @@ from patcherex.patches import AddCodePatch, AddRODataPatch, InsertCodePatch
 class Tests(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
-        super(Tests, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         # binaries location
         self.binary_path = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests/x86_64/patchrex/'))
 

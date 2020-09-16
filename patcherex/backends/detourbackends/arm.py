@@ -7,6 +7,7 @@ from collections import defaultdict
 import capstone
 import keystone
 
+import cle
 from patcherex import utils
 from patcherex.backends.detourbackends._elf import DetourBackendElf, l
 from patcherex.backends.detourbackends._utils import (
@@ -26,7 +27,7 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 class DetourBackendArm(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
     def __init__(self, filename, base_address=None, replace_note_segment=False):
-        super(DetourBackendArm, self).__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
+        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
 
     def get_block_containing_inst(self, inst_addr):
         index = bisect.bisect_right(self.ordered_nodes, inst_addr) - 1
@@ -255,17 +256,19 @@ class DetourBackendArm(DetourBackendElf):
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
+                l.warning("ReplaceFunctionPatch: ARM/Thumb interworking is not yet supported.")
                 is_thumb = self.check_if_thumb(patch.addr)
                 patch.addr = patch.addr - (patch.addr % 2)
-                new_code = self.compile_function(patch.asm_code, is_thumb=is_thumb)
+                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=patch.addr, symbols=patch.symbols)
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
-                self.ncontent = utils.bytes_overwrite(self.ncontent, (b"\x00\xF0\x20\xE3" * (patch.size // 4)) if is_thumb else (b"\x00\xBF" * (patch.size // 2)), file_offset)
+                self.ncontent = utils.bytes_overwrite(self.ncontent, (b"\x00\xBF" * (patch.size // 2)) if is_thumb else (b"\x00\xF0\x20\xE3" * (patch.size // 4)), file_offset)
                 if(patch.size >= len(new_code)):
                     file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                 else:
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+                    new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=detour_pos + offset, symbols=patch.symbols)
                     self.added_code += new_code
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                     # compile jmp
@@ -462,7 +465,7 @@ class DetourBackendArm(DetourBackendElf):
 
     def compile_jmp(self, origin, target, is_thumb=False):
         jmp_str = '''
-            bl {target}
+            b {target}
         '''.format(**{'target': hex(int(target))})
         return self.compile_asm(jmp_str, base=origin, is_thumb=is_thumb)
 
@@ -478,7 +481,7 @@ class DetourBackendArm(DetourBackendElf):
             else:
                 code = re.subn(r'{.*?}', "0x41414141", code)[0]  # solve symbols
         except KeyError as e:
-            raise UndefinedSymbolException(str(e))
+            raise UndefinedSymbolException(str(e)) from e
         try:
             ks = keystone.Ks(keystone.KS_ARCH_ARM, keystone.KS_MODE_THUMB if is_thumb else keystone.KS_MODE_ARM)
             encoding, _ = ks.asm(code, base)
@@ -528,35 +531,34 @@ class DetourBackendArm(DetourBackendElf):
         return compiled
 
     @staticmethod
-    def compile_function(code, compiler_flags="", is_thumb=False):
-        # TODO symbol support in c code
+    def compile_function(code, compiler_flags="", is_thumb=False, entry=0x0, symbols=None):
         with utils.tempdir() as td:
             c_fname = os.path.join(td, "code.c")
             object_fname = os.path.join(td, "code.o")
-            bin_fname = os.path.join(td, "code.bin")
+            object2_fname = os.path.join(td, "code.2.o")
+            linker_script_fname = os.path.join(td, "code.lds")
 
-            fp = open(c_fname, 'w')
-            fp.write(code)
-            fp.close()
+            with open(c_fname, 'w') as fp:
+                fp.write(code)
+
+            linker_script = "SECTIONS { .text : { *(.text) "
+            if symbols:
+                for i in symbols:
+                    linker_script += i + " = " + hex(symbols[i] - entry) + ";"
+            linker_script += "}}"
+
+            with open(linker_script_fname, 'w') as fp:
+                fp.write(linker_script)
 
             res = utils.exec_cmd("clang -target arm-linux-gnueabihf -o %s -c %s %s %s" \
                             % (object_fname, c_fname, compiler_flags, "-mthumb" if is_thumb else "-mno-thumb"), shell=True)
             if res[2] != 0:
-                print("CLang error:")
-                print(res[0])
-                print(res[1])
-                fp = open(c_fname, 'r')
-                fcontent = fp.read()
-                fp.close()
-                print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
-                raise CLangException
-            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
+                raise CLangException("CLang error: " + str(res[0] + res[1], 'utf-8'))
+
+            res = utils.exec_cmd("ld.lld -relocatable %s -T %s -o %s" % (object_fname, linker_script_fname, object2_fname), shell=True)
             if res[2] != 0:
-                print("objcopy error:")
-                print(res[0])
-                print(res[1])
-                raise ObjcopyException
-            fp = open(bin_fname, "rb")
-            compiled = fp.read()
-            fp.close()
+                raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
+
+            ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0})
+            compiled = ld.memory.load(ld.all_objects[0].entry, 0xFFFFFFFFFFFFFFFF)
         return compiled
