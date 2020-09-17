@@ -9,12 +9,13 @@ import shellphish_qemu
 
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
+from patcherex.backends.detourbackends.ppc import DetourBackendPpc
 from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                AddRODataPatch, AddRWDataPatch,
                                AddRWInitDataPatch, InlinePatch,
                                InsertCodePatch, RawFilePatch, RawMemPatch,
-                               RemoveInstructionPatch)
-from patcherex.backends.detourbackends.ppc import DetourBackendPpc
+                               RemoveInstructionPatch, ReplaceFunctionPatch)
+
 
 class Tests(unittest.TestCase):
 
@@ -258,6 +259,30 @@ class Tests(unittest.TestCase):
         except ValueError:
             exc = True
         self.assertTrue(exc)
+
+    @unittest.skip("Not Implemented")
+    def test_replace_function_patch(self):
+        code = '''
+        int add(int a, int b){ for(;; b--, a+=2) if(b <= 0) return a; }
+        '''
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x10000508, 0x58, code)], expected_output=b"70707070")
+
+    @unittest.skip("Not Implemented")
+    def test_replace_function_patch_with_function_reference(self):
+        code = '''
+        extern int add(int, int);
+        extern int subtract(int, int);
+        int multiply(int a, int b){ for(int c = 0;; b = subtract(b, 1), c = subtract(c, a)) if(b <= 0) return c; }
+        '''
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x10000760, 0x94, code, symbols={"add" : 0x10000688, "subtract" : 0x100006f4})], expected_output=b"-21-21")
+
+    @unittest.skip("Not Implemented")
+    def test_replace_function_patch_with_function_reference_and_rodata(self):
+        code = '''
+        extern int printf(const char *format, ...);
+        int multiply(int a, int b){ printf("%sWorld %s %s %s %d\\n", "Hello ", "Hello ", "Hello ", "Hello ", a * b);printf("%sWorld\\n", "Hello "); return a * b; }
+        '''
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x10000760, 0x94, code, symbols={"printf" : 0x10000420})], expected_output=b"Hello World Hello  Hello  Hello  21\nHello World\n2121")
 
     def run_test(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None):
         filepath = os.path.join(self.bin_location, filename)

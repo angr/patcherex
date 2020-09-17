@@ -1,19 +1,22 @@
-#test cases for x86-64 enabled binaries
+#!/usr/bin/env python
+
+import logging
 import os
 import subprocess
 import unittest
 
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
-from patcherex.patches import AddCodePatch, AddRODataPatch, InsertCodePatch
+from patcherex.patches import (AddCodePatch, AddRODataPatch, InsertCodePatch,
+                               ReplaceFunctionPatch)
 
 
 class Tests(unittest.TestCase):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        # binaries location
-        self.binary_path = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '../../binaries/tests/x86_64/patchrex/'))
+        self.l = logging.getLogger("patcherex.test.test_detourbackend")
+        self.bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)),  '../../binaries/tests/x86_64/patchrex/'))
 
     def test_sample_pie(self):
         patches = []
@@ -55,7 +58,7 @@ class Tests(unittest.TestCase):
         patches.append(AddRODataPatch(b"---HI---\x00", name="transmitted_string"))
         patches.append(InsertCodePatch(0x400665, injected_code, name="injected_code_after_receive"))
 
-        self.execute(patches, "sample_x86-64_pie", b'---HI---\x00\x00Purdue')
+        self.run_test("sample_x86-64_pie", patches, expected_output=b'---HI---\x00\x00Purdue')
 
     def test_sample_no_pie(self):
         patches = []
@@ -90,22 +93,49 @@ class Tests(unittest.TestCase):
         call {transmit_function}
         '''
         patches.append(InsertCodePatch(0x400502, injected_code, name="injected_code_after_receive"))
-        self.execute(patches, "sample_x86-64_no_pie", b'---HI---\x00\x00Purdue')
+        self.run_test("sample_x86-64_no_pie", patches, expected_output=b'---HI---\x00\x00Purdue')
 
+    def test_replace_function_patch(self):
+        code = '''
+        int add(int a, int b){ for(;; b--, a+=2) if(b <= 0) return a; }
+        '''
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x400660, 0x21, code)], expected_output=b"70707070")
 
-    def execute(self, patches, binary, output_expected=None):
+    def test_replace_function_patch_with_function_reference(self):
+        code = '''
+        extern int add(int, int);
+        extern int subtract(int, int);
+        int multiply(int a, int b){ for(int c = 0;; b = subtract(b, 1), c = subtract(c, a)) if(b <= 0) return c; }
+        '''
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4006a2, 0x48, code, symbols={"add" : 0x400660, "subtract" : 0x400681})], expected_output=b"-21-21")
+
+    def test_replace_function_patch_with_function_reference_and_rodata(self):
+        code = '''
+        extern int printf(const char *format, ...);
+        int multiply(int a, int b){ printf("%sWorld %s %s %s %d\\n", "Hello ", "Hello ", "Hello ", "Hello ", a * b);printf("%sWorld\\n", "Hello "); return a * b; }
+        '''
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4006a2, 0x48, code, symbols={"printf" : 0x400520})], expected_output=b"Hello World Hello  Hello  Hello  21\nHello World\n2121")
+
+    def run_test(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None):
+        filepath = os.path.join(self.bin_location, filename)
+        pipe = subprocess.PIPE
+
         with patcherex.utils.tempdir() as td:
             tmp_file = os.path.join(td, "patched")
-            #backend operations
-            backend = DetourBackend(self.binary_path + binary)
+            backend = DetourBackend(filepath)
             backend.apply_patches(patches)
+            if set_oep:
+                backend.set_oep(backend.name_map[set_oep])
             backend.save(tmp_file)
-            #run the patched binary
-            pipe = subprocess.PIPE
             p = subprocess.Popen([tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-            res = p.communicate()
-            #check the results
-            self.assertEqual(res[0], output_expected)
+            res = p.communicate(inputvalue)
+            if expected_output:
+                self.assertEqual(res[0], expected_output)
+            if expected_returnCode:
+                self.assertEqual(p.returncode, expected_returnCode)
+            return backend
 
-if __name__ == '__main__':
+if __name__ == "__main__":
+    logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
+    logging.getLogger("patcherex.test.test_detourbackend").setLevel("INFO")
     unittest.main()

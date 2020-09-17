@@ -610,20 +610,21 @@ class DetourBackendPpc(DetourBackendElf):
 
                 # Replace all R_PPC_PLTREL24 to R_PPC_REL24
                 rela_section = elf.get_section_by_name(".rela.text")
-                for i in range(rela_section.num_relocations()):
-                    if rela_section.get_relocation(i)['r_info_type'] == 18:
-                        reloc = rela_section.get_relocation(i).entry
-                        reloc['r_info'] -= 8
+                if rela_section is not None:
+                    for i in range(rela_section.num_relocations()):
+                        if rela_section.get_relocation(i)['r_info_type'] == 18:
+                            reloc = rela_section.get_relocation(i).entry
+                            reloc['r_info'] -= 8
 
-                        for j in range(elf.num_sections()):
-                            if elf.get_section(j).header['sh_name'] == rela_section.header['sh_name']:
-                                f.seek(0)
-                                content = f.read()
-                                content = utils.bytes_overwrite(content, elf.structs.Elf_Rela.build(reloc), rela_section['sh_offset'] + i * rela_section['sh_entsize'])
-                                f.seek(0)
-                                f.write(content)
-                                f.truncate()
-                                break
+                            for j in range(elf.num_sections()):
+                                if elf.get_section(j).header['sh_name'] == rela_section.header['sh_name']:
+                                    f.seek(0)
+                                    content = f.read()
+                                    content = utils.bytes_overwrite(content, elf.structs.Elf_Rela.build(reloc), rela_section['sh_offset'] + i * rela_section['sh_entsize'])
+                                    f.seek(0)
+                                    f.write(content)
+                                    f.truncate()
+                                    break
 
             # Load the Modified Object File and Return compiled Data or Code
             ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0, "entry_point": 0x0})
