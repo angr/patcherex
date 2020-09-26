@@ -418,7 +418,8 @@ class DetourBackend(Backend):
                 if segment["p_type"] == "PT_LOAD":
                     if self.first_load is None:
                         self.first_load = segment
-                    blah.append(((segment["p_vaddr"] - self.first_load["p_vaddr"]) - ((segment["p_vaddr"] - self.first_load["p_vaddr"]) % 0x1000), int(math.ceil((segment["p_vaddr"] + segment["p_memsz"] - self.first_load["p_vaddr"]) / 0x1000) * 0x1000)))
+                    blah.append(((segment["p_vaddr"] - self.first_load["p_vaddr"]) - ((segment["p_vaddr"] - self.first_load["p_vaddr"]) % 0x1000),
+                                 int(math.ceil((segment["p_vaddr"] + segment["p_memsz"] - self.first_load["p_vaddr"]) / 0x1000) * 0x1000)))
 
             for segment in segments:
                 if segment["p_type"] == "PT_PHDR":
@@ -457,12 +458,30 @@ class DetourBackend(Backend):
                             break
                     else:
                         self.phdr_start = blah[-1][1]
+                        # we play fancy: try to map self.phdr_start to the next page-aligned position so that p_offset
+                        # is the same as phdr_start if the base address of this binary is 0
+                        # this is to workaround a weird issue in the dynamic linker of glibc
+                        if len(self.ncontent) % 0x1000 != 0:
+                            self.ncontent += b"\x00" * (0x1000 - (len(self.ncontent) % 0x1000))
+                        if self.phdr_start > len(self.ncontent):
+                            if self.phdr_start - len(self.ncontent) > 0x1000000:
+                                # we don't want to increase the file size by more than 1 MB
+                                raise Exception("Cannot align the file offset and vaddr of PHDR without increasing the "
+                                                "file size by more than 1 MB.")
+                            if (self.phdr_start - len(self.ncontent)) % 0x1000 == 0:
+                                self.ncontent += b"\x00" * (self.phdr_start - len(self.ncontent))
+                            else:
+                                self.ncontent += b"\x00" * (((self.phdr_start - len(self.ncontent)) // 0x1000 + 1) * 0x1000)
+                        self.phdr_start = len(self.ncontent)
 
-                    segment["p_offset"]  = self.phdr_start
-                    segment["p_vaddr"]   = self.phdr_start + self.first_load["p_vaddr"]
-                    segment["p_paddr"]   = self.phdr_start + self.first_load["p_vaddr"]
+                    segment["p_offset"] = 0xfefdfcfb  # will be determined later since it will be put at the end of
+                                                      # the file
+                    segment["p_vaddr"] = self.phdr_start + self.first_load["p_vaddr"]
+                    segment["p_paddr"] = self.phdr_start + self.first_load["p_vaddr"]
 
-            self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
+            # pad the file so that its size is a multiple of 0x1000
+            if len(self.ncontent) % 0x1000 != 0:
+                self.ncontent += b"\x00" * (0x1000 - (len(self.ncontent) % 0x1000))
 
             # change pointer to program headers to point at the end of the elf
             current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
@@ -474,15 +493,17 @@ class DetourBackend(Backend):
 
             print("putting them at %#x" % self.phdr_start)
             print("current len: %#x" % len(self.ncontent))
+
             for segment in segments:
                 if segment["p_type"] == "PT_PHDR":
                     segment = self.phdr_segment
+                    segment['p_offset'] = len(self.ncontent)  # put the program header at the end of the file
                 self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(segment))
             self.original_header_end = len(self.ncontent)
 
             # we overwrite the first original program header,
             # we do not need it anymore since we have moved original program headers at the bottom of the file
-            self.ncontent = utils.bytes_overwrite(self.ncontent, self.patched_tag, old_phoff)
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.patched_tag, pos=old_phoff)
 
             # adding space for the additional headers
             # I add two of them, no matter what, if the data one will be used only in case of the fallback solution
@@ -587,7 +608,6 @@ class DetourBackend(Backend):
             self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(phdr_segment_header),
                                                   self.original_header_end + (2 * self.structs.Elf_Phdr.sizeof()))
             added_segments += 1
-
 
             # if the size of a segment is zero, the kernel does not allocate any memory
             # so, we don't care about empty segments
