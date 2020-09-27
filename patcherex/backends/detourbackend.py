@@ -479,20 +479,17 @@ class DetourBackend(Backend):
                     segment["p_vaddr"] = self.phdr_start + self.first_load["p_vaddr"]
                     segment["p_paddr"] = self.phdr_start + self.first_load["p_vaddr"]
 
-            # pad the file so that its size is a multiple of 0x1000
-            if len(self.ncontent) % 0x1000 != 0:
-                self.ncontent += b"\x00" * (0x1000 - (len(self.ncontent) % 0x1000))
+            # pad the file so that it's at least the size of phdr_start
+            self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
+            assert len(self.ncontent) % 0x1000 == 0, "The PHDR segment must begin at a page-aligned address."
 
             # change pointer to program headers to point at the end of the elf
             current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
             old_phoff = current_hdr["e_phoff"]
             current_hdr["e_phoff"] = len(self.ncontent)
             self.ncontent = utils.bytes_overwrite(self.ncontent,
-                                                self.structs.Elf_Ehdr.build(current_hdr),
-                                                0)
-
-            print("putting them at %#x" % self.phdr_start)
-            print("current len: %#x" % len(self.ncontent))
+                                                  self.structs.Elf_Ehdr.build(current_hdr),
+                                                  pos=0)
 
             for segment in segments:
                 if segment["p_type"] == "PT_PHDR":
