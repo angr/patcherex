@@ -460,28 +460,25 @@ class DetourBackend(Backend):
                         # we play fancy: try to map self.phdr_start to the next page-aligned position so that p_offset
                         # is the same as phdr_start if the base address of this binary is 0
                         # this is to workaround a weird issue in the dynamic linker of glibc
-                        if len(self.ncontent) % 0x1000 != 0:
-                            self.ncontent += b"\x00" * (0x1000 - (len(self.ncontent) % 0x1000))
+                        self.phdr_start = blah[-1][1]
+
+                        # self.phdr_start is page-aligned
+                        # and now we want to make sure p_vaddr (self.phdr_start) == p_offset (len(self.ncontent))
+                        
                         if self.phdr_start > len(self.ncontent):
-                            if self.phdr_start - len(self.ncontent) > 0x1000000:
-                                # we don't want to increase the file size by more than 1 MB
+                            # p_vaddr > p_offset: pad the file (p_offset)
+                            if self.phdr_start - len(self.ncontent) > 1_000_000:
                                 raise Exception("Cannot align the file offset and vaddr of PHDR without increasing the "
                                                 "file size by more than 1 MB.")
-                            if (self.phdr_start - len(self.ncontent)) % 0x1000 == 0:
-                                self.ncontent += b"\x00" * (self.phdr_start - len(self.ncontent))
-                            else:
-                                self.ncontent += b"\x00" * (
-                                        ((self.phdr_start - len(self.ncontent)) // 0x1000 + 1) * 0x1000
-                                )
-                        self.phdr_start = len(self.ncontent)
+                            self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
+                        else:
+                            # p_vaddr <= p_offset: pad the file (p_offset) to page size, and let p_vaddr = p_offset
+                            self.ncontent += b"\x00" * (0x1000 - (len(self.ncontent) % 0x1000))
+                            self.phdr_start = len(self.ncontent)
 
                     segment["p_offset"] = self.phdr_start
-                    segment["p_vaddr"] = self.phdr_start + self.first_load["p_vaddr"]
-                    segment["p_paddr"] = self.phdr_start + self.first_load["p_vaddr"]
-
-            # pad the file so that it's at least the size of phdr_start
-            self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
-            assert len(self.ncontent) % 0x1000 == 0, "The PHDR segment must begin at a page-aligned address."
+                    segment["p_vaddr"]  = self.phdr_start + self.first_load["p_vaddr"]
+                    segment["p_paddr"]  = self.phdr_start + self.first_load["p_vaddr"]
 
             # change pointer to program headers to point at the end of the elf
             current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
