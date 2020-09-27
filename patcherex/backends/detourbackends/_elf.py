@@ -133,12 +133,28 @@ class DetourBackendElf(Backend):
                         load_segments_rounded = new_load_segments_rounded # combined segments, run again
 
                     for prev_seg, next_seg in zip(load_segments_rounded[:-1], load_segments_rounded[1:]):
-                        potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xF) & ~0xF) # round up to 0x10
+                        potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xfff) & ~0xfff) # round up to 0x1000
                         if next_seg[0] - potential_base > phdr_size: # if there is space between segments, put phdr here
                             self.phdr_start = potential_base
                             break
                     else:
                         self.phdr_start = load_segments_rounded[-1][1] # otherwise put it after the last load segment
+
+                    # try to map self.phdr_start to the next page-aligned position so that p_offset is the same as
+                    # phdr_start if the base address of this binary is 0
+                    # this is to workaround a weird issue in the dynamic linker of glibc
+                    # Note taht self.phdr_start is page-aligned at this moment.
+                    # and now we want to make sure p_vaddr (self.phdr_start) == p_offset (len(self.ncontent))
+                    if self.phdr_start > len(self.ncontent):
+                        # p_vaddr > p_offset: pad the file (p_offset)
+                        if self.phdr_start - len(self.ncontent) > 1_000_000:
+                            raise Exception("Cannot align the file offset and vaddr of PHDR without increasing the "
+                                            "file size by more than 1 MB.")
+                        self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
+                    else:
+                        # p_vaddr <= p_offset: pad the file (p_offset) to page size, and let p_vaddr = p_offset
+                        self.ncontent += b"\x00" * (0x1000 - (len(self.ncontent) % 0x1000))
+                        self.phdr_start = len(self.ncontent)
 
                     segment["p_offset"]  = self.phdr_start
                     segment["p_vaddr"]   = self.phdr_start + self.first_load["p_vaddr"]
