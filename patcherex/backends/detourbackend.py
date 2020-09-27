@@ -484,14 +484,16 @@ class DetourBackend(Backend):
                 self.ncontent += b"\x00" * (0x1000 - (len(self.ncontent) % 0x1000))
 
             # change pointer to program headers to point at the end of the elf
+            import ipdb; ipdb.set_trace()
+            new_phoff = len(self.ncontent)
             current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
             old_phoff = current_hdr["e_phoff"]
-            current_hdr["e_phoff"] = len(self.ncontent)
+            current_hdr["e_phoff"] = new_phoff
             self.ncontent = utils.bytes_overwrite(self.ncontent,
                                                 self.structs.Elf_Ehdr.build(current_hdr),
-                                                0)
+                                                pos = 0)
 
-            print("putting them at %#x" % self.phdr_start)
+            # print("putting them at %#x" % self.phdr_start)
             print("current len: %#x" % len(self.ncontent))
 
             for segment in segments:
@@ -596,18 +598,19 @@ class DetourBackend(Backend):
             original_nsegments = nsegments
 
             # add a LOAD segment for the PHDR segment
-            phdr_offset = self.phdr_segment["p_offset"]
-            phdr_vaddr = self.phdr_segment["p_vaddr"]
-            phdr_paddr = self.phdr_segment["p_paddr"]
-            phdr_fsize = self.phdr_segment["p_filesz"]
-            phdr_msize = self.phdr_segment["p_memsz"]
-            phdr_segment_header = Container(**{"p_type":   1,          "p_offset": phdr_offset,
-                                               "p_vaddr":  phdr_vaddr, "p_paddr":  phdr_paddr,
-                                               "p_filesz": phdr_fsize, "p_memsz":  phdr_msize,
-                                               "p_flags":  0x4,        "p_align":  0x1000})
-            self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(phdr_segment_header),
-                                                  self.original_header_end + (2 * self.structs.Elf_Phdr.sizeof()))
-            added_segments += 1
+            if self.phdr_segment is not None:
+                phdr_offset = self.phdr_segment["p_offset"]
+                phdr_vaddr = self.phdr_segment["p_vaddr"]
+                phdr_paddr = self.phdr_segment["p_paddr"]
+                phdr_fsize = self.phdr_segment["p_filesz"]
+                phdr_msize = self.phdr_segment["p_memsz"]
+                phdr_segment_header = Container(**{"p_type":   1,          "p_offset": phdr_offset,
+                                                   "p_vaddr":  phdr_vaddr, "p_paddr":  phdr_paddr,
+                                                   "p_filesz": phdr_fsize, "p_memsz":  phdr_msize,
+                                                   "p_flags":  0x4,        "p_align":  0x1000})
+                self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(phdr_segment_header),
+                                                      self.original_header_end + (2 * self.structs.Elf_Phdr.sizeof()))
+                added_segments += 1
 
             # if the size of a segment is zero, the kernel does not allocate any memory
             # so, we don't care about empty segments
@@ -1070,6 +1073,7 @@ class DetourBackend(Backend):
                        p_filesz, p_memsz + self.added_rwdata_len + self.added_rwinitdata_len, p_flags, p_align
                 segments[-1] = last_segment
             self.setup_headers(segments)
+            import ipdb; ipdb.set_trace()
             self.set_added_segment_headers(len(segments))
             l.debug("final symbol table: "+ repr([(k,hex(v)) for k,v in self.name_map.items()]))
         else:
