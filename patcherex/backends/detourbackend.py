@@ -116,12 +116,12 @@ class DetourBackend(Backend):
                     max_file_end = max([s[1]+s[4] for s in self.modded_segments[:-1]])
                     if max_file_start < last_segment["p_offset"] and \
                        max_file_end <= last_segment["p_offset"] + last_segment["p_filesz"]:
-                        l.info("Using standard method for RW memory. " \
-                                "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x" % \
-                                (last_segment["p_offset"],
+                        l.info("Using standard method for RW memory. "
+                                "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x",
+                                last_segment["p_offset"],
                                  last_segment["p_offset"] + last_segment["p_filesz"],
                                  max_file_start,
-                                 max_file_end))
+                                 max_file_end)
                         self.data_fallback = False
                     else:
                         l.info("Using fallback method for RW memory.")
@@ -130,7 +130,7 @@ class DetourBackend(Backend):
                     l.info("Using fallback method for RW memory.")
                     self.data_fallback = True
             else:
-                l.info("RW method forced to fallback? %s" % str(data_fallback))
+                l.info("RW method forced to fallback? %s", data_fallback)
                 self.data_fallback = data_fallback
 
             if self.data_fallback:
@@ -207,9 +207,9 @@ class DetourBackend(Backend):
                     max_file_start = max([s[1] for s in self.modded_segments[:-1]])
                     max_file_end = max([s[1]+s[4] for s in self.modded_segments[:-1]])
                     if max_file_start < last_segment[1] and max_file_end <= last_segment[1]+last_segment[4]:
-                        l.info("Using standard method for RW memory. " \
-                                "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x" % \
-                                (last_segment[1],last_segment[1]+last_segment[4],max_file_start,max_file_end))
+                        l.info("Using standard method for RW memory. "
+                                "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x",
+                                last_segment[1],last_segment[1]+last_segment[4],max_file_start,max_file_end)
                         self.data_fallback = False
                     else:
                         l.info("Using fallback method for RW memory.")
@@ -218,7 +218,7 @@ class DetourBackend(Backend):
                     l.info("Using fallback method for RW memory.")
                     self.data_fallback = True
             else:
-                l.info("RW method forced to fallback? %s" % str(data_fallback))
+                l.info("RW method forced to fallback? %s", str(data_fallback))
                 self.data_fallback = data_fallback
 
             if self.data_fallback:
@@ -728,8 +728,7 @@ class DetourBackend(Backend):
 
         # check for duplicate labels, it is not very necessary for this backend
         # but it is better to behave in the same way of the reassembler backend
-        relevant_patches = [p for p in patches if (isinstance(p, AddCodePatch) or
-                isinstance(p, InsertCodePatch) or isinstance(p, AddEntryPointPatch))]
+        relevant_patches = [p for p in patches if isinstance(p, (AddCodePatch, InsertCodePatch, AddEntryPointPatch))]
         all_code = ""
         for p in relevant_patches:
             if isinstance(p, InsertCodePatch):
@@ -754,12 +753,12 @@ class DetourBackend(Backend):
             if isinstance(patch, RawFilePatch):
                 self.ncontent = utils.bytes_overwrite(self.ncontent, patch.data, patch.file_addr)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
         for patch in patches:
             if isinstance(patch, RawMemPatch):
                 self.patch_bin(patch.addr,patch.data)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
         for patch in patches:
             if isinstance(patch, RemoveInstructionPatch):
@@ -770,15 +769,14 @@ class DetourBackend(Backend):
                     size = patch.ins_size
                 self.patch_bin(patch.ins_addr, b"\x90" * size)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
         if self.data_fallback:
             # 1)
             self.added_data_file_start = len(self.ncontent)
             curr_data_position = self.name_map["ADDED_DATA_START"]
             for patch in patches:
-                if isinstance(patch, AddRWDataPatch) or isinstance(patch, AddRODataPatch) or \
-                        isinstance(patch, AddRWInitDataPatch):
+                if isinstance(patch, (AddRWDataPatch, AddRODataPatch, AddRWInitDataPatch)):
                     if hasattr(patch, "data"):
                         final_patch_data = patch.data
                     else:
@@ -1001,16 +999,16 @@ class DetourBackend(Backend):
         # and fix relative offsets
         # With this backend heer we can fail applying a patch, in case, resolve dependencies
         insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
-        insert_code_patches = sorted([p for p in insert_code_patches],key=lambda x:-1*x.priority)
+        insert_code_patches = sorted(insert_code_patches, key=lambda x:-1*x.priority)
         applied_patches = []
         while True:
             name_list = [str(p) if (p is None or p.name is None) else p.name for p in applied_patches]
-            l.info("applied_patches is: |" + "-".join(name_list)+"|")
+            l.info("applied_patches is: |%s|", "-".join(name_list))
             assert all([a == b for a, b in zip(applied_patches, insert_code_patches)])
             for patch in insert_code_patches[len(applied_patches):]:
                 self.save_state(applied_patches)
                 try:
-                    l.info("Trying to add patch: " + str(patch))
+                    l.info("Trying to add patch: %s", str(patch))
                     if patch.name is not None:
                         self.name_map[patch.name] = self.get_current_code_position()
                     new_code = self.insert_detour(patch)
@@ -1086,7 +1084,7 @@ class DetourBackend(Backend):
                             cleaned_patches.remove(p)
                         if p not in removed_patches:
                             removed_patches.append(p)
-            if removed == False:
+            if removed is False:
                 break
         return cleaned_patches,removed_patches
 
