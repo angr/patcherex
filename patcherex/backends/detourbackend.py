@@ -78,6 +78,7 @@ class DetourBackend(Backend):
             self.cfg = self._generate_cfg()
             self.ordered_nodes = self._get_ordered_nodes(self.cfg)
 
+            import ipdb; ipdb.set_trace()
             # header stuff
             self.ncontent = self.ocontent
             self.segments = None
@@ -505,6 +506,7 @@ class DetourBackend(Backend):
             if self.phdr_segment is None:
                 self.phdr_start = new_phoff
                 self.base_addr = 0x400000  # TODO: this is for non-PIE
+                self.phentsize = current_hdr["e_phentsize"]
 
             # print("putting them at %#x" % self.phdr_start)
             print("current len: %#x" % len(self.ncontent))
@@ -650,7 +652,7 @@ class DetourBackend(Backend):
                 phdr_offset = self.phdr_start
                 phdr_vaddr = self.base_addr + self.phdr_start
                 phdr_paddr = phdr_vaddr
-                phdr_fsize = 56 * (nsegments + added_segments + 1)
+                phdr_fsize = self.phentsize * (nsegments + added_segments + 1)
                 phdr_msize = phdr_fsize
 
             phdr_segment_header = Container(**{"p_type": 1,
