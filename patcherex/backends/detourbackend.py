@@ -452,12 +452,11 @@ class DetourBackend(Backend):
                         blah = stuff
 
                     for prev_seg, next_seg in zip(blah[:-1], blah[1:]):
-                        potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xF) & ~0xF)
+                        potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0x1000) & 0xfffffffffffff000)
                         if next_seg[0] - potential_base > phdr_size:
                             self.phdr_start = potential_base
                             break
                     else:
-                        self.phdr_start = blah[-1][1]
                         # we play fancy: try to map self.phdr_start to the next page-aligned position so that p_offset
                         # is the same as phdr_start if the base address of this binary is 0
                         # this is to workaround a weird issue in the dynamic linker of glibc
@@ -471,11 +470,12 @@ class DetourBackend(Backend):
                             if (self.phdr_start - len(self.ncontent)) % 0x1000 == 0:
                                 self.ncontent += b"\x00" * (self.phdr_start - len(self.ncontent))
                             else:
-                                self.ncontent += b"\x00" * (((self.phdr_start - len(self.ncontent)) // 0x1000 + 1) * 0x1000)
+                                self.ncontent += b"\x00" * (
+                                        ((self.phdr_start - len(self.ncontent)) // 0x1000 + 1) * 0x1000
+                                )
                         self.phdr_start = len(self.ncontent)
 
-                    segment["p_offset"] = 0xfefdfcfb  # will be determined later since it will be put at the end of
-                                                      # the file
+                    segment["p_offset"] = self.phdr_start
                     segment["p_vaddr"] = self.phdr_start + self.first_load["p_vaddr"]
                     segment["p_paddr"] = self.phdr_start + self.first_load["p_vaddr"]
 
@@ -497,7 +497,6 @@ class DetourBackend(Backend):
             for segment in segments:
                 if segment["p_type"] == "PT_PHDR":
                     segment = self.phdr_segment
-                    segment['p_offset'] = len(self.ncontent)  # put the program header at the end of the file
                 self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(segment))
             self.original_header_end = len(self.ncontent)
 
