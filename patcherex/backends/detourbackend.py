@@ -116,12 +116,12 @@ class DetourBackend(Backend):
                     max_file_end = max([s[1]+s[4] for s in self.modded_segments[:-1]])
                     if max_file_start < last_segment["p_offset"] and \
                        max_file_end <= last_segment["p_offset"] + last_segment["p_filesz"]:
-                        l.info("Using standard method for RW memory. " \
-                                "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x" % \
-                                (last_segment["p_offset"],
+                        l.info("Using standard method for RW memory. "
+                                "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x",
+                                last_segment["p_offset"],
                                  last_segment["p_offset"] + last_segment["p_filesz"],
                                  max_file_start,
-                                 max_file_end))
+                                 max_file_end)
                         self.data_fallback = False
                     else:
                         l.info("Using fallback method for RW memory.")
@@ -130,7 +130,7 @@ class DetourBackend(Backend):
                     l.info("Using fallback method for RW memory.")
                     self.data_fallback = True
             else:
-                l.info("RW method forced to fallback? %s" % str(data_fallback))
+                l.info("RW method forced to fallback? %s", data_fallback)
                 self.data_fallback = data_fallback
 
             if self.data_fallback:
@@ -207,9 +207,9 @@ class DetourBackend(Backend):
                     max_file_start = max([s[1] for s in self.modded_segments[:-1]])
                     max_file_end = max([s[1]+s[4] for s in self.modded_segments[:-1]])
                     if max_file_start < last_segment[1] and max_file_end <= last_segment[1]+last_segment[4]:
-                        l.info("Using standard method for RW memory. " \
-                                "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x" % \
-                                (last_segment[1],last_segment[1]+last_segment[4],max_file_start,max_file_end))
+                        l.info("Using standard method for RW memory. "
+                                "Existing RW segment: %08x -> %08x, Previous segment: %08x -> %08x",
+                                last_segment[1],last_segment[1]+last_segment[4],max_file_start,max_file_end)
                         self.data_fallback = False
                     else:
                         l.info("Using fallback method for RW memory.")
@@ -218,7 +218,7 @@ class DetourBackend(Backend):
                     l.info("Using fallback method for RW memory.")
                     self.data_fallback = True
             else:
-                l.info("RW method forced to fallback? %s" % str(data_fallback))
+                l.info("RW method forced to fallback? %s", str(data_fallback))
                 self.data_fallback = data_fallback
 
             if self.data_fallback:
@@ -418,7 +418,8 @@ class DetourBackend(Backend):
                 if segment["p_type"] == "PT_LOAD":
                     if self.first_load is None:
                         self.first_load = segment
-                    blah.append(((segment["p_vaddr"] - self.first_load["p_vaddr"]) - ((segment["p_vaddr"] - self.first_load["p_vaddr"]) % 0x1000), int(math.ceil((segment["p_vaddr"] + segment["p_memsz"] - self.first_load["p_vaddr"]) / 0x1000) * 0x1000)))
+                    blah.append(((segment["p_vaddr"] - self.first_load["p_vaddr"]) - ((segment["p_vaddr"] - self.first_load["p_vaddr"]) % 0x1000),
+                                 int(math.ceil((segment["p_vaddr"] + segment["p_memsz"] - self.first_load["p_vaddr"]) / 0x1000) * 0x1000)))
 
             for segment in segments:
                 if segment["p_type"] == "PT_PHDR":
@@ -451,29 +452,41 @@ class DetourBackend(Backend):
                         blah = stuff
 
                     for prev_seg, next_seg in zip(blah[:-1], blah[1:]):
-                        potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xF) & ~0xF)
+                        potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xfff) & ~0xfff)
                         if next_seg[0] - potential_base > phdr_size:
                             self.phdr_start = potential_base
                             break
                     else:
                         self.phdr_start = blah[-1][1]
 
-                    segment["p_offset"]  = self.phdr_start
-                    segment["p_vaddr"]   = self.phdr_start + self.first_load["p_vaddr"]
-                    segment["p_paddr"]   = self.phdr_start + self.first_load["p_vaddr"]
+                    # try to map self.phdr_start to the next page-aligned position so that p_offset is the same as
+                    # phdr_start if the base address of this binary is 0
+                    # this is to workaround a weird issue in the dynamic linker of glibc
+                    # Note taht self.phdr_start is page-aligned at this moment.
+                    # and now we want to make sure p_vaddr (self.phdr_start) == p_offset (len(self.ncontent))
+                    if self.phdr_start > len(self.ncontent):
+                        # p_vaddr > p_offset: pad the file (p_offset)
+                        if self.phdr_start - len(self.ncontent) > 1_000_000:
+                            raise Exception("Cannot align the file offset and vaddr of PHDR without increasing the "
+                                            "file size by more than 1 MB.")
+                        self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
+                    else:
+                        # p_vaddr <= p_offset: pad the file (p_offset) to page size, and let p_vaddr = p_offset
+                        self.ncontent += b"\x00" * (0x1000 - (len(self.ncontent) % 0x1000))
+                        self.phdr_start = len(self.ncontent)
 
-            self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
+                    segment["p_offset"] = self.phdr_start
+                    segment["p_vaddr"]  = self.phdr_start + self.first_load["p_vaddr"]
+                    segment["p_paddr"]  = self.phdr_start + self.first_load["p_vaddr"]
 
             # change pointer to program headers to point at the end of the elf
             current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
             old_phoff = current_hdr["e_phoff"]
             current_hdr["e_phoff"] = len(self.ncontent)
             self.ncontent = utils.bytes_overwrite(self.ncontent,
-                                                self.structs.Elf_Ehdr.build(current_hdr),
-                                                0)
+                                                  self.structs.Elf_Ehdr.build(current_hdr),
+                                                  pos=0)
 
-            print("putting them at %#x" % self.phdr_start)
-            print("current len: %#x" % len(self.ncontent))
             for segment in segments:
                 if segment["p_type"] == "PT_PHDR":
                     segment = self.phdr_segment
@@ -482,7 +495,7 @@ class DetourBackend(Backend):
 
             # we overwrite the first original program header,
             # we do not need it anymore since we have moved original program headers at the bottom of the file
-            self.ncontent = utils.bytes_overwrite(self.ncontent, self.patched_tag, old_phoff)
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.patched_tag, pos=old_phoff)
 
             # adding space for the additional headers
             # I add two of them, no matter what, if the data one will be used only in case of the fallback solution
@@ -587,7 +600,6 @@ class DetourBackend(Backend):
             self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(phdr_segment_header),
                                                   self.original_header_end + (2 * self.structs.Elf_Phdr.sizeof()))
             added_segments += 1
-
 
             # if the size of a segment is zero, the kernel does not allocate any memory
             # so, we don't care about empty segments
@@ -716,8 +728,7 @@ class DetourBackend(Backend):
 
         # check for duplicate labels, it is not very necessary for this backend
         # but it is better to behave in the same way of the reassembler backend
-        relevant_patches = [p for p in patches if (isinstance(p, AddCodePatch) or
-                isinstance(p, InsertCodePatch) or isinstance(p, AddEntryPointPatch))]
+        relevant_patches = [p for p in patches if isinstance(p, (AddCodePatch, InsertCodePatch, AddEntryPointPatch))]
         all_code = ""
         for p in relevant_patches:
             if isinstance(p, InsertCodePatch):
@@ -742,12 +753,12 @@ class DetourBackend(Backend):
             if isinstance(patch, RawFilePatch):
                 self.ncontent = utils.bytes_overwrite(self.ncontent, patch.data, patch.file_addr)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
         for patch in patches:
             if isinstance(patch, RawMemPatch):
                 self.patch_bin(patch.addr,patch.data)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
         for patch in patches:
             if isinstance(patch, RemoveInstructionPatch):
@@ -758,15 +769,14 @@ class DetourBackend(Backend):
                     size = patch.ins_size
                 self.patch_bin(patch.ins_addr, b"\x90" * size)
                 self.added_patches.append(patch)
-                l.info("Added patch: " + str(patch))
+                l.info("Added patch: %s", str(patch))
 
         if self.data_fallback:
             # 1)
             self.added_data_file_start = len(self.ncontent)
             curr_data_position = self.name_map["ADDED_DATA_START"]
             for patch in patches:
-                if isinstance(patch, AddRWDataPatch) or isinstance(patch, AddRODataPatch) or \
-                        isinstance(patch, AddRWInitDataPatch):
+                if isinstance(patch, (AddRWDataPatch, AddRODataPatch, AddRWInitDataPatch)):
                     if hasattr(patch, "data"):
                         final_patch_data = patch.data
                     else:
@@ -989,16 +999,16 @@ class DetourBackend(Backend):
         # and fix relative offsets
         # With this backend heer we can fail applying a patch, in case, resolve dependencies
         insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
-        insert_code_patches = sorted([p for p in insert_code_patches],key=lambda x:-1*x.priority)
+        insert_code_patches = sorted(insert_code_patches, key=lambda x:-1*x.priority)
         applied_patches = []
         while True:
             name_list = [str(p) if (p is None or p.name is None) else p.name for p in applied_patches]
-            l.info("applied_patches is: |" + "-".join(name_list)+"|")
+            l.info("applied_patches is: |%s|", "-".join(name_list))
             assert all([a == b for a, b in zip(applied_patches, insert_code_patches)])
             for patch in insert_code_patches[len(applied_patches):]:
                 self.save_state(applied_patches)
                 try:
-                    l.info("Trying to add patch: " + str(patch))
+                    l.info("Trying to add patch: %s", str(patch))
                     if patch.name is not None:
                         self.name_map[patch.name] = self.get_current_code_position()
                     new_code = self.insert_detour(patch)
@@ -1074,7 +1084,7 @@ class DetourBackend(Backend):
                             cleaned_patches.remove(p)
                         if p not in removed_patches:
                             removed_patches.append(p)
-            if removed == False:
+            if removed is False:
                 break
         return cleaned_patches,removed_patches
 
