@@ -452,7 +452,7 @@ class DetourBackend(Backend):
                         blah = stuff
 
                     for prev_seg, next_seg in zip(blah[:-1], blah[1:]):
-                        potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0x1000) & 0xfffffffffffff000)
+                        potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xfff) & ~0xfff)
                         if next_seg[0] - potential_base > phdr_size:
                             self.phdr_start = potential_base
                             break
