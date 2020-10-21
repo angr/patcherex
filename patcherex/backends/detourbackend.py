@@ -24,6 +24,8 @@ def DetourBackend(filename, data_fallback=None, base_address=None, try_pdf_remov
                  start_bytes.startswith(b"\x15\x00", 0x12) or \
                  start_bytes.startswith(b"\x00\x15", 0x12): # EM_PPC / EM_PPC64
                 detourbackendclass = getattr(importlib.import_module("patcherex.backends.detourbackends.ppc"), "DetourBackendPpc")
+            elif start_bytes.startswith(b"\x53\x00", 0x12):
+                detourbackendclass = getattr(importlib.import_module("patcherex.backends.detourbackends.avr"), "DetourBackendAVR")
             else:
                 raise Exception("Unsupported architecture.")
             return detourbackendclass(filename, base_address=base_address, replace_note_segment=replace_note_segment)
