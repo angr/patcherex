@@ -6,6 +6,8 @@ Patcherex is the component used to create patched binaries in our CRS.
 ```bash
 sudo apt-get install nasm clang
 
+sudo apt-get install clang-10 gcc-avr binutils-avr avr-libc # (optional) for AVR patching (see patcherex/backends/detourbackends/avr.py)
+
 # mkvirtualenv cgc # create and activate a proper virtual env in which other CRS components have been installed (see setup.py)
 
 git clone https://github.com/angr/patcherex.git
