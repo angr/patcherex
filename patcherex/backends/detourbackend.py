@@ -1,6 +1,6 @@
 import importlib
 
-def DetourBackend(filename, data_fallback=None, base_address=None, try_pdf_removal=True, replace_note_segment=False):
+def DetourBackend(filename, data_fallback=None, base_address=None, try_pdf_removal=True, replace_note_segment=False, variant=None):
     with open(filename, "rb") as f:
         start_bytes = f.read(0x14)
         if start_bytes.startswith(b"\x7fCGC"):
@@ -15,7 +15,10 @@ def DetourBackend(filename, data_fallback=None, base_address=None, try_pdf_remov
             elif start_bytes.startswith(b"\xb7\x00", 0x12): # EM_AARCH64
                 detourbackendclass = getattr(importlib.import_module("patcherex.backends.detourbackends.aarch64"), "DetourBackendAarch64")
             elif start_bytes.startswith(b"\x28\x00", 0x12): # EM_ARM
-                detourbackendclass = getattr(importlib.import_module("patcherex.backends.detourbackends.arm"), "DetourBackendArm")
+                if variant == "stm32":
+                        detourbackendclass = getattr(importlib.import_module("patcherex.backends.detourbackends.arm_stm32"), "DetourBackendArmStm32")
+                else:
+                    detourbackendclass = getattr(importlib.import_module("patcherex.backends.detourbackends.arm"), "DetourBackendArm")
             elif start_bytes.startswith(b"\x08\x00", 0x12) or \
                  start_bytes.startswith(b"\x00\x08", 0x12): # EM_MIPS
                 detourbackendclass = getattr(importlib.import_module("patcherex.backends.detourbackends.mips"), "DetourBackendMips")
