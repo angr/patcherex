@@ -202,13 +202,13 @@ class Tests(unittest.TestCase):
         p2 = InsertCodePatch(0x40076c, added_code2, name="p2", priority=1)
         p3 = AddRODataPatch(test_str1, "str1")
         p4 = AddRODataPatch(test_str2, "str2")
-        self.run_test("printf_nopie", [p1, p2, p3, p4], expected_output=test_str1 + b"Hi")
+        self.run_test("printf_nopie", [p1, p2, p3, p4], expected_output=test_str1 + b"Hi", try_without_cfg=False)
 
         p1 = InsertCodePatch(0x40076c, added_code1, name="p1", priority=1)
         p2 = InsertCodePatch(0x40076c, added_code2, name="p2", priority=100)
         p3 = AddRODataPatch(test_str1, "str1")
         p4 = AddRODataPatch(test_str2, "str2")
-        backend = self.run_test("printf_nopie", [p1, p2, p3, p4], expected_output=test_str2 + b"Hi")
+        backend = self.run_test("printf_nopie", [p1, p2, p3, p4], expected_output=test_str2 + b"Hi", try_without_cfg=False)
         self.assertNotIn(p1, backend.added_patches)
         self.assertIn(p2, backend.added_patches)
 
@@ -216,7 +216,7 @@ class Tests(unittest.TestCase):
         p2 = InsertCodePatch(0x40076c+0x4, added_code2, name="p2", priority=100)
         p3 = AddRODataPatch(test_str1, "str1")
         p4 = AddRODataPatch(test_str2, "str2")
-        backend = self.run_test("printf_nopie", [p1, p2, p3, p4], expected_output=test_str2 + b"Hi")
+        backend = self.run_test("printf_nopie", [p1, p2, p3, p4], expected_output=test_str2 + b"Hi", try_without_cfg=False)
         self.assertNotIn(p1, backend.added_patches)
         self.assertIn(p2, backend.added_patches)
 
@@ -272,13 +272,13 @@ class Tests(unittest.TestCase):
         '''
         self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x40082c, 0x7C, code, symbols={"printf" : 0x400b60})], expected_output=b"Hello World Hello  Hello  Hello  21\nHello World\n2121")
 
-    def run_test(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None):
+    def run_test(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None, try_without_cfg=True):
         filepath = os.path.join(self.bin_location, filename)
         pipe = subprocess.PIPE
 
         with patcherex.utils.tempdir() as td:
             tmp_file = os.path.join(td, "patched")
-            backend = DetourBackend(filepath)
+            backend = DetourBackend(filepath, try_without_cfg=try_without_cfg)
             backend.apply_patches(patches)
             if set_oep:
                 backend.set_oep(backend.name_map[set_oep])

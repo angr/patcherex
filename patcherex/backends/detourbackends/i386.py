@@ -22,8 +22,10 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendi386(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None, replace_note_segment=False):
-        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
+    def __init__(self, filename, base_address=None, replace_note_segment=False, try_without_cfg=False):
+        if try_without_cfg:
+            raise NotImplementedError()
+        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg)
 
     def apply_patches(self, patches):
         # deal with stackable patches

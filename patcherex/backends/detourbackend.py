@@ -1,6 +1,6 @@
 import importlib
 
-def DetourBackend(filename, data_fallback=None, base_address=None, try_pdf_removal=True, replace_note_segment=False, variant=None):
+def DetourBackend(filename, data_fallback=None, base_address=None, try_pdf_removal=True, replace_note_segment=False, try_without_cfg=False, variant=None):
     with open(filename, "rb") as f:
         start_bytes = f.read(0x14)
         if start_bytes.startswith(b"\x7fCGC"):
@@ -31,7 +31,7 @@ def DetourBackend(filename, data_fallback=None, base_address=None, try_pdf_remov
                 detourbackendclass = getattr(importlib.import_module("patcherex.backends.detourbackends.avr"), "DetourBackendAVR")
             else:
                 raise Exception("Unsupported architecture.")
-            return detourbackendclass(filename, base_address=base_address, replace_note_segment=replace_note_segment)
+            return detourbackendclass(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg)
         else:
             raise Exception("Unsupported file type.")
 

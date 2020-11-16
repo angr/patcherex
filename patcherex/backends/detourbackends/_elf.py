@@ -17,13 +17,14 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendElf(Backend):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None, replace_note_segment=False):
+    def __init__(self, filename, base_address=None, replace_note_segment=False, try_without_cfg=False):
         super().__init__(filename, project_options={"main_opts": {"base_addr": base_address}})
 
         self.modded_segments = self.dump_segments() # dump_segments also set self.structs
 
-        self.cfg = self._generate_cfg()
-        self.ordered_nodes = self._get_ordered_nodes(self.cfg)
+        self.try_without_cfg = try_without_cfg
+        self.cfg = self._generate_cfg() if not self.try_without_cfg else None
+        self.ordered_nodes = self._get_ordered_nodes(self.cfg) if not self.try_without_cfg else None
 
         # header stuff
         self.ncontent = self.ocontent

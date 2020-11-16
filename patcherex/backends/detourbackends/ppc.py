@@ -27,8 +27,8 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendPpc(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None, replace_note_segment=False):
-        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment)
+    def __init__(self, filename, base_address=None, replace_note_segment=False, try_without_cfg=False):
+        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg)
         self.added_code_segment = 0x10600000
         self.added_data_segment = 0x10700000
         self.name_map.update(ADDED_DATA_START = (len(self.ncontent) % 0x1000) + self.added_data_segment)
@@ -391,6 +391,19 @@ class DetourBackendPpc(DetourBackendElf):
         return compiled_code
 
     def insert_detour(self, patch):
+        detour_size = 4
+        ppc_nop = b"\x60\x00\x00\x00"
+
+        if self.try_without_cfg:
+            offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+            detour_jmp_code = self.compile_jmp(patch.addr, self.get_current_code_position() + offset)
+            patched_bbcode = self.read_mem_from_file(patch.addr, detour_size)
+            patched_bbinstructions = self.disassemble(patched_bbcode, patch.addr)
+            l.debug("patched bb instructions:\n %s",
+                    "\n".join([utils.instruction_to_str(i) for i in patched_bbinstructions]))
+            self.patch_bin(patch.addr, detour_jmp_code)
+            new_code = self.compile_asm(patch.code + "\n" + "\n".join([self.capstone_to_asm(s) for s in patched_bbinstructions]) + "\nb %s" % hex(patch.addr + 4 - offset), base=self.get_current_code_position(), name_map=self.name_map, bits=self.structs.elfclass, little_endian=self.structs.little_endian)
+            return new_code
         # TODO allow special case to patch syscall wrapper epilogue
         # (not that important since we do not want to patch epilogue in syscall wrapper)
         block_addr = self.get_block_containing_inst(patch.addr)
@@ -398,9 +411,6 @@ class DetourBackendPpc(DetourBackendElf):
         block = self.project.factory.block(block_addr, byte_string=mem)
 
         l.debug("inserting detour for patch: %s", (map(hex, (block_addr, block.size, patch.addr))))
-
-        detour_size = 4
-        ppc_nop = b"\x60\x00\x00\x00"
 
         # get movable instructions
         movable_instructions = self.get_movable_instructions(block)
