@@ -281,6 +281,16 @@ class DetourBackendArmStm32(DetourBackendArm):
             current_Phdr['p_paddr'] += len(self.added_code) + len(self.added_data)
             self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(current_Phdr), current_Ehdr['e_phoff'] + current_Ehdr['e_phentsize'] * 2)
 
+    def compile_jmp(self, origin, target, is_thumb=False):
+        # I don't know why but "b target" simply won't work, so I use "bl target" instead
+        jmp_str = '''
+            push {{lr}}
+            bl %d
+            pop {{pc}}
+        ''' % target
+        print(hex(origin))
+        return self.compile_asm(jmp_str, base=origin, name_map=self.name_map,is_thumb=is_thumb)
+
     @staticmethod
     def compile_function(code, compiler_flags="", is_thumb=False, entry=0x0, symbols=None):
         with utils.tempdir() as td:
