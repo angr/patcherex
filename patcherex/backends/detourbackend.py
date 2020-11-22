@@ -65,7 +65,7 @@ class DuplicateLabelsException(PatchingException):
 
 class DetourBackend(Backend):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, data_fallback=None, base_address=None, try_pdf_removal=True):
+    def __init__(self, filename, data_fallback=None, base_address=None, try_pdf_removal=True, cfg_preset=None):
         with open(filename, "rb") as f:
             start_bytes = f.read(0x100)
         magic_string = magic.from_file(filename)
@@ -75,7 +75,7 @@ class DetourBackend(Backend):
 
             self.modded_segments = self.dump_segments()
 
-            self.cfg = self._generate_cfg()
+            self.cfg = self._generate_cfg(cfg_preset)
             self.ordered_nodes = self._get_ordered_nodes(self.cfg)
 
             # header stuff
@@ -157,7 +157,7 @@ class DetourBackend(Backend):
 
             self.binary_type = "CGC"
 
-            self.cfg = self._generate_cfg()
+            self.cfg = self._generate_cfg(cfg)
             self.ordered_nodes = self._get_ordered_nodes(self.cfg)
 
             # header stuff
