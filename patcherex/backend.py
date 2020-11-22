@@ -20,7 +20,7 @@ class Backend(object):
     Patcher backend.
     """
 
-    def __init__(self, filename, try_pdf_removal=True, project_options=None):
+    def __init__(self, filename, try_pdf_removal=True, project_options=None, cfg_preset=None):
         """
         Constructor
 
@@ -35,6 +35,7 @@ class Backend(object):
         self.pdf_removed = False # has the pdf actually been removed?
         self.project = angr.Project(filename, load_options={"auto_load_libs": False}, **project_options)
         self._identifer = None
+        self.cfg = cfg_preset
         with open(filename, "rb") as f:
             self.ocontent = f.read()
 
@@ -84,7 +85,7 @@ class Backend(object):
     # Private methods
     #
 
-    def _generate_cfg(self):
+    def _generate_cfg(self, cfg_preset):
         """
         Generate a control flow graph, make sure necessary steps are performed, and return a CFG.
 
@@ -95,9 +96,12 @@ class Backend(object):
         # TODO
         # 1) ida-like cfg
         # 2) with some strategies we don't need the cfg, we should be able to apply those strategies even if the cfg fails
-        l.info("CFG start...")
-        cfg = self.project.analyses.CFGFast(normalize=True, collect_data_references=True)
-        l.info("... CFG end")
+        if cfg_preset:
+            cfg = cfg_preset
+        else:
+            l.info("CFG start...")
+            cfg = self.project.analyses.CFGFast(normalize=True, collect_data_references=True)
+            l.info("... CFG end")
 
         return cfg
 
