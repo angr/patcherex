@@ -80,6 +80,78 @@ class DetourBackendTricore:
         with open(filename, 'wb') as f:
             f.write(self.ncontents)
 
+            
+    def __generate_section(self, trampolin_code_length: int = 200) -> None:
+        """
+        generate section for trampolin code
+        new section offset: filesz of file header
+        new section size: trampolin_code_length
+        """
+        if self.has_new_section is True:
+            return
+
+        header = self.elf_file.header
+
+        # finding .text and .rodata section
+        s_rodata = None
+        for i in range(self.elf_file.num_sections()):
+            temp = self.elf_file.get_section(i)
+            if temp.name == '.text':
+                s_text = temp
+            elif temp.name == '.data':
+                s_rodata = temp
+        p_data = None
+
+        # ph_idx_text: the index of program header which contains .text section
+        # ph_idx_data: the index of program header which contains .data section
+        ph_idx_text, ph_idx_data = 0, 0
+        for i in range(header['e_phnum']):
+            temp = self.elf_file.get_segment(i)
+            if(temp.section_in_segment(s_text)): 
+                self.phdr_text = temp.header
+                ph_idx_text = i
+            elif(temp.section_in_segment(s_rodata)):
+                p_data = temp
+                ph_idx_data = i
+
+        self.added_section_header = copy.deepcopy(s_text.header)
+        self.added_section_header['sh_offset'] = self.phdr_text['p_offset'] + self.phdr_text['p_filesz']
+        self.added_section_header['sh_addr'] = self.phdr_text['p_vaddr'] + self.phdr_text['p_memsz']
+        self.added_section_header['sh_size'] = trampolin_code_length
+
+        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Shdr.build(self.added_section_header), header['e_shoff'] + header['e_shnum'] * self.elf_file.header['e_shentsize'])
+        
+        self.phdr_text['p_filesz'] += self.added_section_header['sh_size']
+        self.phdr_text['p_memsz'] += self.added_section_header['sh_size']
+        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Phdr.build(self.phdr_text), header['e_phoff'] + header['e_phentsize'] * ph_idx_text)
+
+        self.has_new_section = True
+        self.p_vaddr_text = self.phdr_text['p_vaddr']
+        self.p_offset_text = self.phdr_text['p_offset']
+        self.sh_offset_trampolin = self.added_section_header['sh_offset']
+        self.sh_addr_trampolin = self.added_section_header['sh_addr']
+        self.trampolin_code_position = 0
+        self.sh_trampolin_index = header['e_shnum']
+        self.ph_trampolin_index = ph_idx_text
+
+        header['e_shnum'] += 1
+        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Ehdr.build(header), 0)
+
+    def __update_section(self) -> None:
+        """
+        update already generated section header
+        """
+        org_size = self.added_section_header['sh_size']
+
+        self.phdr_text['p_filesz'] = self.phdr_text['p_filesz'] + self.trampolin_code_position - org_size
+        self.phdr_text['p_memsz'] = self.phdr_text['p_memsz'] + self.trampolin_code_position - org_size
+        self.added_section_header['sh_size'] = self.trampolin_code_position
+
+        #print(ph_update.header.values)
+        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Shdr.build(self.added_section_header), self.elf_file.header['e_shoff'] + self.elf_file.header['e_shentsize'] * self.sh_trampolin_index)
+        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Phdr.build(self.phdr_text), self.elf_file.header['e_phoff'] + self.elf_file.header['e_phentsize'] * self.ph_trampolin_index)
+
+
     def __apply_insert_code_patch(self, patch: InsertCodePatch) -> None:
         """
         1. Generate new section for trampolin code
