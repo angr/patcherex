@@ -99,6 +99,9 @@ class DetourBackendTricore:
         # target_offset: offset of ncontents where detour patch will be applied
         target_offset = patch.addr - self.p_vaddr_text + self.p_offset_text
 
+        # Check broken instruction
+        assert TricoreUtils.is_2byte(self.ncontents[target_offset - 2]), "Invalid Address: Broken Instruction"
+
         original_instruction_tail = b""
         # 4byte
         if TricoreUtils.is_4byte(self.ncontents[target_offset]):
