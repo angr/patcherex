@@ -23,7 +23,6 @@ from patcherex.utils import (CLangException, ObjcopyException,
 from elftools.elf.elffile import ELFFile
 import copy
 
-
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendTricore:
@@ -62,6 +61,9 @@ class DetourBackendTricore:
         self.trampolin_code_position = None
         self.added_section_header = None
         self.phdr_text = None
+        
+        l.warn("Tricore backend does not work properly when you try to detour jump instructions")
+        l.warn("Tricore backend have not been tested on real board, or simulator")
     
     def __del__(self):
         self.f.close()
@@ -194,6 +196,7 @@ class DetourBackendTricore:
         else:
             self.ncontents = TricoreUtils.insert_bytes(self.ncontents, target_offset, TricoreUtils.jump((self.sh_addr_trampolin + self.trampolin_code_position - patch.addr).to_bytes(4, byteorder="little")))
 
+        #TODO: Handle edge case: when head or tail instruction is PC-relative(e.g., J, JZ, JLA)
         code = original_instruction_head + code + original_instruction_tail
         backward_jump_size = self.sh_addr_trampolin + self.trampolin_code_position + len(code) - patch.addr - 4
         code = code + TricoreUtils.jump_back((backward_jump_size).to_bytes(4, byteorder="little"))
