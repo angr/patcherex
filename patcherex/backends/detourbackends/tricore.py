@@ -1,28 +1,13 @@
-import bisect
+import copy
 import logging
 import os
-import re
 from typing import List
-from collections import defaultdict
 
-import cle
+from elftools.elf.elffile import ELFFile
 from patcherex import utils
 from patcherex.backends.detourbackends._elf import DetourBackendElf, l
-from patcherex.backends.detourbackends._utils import (
-    DetourException, DoubleDetourException, DuplicateLabelsException,
-    IncompatiblePatchesException, MissingBlockException)
-from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
-                               AddRODataPatch, AddRWDataPatch,
-                               AddRWInitDataPatch, AddSegmentHeaderPatch,
-                               InlinePatch, InsertCodePatch, RawFilePatch,
-                               RawMemPatch, RemoveInstructionPatch,
-                               ReplaceFunctionPatch, SegmentHeaderPatch,
-                               CodePatch)
-from patcherex.utils import (CLangException, ObjcopyException,
-                             UndefinedSymbolException, bytes_overwrite)
-from elftools.elf.elffile import ELFFile
-import copy
-
+from patcherex.patches import CodePatch, InsertCodePatch
+from patcherex.utils import bytes_overwrite
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendTricore:
