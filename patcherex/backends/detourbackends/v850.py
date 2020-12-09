@@ -63,6 +63,9 @@ class DetourBackendV850:
         self.trampolin_code_position = None
         self.added_section_header = None
         self.phdr_text = None
+
+        l.warn("V850 backend does not work properly when you try to detour jump instructions")
+        l.warn("V850 backend have not been tested on real board, or simulator")
     
     def __del__(self):
         self.f.close()
@@ -195,6 +198,7 @@ class DetourBackendV850:
         else:
             self.ncontents = V850Utils.insert_bytes(self.ncontents, target_offset, V850Utils.jump(self.sh_addr_trampolin + self.trampolin_code_position - patch.addr))
 
+        #TODO: Handle edge case: when head or tail instruction is PC-relative(e.g., JR, JARL, Bcond)
         code = original_instruction_head + code + original_instruction_tail
         backward_jump_size = self.sh_addr_trampolin + self.trampolin_code_position + len(code) - patch.addr - 4
         code = code + V850Utils.jump_back(backward_jump_size)
