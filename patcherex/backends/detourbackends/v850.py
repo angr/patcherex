@@ -264,6 +264,22 @@ class V850Utils:
         return jmp_l.to_bytes(2, byteorder="little") + jmp_h.to_bytes(2, byteorder="little")
 
     @staticmethod
+    def is_2byte(opcode: bytes) -> bool:
+        """
+        Takes second byte of opcode, returns true if it is 2-bytes length opcode
+        """
+        mask = 0x07
+        result = mask & opcode
+        return result < 6
+    
+    @staticmethod
+    def is_4byte(opcode: bytes) -> bool:
+        """
+        Takes second byte of opcode, returns true if it is 4-bytes length opcode
+        """
+        return not V850Utils.is_2byte(opcode)
+
+    @staticmethod
     def insert_bytes(target: bytearray, offset: int, code: bytearray) -> bytearray:
         """
         Inserts 'code' into 'target' at 'offeset', returns it
