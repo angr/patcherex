@@ -460,7 +460,7 @@ class DetourBackend(Backend):
                         blah = stuff
 
                     for prev_seg, next_seg in zip(blah[:-1], blah[1:]):
-                        potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xF) & ~0xF)
+                        potential_base = ((max(prev_seg[1], len(self.ncontent)) + 0xfff) & ~0xfff)
                         if next_seg[0] - potential_base > phdr_size:
                             self.phdr_start = potential_base
                             break
@@ -482,7 +482,7 @@ class DetourBackend(Backend):
                                 self.ncontent += b"\x00" * (((self.phdr_start - len(self.ncontent)) // 0x1000 + 1) * 0x1000)
                         self.phdr_start = len(self.ncontent)
 
-                    segment["p_offset"] = 0xfefdfcfb  # will be determined later since it will be put at the end of
+                    segment["p_offset"] = self.phdr_start  # will be determined later since it will be put at the end of
                     # the file
                     segment["p_vaddr"] = self.phdr_start + self.first_load["p_vaddr"]
                     segment["p_paddr"] = self.phdr_start + self.first_load["p_vaddr"]
@@ -507,7 +507,6 @@ class DetourBackend(Backend):
                 self.base_addr = self.first_load['p_vaddr']
                 self.phentsize = current_hdr["e_phentsize"]
 
-            # print("putting them at %#x" % self.phdr_start)
             print("current len: %#x" % len(self.ncontent))
 
             for segment in segments:
