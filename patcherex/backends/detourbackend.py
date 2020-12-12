@@ -9,6 +9,7 @@ from collections import defaultdict
 from elftools.elf.elffile import ELFFile
 from elftools.construct.lib import Container
 
+from pwn import *
 from patcherex.patches import *
 
 from ..backend import Backend
@@ -884,32 +885,36 @@ class DetourBackend(Backend):
                     l.info("Added patch: " + str(patch))
 
         if self.binary_type == "ELF":
-            # add PIE thunk
-            self.name_map["pie_thunk"] = self.get_current_code_position()
-            if self.structs.elfclass == 64:
-                pie_thunk = """
-                _patcherex_begin_patch:
-                call $+5
-                here:
-                pop rax
-                sub rax, (here - _patcherex_begin_patch + {pie_thunk})
-                ret
-                """
+            e = ELF(self.filename)
+            if e.statically_linked:
+                pass
             else:
-                pie_thunk = """
-                _patcherex_begin_patch:
-                call $+5
-                here:
-                pop eax
-                sub eax, (here - _patcherex_begin_patch + {pie_thunk})
-                ret
-                """
-            new_code = utils.compile_asm(pie_thunk,
-                                         self.get_current_code_position(),
-                                         self.name_map,
-                                         bits=self.structs.elfclass)
-            self.added_code += new_code
-            self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                # add PIE thunk
+                self.name_map["pie_thunk"] = self.get_current_code_position()
+                if self.structs.elfclass == 64:
+                    pie_thunk = """
+                    _patcherex_begin_patch:
+                    call $+5
+                    here:
+                    pop rax
+                    sub rax, (here - _patcherex_begin_patch + {pie_thunk})
+                    ret
+                    """
+                else:
+                    pie_thunk = """
+                    _patcherex_begin_patch:
+                    call $+5
+                    here:
+                    pop eax
+                    sub eax, (here - _patcherex_begin_patch + {pie_thunk})
+                    ret
+                    """
+                new_code = utils.compile_asm(pie_thunk,
+                                             self.get_current_code_position(),
+                                             self.name_map,
+                                             bits=self.structs.elfclass)
+                self.added_code += new_code
+                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
 
         # 2) AddCodePatch
         # resolving symbols
