@@ -67,7 +67,7 @@ class DetourBackend(Backend):
 
             self.modded_segments = self.dump_segments()
 
-            self.cfg = self._generate_cfg()
+            self.cfg = self._generate_cfg(cfg_preset)
             self.ordered_nodes = self._get_ordered_nodes(self.cfg)
 
             # header stuff
