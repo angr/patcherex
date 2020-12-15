@@ -34,16 +34,12 @@ class DetourBackendV850:
     self.base_address: where the binary will be loaded
     self.elf_file: pyelf instance of self.ncontents
     self.has_new_section: True if the new section is already added to ncontents
-    self.p_vaddr_text: the virtual address where .text section should be loaded 
-    self.p_offset_text: the offset of ncontents where .text section is located
-    self.sh_offset_trampolin: the offset of ncontents where the new section is located
-    self.sh_addr_trampolin: the virtual address where the new section should be located
-    self.trampolin_code_position: the offset of sh_offset_trampolin where trampolin code should be located
-    self.f: file pointer of the original binary; closed at destructor for pyelf
-    self.added_section_header: header of new section
-    self.sh_trampolin_index: index of new section
-    self.phdr_text: segment header of the segment which includes .text and new section
-    self.ph_trampolin_index: index of segment including trampolin section
+    self.pa_base: The physical address of the first segment; It assumes that the first segment includes .text section
+    self.pa_new_segment: The physical address of newly created segment
+    self.new_phdr: Newly created program header describing new segment
+    self.new_shdr: Newly created section header describing new section
+    self.new_shdr_offset: The offset of self.ncontents pointing self.new_shdr
+    self.new_phdr_offset: The offset of self.ncontents pointing self.new_phdr
     """
     def __init__(self, filename: str, base_address: int, **argv):
         self.f = open(filename, 'rb')
@@ -54,9 +50,9 @@ class DetourBackendV850:
 
         self.filename = filename
         self.base_address = base_address
+        self.has_new_section = False
         self.pa_base = self.elf_file.get_segment(0).header['p_paddr']
         self.pa_new_segment = self.__find_segment_pa()
-        self.has_new_section = False
         self.new_phdr = None
         self.new_shdr = None
         self.new_shdr_offset = None
@@ -97,9 +93,37 @@ class DetourBackendV850:
 
     def __generate_trampolin_area(self, trampolin_code_length: int = 200) -> None:
         """
-        generate section and segment for trampolin code
-        new section offset: filesz of file header
-        new section size: trampolin_code_length
+        generate section, section header, segment, segment header,
+        modify elf header for trampolin code
+        =============================
+        |                           |
+        |        original ELF       |
+        |                           |
+        =============================    <- original EOF; new offset of section header table (ELF header modified)
+        |                           |
+        |           copied          |
+        |   section header table    |
+        |                           |
+        -----------------------------
+        |                           |
+        |   new section header      |
+        |                           |
+        -----------------------------   <- new offset of program header table (ELF header modified)
+        |                           |
+        |           copied          |
+        |   program header table    |
+        |                           |
+        -----------------------------
+        |                           |
+        |   new program header      |
+        |                           |
+        -----------------------------   <- pointed by new program header
+        |                           |
+        |        new segment        |
+        |                           |
+        |           ----------------|   <- described by new section header
+        |           |  new section  |
+        =============================
         """
         if self.has_new_section is True:
             return
