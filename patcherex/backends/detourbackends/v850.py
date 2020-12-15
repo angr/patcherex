@@ -5,7 +5,6 @@ import re
 import struct
 from typing import List
 from collections import defaultdict
-
 import cle
 from patcherex import utils
 from patcherex.backends.detourbackends._elf import DetourBackendElf, l
@@ -55,14 +54,13 @@ class DetourBackendV850:
 
         self.filename = filename
         self.base_address = base_address
+        self.pa_base = self.elf_file.get_segment(0).header['p_paddr']
+        self.pa_new_segment = self.__find_segment_pa()
         self.has_new_section = False
-        self.p_vaddr_text = None
-        self.p_offset_text = None
-        self.sh_offset_trampolin = None
-        self.sh_addr_trampolin = None
-        self.trampolin_code_position = None
-        self.added_section_header = None
-        self.phdr_text = None
+        self.new_phdr = None
+        self.new_shdr = None
+        self.new_shdr_offset = None
+        self.new_phdr_offset = None
 
         l.warn("V850 backend does not work properly when you try to detour jump instructions")
         l.warn("V850 backend have not been tested on real board, or simulator")
@@ -83,77 +81,99 @@ class DetourBackendV850:
             filename = self.filename + ".patcherex.elf"
         with open(filename, 'wb') as f:
             f.write(self.ncontents)
-
             
-    def __generate_section(self, trampolin_code_length: int = 200) -> None:
+    def __find_segment_pa(self):
         """
-        generate section for trampolin code
+        This function assume that all segments will be loaded on the same base of physical address
+        """
+
+        pa = self.pa_base
+
+        for i in range(self.elf_file.header['e_phnum']):
+            phdr = self.elf_file.get_segment(i).header
+            pa += phdr['p_filesz']
+
+        return pa
+
+    def __generate_trampolin_area(self, trampolin_code_length: int = 200) -> None:
+        """
+        generate section and segment for trampolin code
         new section offset: filesz of file header
         new section size: trampolin_code_length
         """
         if self.has_new_section is True:
             return
 
-        header = self.elf_file.header
+        header = copy.deepcopy(self.elf_file.header)
 
-        # finding .text and .rodata section
-        s_rodata = None
+        shdt_offset = len(self.ncontents)
+        self.new_shdr_offset = shdt_offset + header['e_shentsize'] * header['e_shnum']
+
+        s_text = None
         for i in range(self.elf_file.num_sections()):
             temp = self.elf_file.get_section(i)
             if temp.name == '.text':
+                self.new_shdr = copy.deepcopy(temp.header)
                 s_text = temp
-            elif temp.name == '.data':
-                s_rodata = temp
-        p_data = None
+            self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Shdr.build(temp.header))
 
-        # ph_idx_text: the index of program header which contains .text section
-        # ph_idx_data: the index of program header which contains .data section
-        ph_idx_text, ph_idx_data = 0, 0
-        for i in range(header['e_phnum']):
+        self.new_shdr['sh_size'] = trampolin_code_length
+        self.new_shdr['sh_offset'] = self.new_shdr_offset + header['e_shentsize'] + header['e_phentsize'] * (header['e_phnum'] + 1)
+
+        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Shdr.build(self.new_shdr))
+
+        phdt_offset = len(self.ncontents)
+        self.new_phdr_offset = len(self.ncontents) + header['e_phentsize'] * header['e_phnum']
+
+        p_text = None
+        for i in range(self.elf_file.num_segments()):
             temp = self.elf_file.get_segment(i)
-            if(temp.section_in_segment(s_text)): 
-                self.phdr_text = temp.header
-                ph_idx_text = i
-            elif(temp.section_in_segment(s_rodata)):
-                p_data = temp
-                ph_idx_data = i
+            if temp.section_in_segment(s_text):
+                self.new_phdr = temp.header
+                self.p_vaddr_text = temp.header['p_vaddr']
+                self.p_offset_text = temp.header['p_offset']
+                p_text = temp
+            self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Phdr.build(temp.header))
 
-        self.added_section_header = copy.deepcopy(s_text.header)
-        self.added_section_header['sh_offset'] = self.phdr_text['p_offset'] + self.phdr_text['p_filesz']
-        self.added_section_header['sh_addr'] = self.phdr_text['p_vaddr'] + self.phdr_text['p_memsz']
-        self.added_section_header['sh_size'] = trampolin_code_length
+        self.new_phdr['p_paddr'] = self.pa_new_segment
+        self.new_phdr['p_vaddr'] = self.new_shdr['sh_addr']
+        self.new_phdr['p_memsz'] = trampolin_code_length
+        self.new_phdr['p_filesz'] = trampolin_code_length
+        self.new_phdr['p_offset'] = self.new_shdr['sh_offset']
+        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Phdr.build(self.new_phdr))
 
-        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Shdr.build(self.added_section_header), header['e_shoff'] + header['e_shnum'] * self.elf_file.header['e_shentsize'])
+        self.new_shdr['sh_addr'] = p_text.header['p_vaddr']
+        self.new_shdr['sh_addr'] += (self.pa_new_segment - self.pa_base)
+        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Shdr.build(self.new_shdr), self.new_shdr_offset)
+
+
+        header['e_shoff'] = shdt_offset
+        header['e_phoff'] = phdt_offset
+        header['e_phnum'] += 1
+        header['e_shnum'] += 1
+
+        self.trampolin_code_position = 0
+        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Ehdr.build(header), 0)
+
         
-        self.phdr_text['p_filesz'] += self.added_section_header['sh_size']
-        self.phdr_text['p_memsz'] += self.added_section_header['sh_size']
-        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Phdr.build(self.phdr_text), header['e_phoff'] + header['e_phentsize'] * ph_idx_text)
+        self.sh_offset_trampolin = self.new_shdr['sh_offset']
+        self.sh_addr_trampolin = self.new_shdr['sh_addr']
 
         self.has_new_section = True
-        self.p_vaddr_text = self.phdr_text['p_vaddr']
-        self.p_offset_text = self.phdr_text['p_offset']
-        self.sh_offset_trampolin = self.added_section_header['sh_offset']
-        self.sh_addr_trampolin = self.added_section_header['sh_addr']
-        self.trampolin_code_position = 0
-        self.sh_trampolin_index = header['e_shnum']
-        self.ph_trampolin_index = ph_idx_text
-
-        header['e_shnum'] += 1
-        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Ehdr.build(header), 0)
 
     def __update_section(self) -> None:
         """
         update already generated section header
         """
-        org_size = self.added_section_header['sh_size']
+        org_size = self.new_shdr['sh_size']
 
-        self.phdr_text['p_filesz'] = self.phdr_text['p_filesz'] + self.trampolin_code_position - org_size
-        self.phdr_text['p_memsz'] = self.phdr_text['p_memsz'] + self.trampolin_code_position - org_size
-        self.added_section_header['sh_size'] = self.trampolin_code_position
+        self.new_phdr['p_filesz'] = self.new_phdr['p_filesz'] + self.trampolin_code_position - org_size
+        self.new_phdr['p_memsz'] = self.new_phdr['p_memsz'] + self.trampolin_code_position - org_size
+        self.new_shdr['sh_size'] = self.trampolin_code_position
 
         #print(ph_update.header.values)
-        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Shdr.build(self.added_section_header), self.elf_file.header['e_shoff'] + self.elf_file.header['e_shentsize'] * self.sh_trampolin_index)
-        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Phdr.build(self.phdr_text), self.elf_file.header['e_phoff'] + self.elf_file.header['e_phentsize'] * self.ph_trampolin_index)
+        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Shdr.build(self.new_shdr), self.new_shdr_offset)
+        self.ncontents = bytes_overwrite(self.ncontents, self.elf_file.structs.Elf_Phdr.build(self.new_phdr), self.new_phdr_offset)
 
 
     def __apply_insert_code_patch(self, patch: InsertCodePatch) -> None:
@@ -163,7 +183,7 @@ class DetourBackendV850:
         3. Write ncontents
         """
         # hardcodded
-        self.__generate_section()
+        self.__generate_trampolin_area()
 
         code = V850Utils.assemble(patch.code)
         jumplength = 4
