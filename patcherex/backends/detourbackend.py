@@ -1236,7 +1236,8 @@ class DetourBackend(Backend):
         # iterates through the instructions to find where the detour can be stored
         movable_instructions = self.get_movable_instructions(block)
 
-        detour_attempts = range(-1*detour_size, 0+1)
+        # detour_attempts = range(-1*detour_size, 0+1)
+        detour_attempts = range(1,1*detour_size+1)
 
         movable_bb_start = movable_instructions[0].address
         movable_bb_size = self.project.factory.block(block.addr, num_inst=len(movable_instructions)).size
