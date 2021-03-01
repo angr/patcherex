@@ -255,6 +255,9 @@ class DetourBackendArm(DetourBackendElf):
                 break #at this point we applied everything in current insert_code_patches
                 # TODO symbol name, for now no name_map for InsertCode patches
 
+        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
+                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
+
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
@@ -268,6 +271,7 @@ class DetourBackendArm(DetourBackendElf):
                     file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                 else:
+                    header_patches.append(ReplaceFunctionPatch)
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
                     new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=detour_pos + offset, symbols=patch.symbols)
@@ -279,8 +283,6 @@ class DetourBackendArm(DetourBackendElf):
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
 
-        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
-                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch, ReplaceFunctionPatch]
         if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
                 any([isinstance(p,SegmentHeaderPatch) for p in patches]):
             # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers
@@ -452,18 +454,9 @@ class DetourBackendArm(DetourBackendElf):
 
         return new_code
 
-    @staticmethod
-    def capstone_to_asm(instruction):
-            return instruction.mnemonic + " " + instruction.op_str.replace('{','{{').replace('}','}}')
-
-    @staticmethod
-    def disassemble(code, offset=0x0, is_thumb=False):
+    def disassemble(self, code, offset=0x0, is_thumb=False):
         offset = offset - 1 if is_thumb and offset % 2 == 1 else offset
-        md = capstone.Cs(capstone.CS_ARCH_ARM, capstone.CS_MODE_THUMB if is_thumb else capstone.CS_MODE_ARM)
-        md.detail = True
-        if isinstance(code, str):
-            code = bytes(map(ord, code))
-        return list(md.disasm(code, offset))
+        return super().disassemble(code, offset=offset, is_thumb=is_thumb)
 
     def compile_jmp(self, origin, target, is_thumb=False):
         jmp_str = '''
@@ -472,65 +465,14 @@ class DetourBackendArm(DetourBackendElf):
         return self.compile_asm(jmp_str, base=origin, is_thumb=is_thumb)
 
     @staticmethod
-    def compile_asm(code, base=None, name_map=None, is_thumb=False):
-        #print "=" * 10
-        #print code
-        #if base != None: print hex(base)
-        #if name_map != None: print {k: hex(v) for k,v in name_map.iteritems()}
-        try:
-            if name_map is not None:
-                code = code.format(**name_map)  # compile_asm
-            else:
-                code = re.subn(r'{.*?}', "0x41414141", code)[0]  # solve symbols
-        except KeyError as e:
-            raise UndefinedSymbolException(str(e)) from e
-        try:
-            ks = keystone.Ks(keystone.KS_ARCH_ARM, keystone.KS_MODE_THUMB if is_thumb else keystone.KS_MODE_ARM)
-            encoding, _ = ks.asm(code, base)
-        except keystone.KsError as e:
-            print("ERROR: %s" %e) #TODO raise some error
-        return bytes(encoding)
-
-    @staticmethod
     def get_c_function_wrapper_code(function_symbol):
         wcode = []
         wcode.append("bl {%s}" % function_symbol)
 
         return "\n".join(wcode)
 
-    @staticmethod
-    def compile_c(code, optimization='-Oz', compiler_flags="", is_thumb=False):
-        # TODO symbol support in c code
-        with utils.tempdir() as td:
-            c_fname = os.path.join(td, "code.c")
-            object_fname = os.path.join(td, "code.o")
-            bin_fname = os.path.join(td, "code.bin")
-
-            fp = open(c_fname, 'w')
-            fp.write(code)
-            fp.close()
-
-            res = utils.exec_cmd("clang -nostdlib -mno-sse -target arm-linux-gnueabihf -ffreestanding %s %s -o %s -c %s %s" \
-                            % ("-mthumb" if is_thumb else "-mno-thumb", optimization, object_fname, c_fname, compiler_flags), shell=True)
-            if res[2] != 0:
-                print("CLang error:")
-                print(res[0])
-                print(res[1])
-                fp = open(c_fname, 'r')
-                fcontent = fp.read()
-                fp.close()
-                print("\n".join(["%02d\t%s"%(i+1,j) for i, j in enumerate(fcontent.split("\n"))]))
-                raise CLangException
-            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
-            if res[2] != 0:
-                print("objcopy error:")
-                print(res[0])
-                print(res[1])
-                raise ObjcopyException
-            fp = open(bin_fname, "rb")
-            compiled = fp.read()
-            fp.close()
-        return compiled
+    def compile_c(self, code, optimization='-Oz', compiler_flags="", is_thumb=False):
+        return super().compile_c(code, optimization=optimization, compiler_flags=("-mthumb " if is_thumb else "-mno-thumb ") + compiler_flags)
 
     @staticmethod
     def compile_function(code, compiler_flags="", is_thumb=False, entry=0x0, symbols=None):

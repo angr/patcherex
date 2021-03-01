@@ -1,6 +1,7 @@
 import bisect
 import logging
 import os
+import re
 from collections import OrderedDict
 
 from elftools.construct.lib import Container
@@ -12,6 +13,8 @@ from patcherex.backends.detourbackends._utils import (DetourException,
                                                       InvalidVAddrException,
                                                       MissingBlockException,
                                                       RejectingDict)
+from patcherex.utils import (CLangException, ObjcopyException,
+                             UndefinedSymbolException)
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
@@ -400,6 +403,70 @@ class DetourBackendElf(Backend):
             f.write(final_content)
 
         os.chmod(filename, 0o755)
+
+    def disassemble(self, code, offset=0x0, is_thumb=False):
+        if isinstance(code, str):
+            code = bytes(map(ord, code))
+        cs = self.project.arch.capstone_thumb if is_thumb else self.project.arch.capstone
+        return list(cs.disasm(code, offset))
+
+    def compile_c(self, code, optimization='-Oz', compiler_flags=""):
+        # TODO symbol support in c code
+        with utils.tempdir() as td:
+            c_fname = os.path.join(td, "code.c")
+            object_fname = os.path.join(td, "code.o")
+            bin_fname = os.path.join(td, "code.bin")
+
+            fp = open(c_fname, 'w')
+            fp.write(code)
+            fp.close()
+            print(self.project.arch.triplet)
+            res = utils.exec_cmd("clang -nostdlib -mno-sse -target %s -ffreestanding %s -o %s -c %s %s" \
+                            % (self.project.arch.triplet, optimization, object_fname, c_fname, compiler_flags), shell=True)
+            if res[2] != 0:
+                print("CLang error:")
+                print(res[0])
+                print(res[1])
+                fp = open(c_fname, 'r')
+                fcontent = fp.read()
+                fp.close()
+                print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
+                raise CLangException
+            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
+            if res[2] != 0:
+                print("objcopy error:")
+                print(res[0])
+                print(res[1])
+                raise ObjcopyException
+            fp = open(bin_fname, "rb")
+            compiled = fp.read()
+            fp.close()
+        return compiled
+
+    @staticmethod
+    def capstone_to_asm(instruction):
+        return instruction.mnemonic + " " + instruction.op_str.replace('{','{{').replace('}','}}')
+
+    def compile_asm(self, code, base=None, name_map=None, is_thumb=False):
+        #print "=" * 10
+        #print code
+        #if base != None: print hex(base)
+        #if name_map != None: print {k: hex(v) for k,v in name_map.iteritems()}
+        try:
+            if name_map is not None:
+                code = code.format(**name_map)  # compile_asm
+            else:
+                code = re.subn(r'{.*?}', "0x41414141", code)[0]  # solve symbols
+        except KeyError as e:
+            raise UndefinedSymbolException(str(e)) from e
+
+        try:
+            ks = self.project.arch.keystone_thumb if is_thumb else self.project.arch.keystone
+            encoding, _ = ks.asm(code, base)
+        except Exception as e:
+            print("ERROR: %s" %e) #TODO raise some error
+
+        return bytes(encoding)
 
     def _generate_cfg(self):
         """

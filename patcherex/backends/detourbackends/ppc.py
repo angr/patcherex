@@ -159,9 +159,9 @@ class DetourBackendPpc(DetourBackendElf):
                 if patch.is_c:
                     code_len = len(self.compile_c(patch.asm_code,
                                                    optimization=patch.optimization,
-                                                   compiler_flags=patch.compiler_flags, bits=self.structs.elfclass, little_endian=self.structs.little_endian))
+                                                   compiler_flags=patch.compiler_flags))
                 else:
-                    code_len = len(self.compile_asm(patch.asm_code, current_symbol_pos, bits=self.structs.elfclass, little_endian=self.structs.little_endian))
+                    code_len = len(self.compile_asm(patch.asm_code, current_symbol_pos))
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
@@ -171,11 +171,11 @@ class DetourBackendPpc(DetourBackendElf):
                 if patch.is_c:
                     new_code = self.compile_c(patch.asm_code,
                                                optimization=patch.optimization,
-                                               compiler_flags=patch.compiler_flags, bits=self.structs.elfclass, little_endian=self.structs.little_endian)
+                                               compiler_flags=patch.compiler_flags)
                 else:
                     new_code = self.compile_asm(patch.asm_code,
                                                  self.get_current_code_position(),
-                                                 self.name_map, bits=self.structs.elfclass, little_endian=self.structs.little_endian)
+                                                 self.name_map)
                 self.added_code += new_code
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
@@ -195,7 +195,7 @@ class DetourBackendPpc(DetourBackendElf):
 
                 new_code = self.compile_asm(instructions,
                                              self.get_current_code_position(),
-                                             self.name_map, bits=self.structs.elfclass, little_endian=self.structs.little_endian)
+                                             self.name_map)
                 self.added_code += new_code
                 self.added_patches.append(patch)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
@@ -209,7 +209,7 @@ class DetourBackendPpc(DetourBackendElf):
             if isinstance(patch, InlinePatch):
                 new_code = self.compile_asm(patch.new_asm,
                                                 patch.instruction_addr,
-                                                self.name_map, bits=self.structs.elfclass, little_endian=self.structs.little_endian)
+                                                self.name_map)
                 # Limiting the inline patch to a single block is not necessary
                 # assert len(new_code) <= self.project.factory.block(patch.instruction_addr, num_inst=patch.num_instr, max_size=).size
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.instruction_addr)
@@ -254,6 +254,9 @@ class DetourBackendPpc(DetourBackendElf):
                 break #at this point we applied everything in current insert_code_patches
                 # TODO symbol name, for now no name_map for InsertCode patches
 
+        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
+                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
+
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
@@ -270,6 +273,7 @@ class DetourBackendPpc(DetourBackendElf):
                     file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                 else:
+                    header_patches.append(ReplaceFunctionPatch)
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
                     new_code = self.compile_function(patch.asm_code, bits=self.structs.elfclass, little_endian=self.structs.little_endian, entry=detour_pos + offset, symbols=patch.symbols)
@@ -281,8 +285,6 @@ class DetourBackendPpc(DetourBackendElf):
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
 
-        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
-                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch, ReplaceFunctionPatch]
         if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
                 any([isinstance(p,SegmentHeaderPatch) for p in patches]):
             # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers
@@ -313,7 +315,7 @@ class DetourBackendPpc(DetourBackendElf):
         # the idea here is an instruction is movable if and only if
         # it has the same string representation when moved at different offsets is "movable"
         def bytes_to_comparable_str(ibytes, offset):
-            return " ".join(utils.instruction_to_str(self.disassemble(ibytes, offset, bits=self.structs.elfclass, little_endian=self.structs.little_endian)[0]).split()[2:])
+            return " ".join(utils.instruction_to_str(self.disassemble(ibytes, offset)[0]).split()[2:])
 
         instruction_bytes = instruction.bytes
         pos1 = bytes_to_comparable_str(instruction_bytes, 0x0)
@@ -327,7 +329,7 @@ class DetourBackendPpc(DetourBackendElf):
         # 2) detect cases like call-pop and dependent instructions (which should not be moved)
         # get movable_instructions in the bb
         original_bbcode = block.bytes
-        instructions = self.disassemble(original_bbcode, block.addr, bits=self.structs.elfclass, little_endian=self.structs.little_endian)
+        instructions = self.disassemble(original_bbcode, block.addr)
 
         if self.check_if_movable(instructions[-1]):
             movable_instructions = instructions
@@ -387,7 +389,7 @@ class DetourBackendPpc(DetourBackendElf):
 
         compiled_code = self.compile_asm(injected_code,
                                               base=self.get_current_code_position(),
-                                              name_map=self.name_map, bits=self.structs.elfclass, little_endian=self.structs.little_endian)
+                                              name_map=self.name_map)
         return compiled_code
 
     def insert_detour(self, patch):
@@ -402,7 +404,7 @@ class DetourBackendPpc(DetourBackendElf):
             l.debug("patched bb instructions:\n %s",
                     "\n".join([utils.instruction_to_str(i) for i in patched_bbinstructions]))
             self.patch_bin(patch.addr, detour_jmp_code)
-            new_code = self.compile_asm(patch.code + "\n" + "\n".join([self.capstone_to_asm(s) for s in patched_bbinstructions]) + "\nb %s" % hex(patch.addr + 4 - offset), base=self.get_current_code_position(), name_map=self.name_map, bits=self.structs.elfclass, little_endian=self.structs.little_endian)
+            new_code = self.compile_asm(patch.code + "\n" + "\n".join([self.capstone_to_asm(s) for s in patched_bbinstructions]) + "\nb %s" % hex(patch.addr + 4 - offset), base=self.get_current_code_position(), name_map=self.name_map)
             return new_code
         # TODO allow special case to patch syscall wrapper epilogue
         # (not that important since we do not want to patch epilogue in syscall wrapper)
@@ -450,7 +452,7 @@ class DetourBackendPpc(DetourBackendElf):
         detour_jmp_code = self.compile_jmp(detour_pos, self.get_current_code_position() + offset)
         self.patch_bin(detour_pos, detour_jmp_code)
         patched_bbcode = self.read_mem_from_file(block_addr, block.size)
-        patched_bbinstructions = self.disassemble(patched_bbcode, block_addr, bits=self.structs.elfclass, little_endian=self.structs.little_endian)
+        patched_bbinstructions = self.disassemble(patched_bbcode, block_addr)
         l.debug("patched bb instructions:\n %s",
                 "\n".join([utils.instruction_to_str(i) for i in patched_bbinstructions]))
 
@@ -458,45 +460,15 @@ class DetourBackendPpc(DetourBackendElf):
 
         return new_code
 
-    @staticmethod
-    def capstone_to_asm(instruction):
-        return instruction.mnemonic + " " + instruction.op_str
-
-    @staticmethod
-    def disassemble(code, offset=0x0, bits=32, little_endian=False):
-        md = capstone.Cs(capstone.CS_ARCH_PPC, (capstone.CS_MODE_LITTLE_ENDIAN if little_endian else capstone.CS_MODE_BIG_ENDIAN) | (capstone.CS_MODE_32 if bits == 32 else capstone.CS_MODE_64))
-        md.detail = True
-        if isinstance(code, str):
-            code = bytes(map(ord, code))
-        return list(md.disasm(code, offset))
+    def compile_asm(self, code, base=None, name_map=None):
+        code = re.subn(r'\br(\d+)', r"\1", code)[0]  # remvoe "r" before register
+        return super().compile_asm(code, base, name_map)
 
     def compile_jmp(self, origin, target):
         jmp_str = '''
             b {target}
         '''.format(**{'target': hex(int(target))})
-        return self.compile_asm(jmp_str, base=origin, bits=self.structs.elfclass, little_endian=self.structs.little_endian)
-
-    @staticmethod
-    def compile_asm(code, base=None, name_map=None, bits=32, little_endian=False):
-        #print "=" * 10
-        #print code
-        #if base != None: print hex(base)
-        #if name_map != None: print {k: hex(v) for k,v in name_map.iteritems()}
-        try:
-            if name_map is not None:
-                code = code.format(**name_map)  # compile_asm
-            else:
-                code = re.subn(r'{.*?}', "0x41414141", code)[0]  # solve symbols
-            code = re.subn(r'r(\d+)', r"\1", code)[0]  # remvoe "r" before register
-        except KeyError as e:
-            raise UndefinedSymbolException(str(e)) from e
-        try:
-            ks = keystone.Ks(keystone.KS_ARCH_PPC, (keystone.KS_MODE_LITTLE_ENDIAN if little_endian else keystone.KS_MODE_BIG_ENDIAN) | (keystone.KS_MODE_PPC32 if bits == 32 else keystone.KS_MODE_PPC64))
-            encoding, _ = ks.asm(code, base)
-        except keystone.KsError as e:
-            print("ERROR: %s" %e) #TODO raise some error
-
-        return bytes(encoding)
+        return self.compile_asm(jmp_str, base=origin)
 
     @staticmethod
     def get_c_function_wrapper_code(function_symbol):
@@ -504,42 +476,6 @@ class DetourBackendPpc(DetourBackendElf):
         wcode.append("bl {%s}" % function_symbol)
 
         return "\n".join(wcode)
-
-    @staticmethod
-    def compile_c(code, optimization='-Oz', compiler_flags="", bits=32, little_endian=False):
-        # TODO symbol support in c code
-        with utils.tempdir() as td:
-            c_fname = os.path.join(td, "code.c")
-            object_fname = os.path.join(td, "code.o")
-            bin_fname = os.path.join(td, "code.bin")
-
-            fp = open(c_fname, 'w')
-            fp.write(code)
-            fp.close()
-
-            # TODO: powerpcle doesn't really exist
-            target = ("powerpcle-linux-gnu" if little_endian else "powerpc-linux-gnu") if bits == 32 else ("powerpc64le-linux-gnu" if little_endian else "powerpc64-linux-gnu")
-            res = utils.exec_cmd("clang -nostdlib -mno-sse -target %s -ffreestanding %s -o %s -c %s %s" \
-                            % (target, optimization, object_fname, c_fname, compiler_flags), shell=True)
-            if res[2] != 0:
-                print("CLang error:")
-                print(res[0])
-                print(res[1])
-                fp = open(c_fname, 'r')
-                fcontent = fp.read()
-                fp.close()
-                print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
-                raise CLangException
-            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
-            if res[2] != 0:
-                print("objcopy error:")
-                print(res[0])
-                print(res[1])
-                raise ObjcopyException
-            fp = open(bin_fname, "rb")
-            compiled = fp.read()
-            fp.close()
-        return compiled
 
     @staticmethod
     def compile_function(code, compiler_flags="", bits=32, little_endian=False, entry=0x0, symbols=None, data_only=False, prefix=""):

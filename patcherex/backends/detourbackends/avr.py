@@ -427,10 +427,6 @@ class DetourBackendAVR(DetourBackendElf):
         return new_code
 
     @staticmethod
-    def capstone_to_asm(instruction):
-        return instruction.mnemonic + " " + instruction.op_str
-
-    @staticmethod
     def disassemble(code, offset=0x0):
         with utils.tempdir() as td:
             bin_fname = os.path.join(td, "code.bin")

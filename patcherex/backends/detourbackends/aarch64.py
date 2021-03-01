@@ -101,7 +101,7 @@ class DetourBackendAarch64(DetourBackendElf):
                     size = 4
                 else:
                     size = patch.ins_size
-                self.patch_bin(patch.ins_addr, b"\x1f\x20\x03\xd5" * int((size + 4 - 1) / 4))
+                self.patch_bin(patch.ins_addr, self.project.arch.nop_instruction * int((size + 4 - 1) / 4))
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
 
@@ -238,6 +238,9 @@ class DetourBackendAarch64(DetourBackendElf):
                 break #at this point we applied everything in current insert_code_patches
                 # TODO symbol name, for now no name_map for InsertCode patches
 
+        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
+                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
+
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
@@ -246,11 +249,12 @@ class DetourBackendAarch64(DetourBackendElf):
                         patch.symbols[k[len("_RFP" + str(patches.index(patch))):]] = v
                 new_code = self.compile_function(patch.asm_code, entry=patch.addr, symbols=patch.symbols)
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
-                self.ncontent = utils.bytes_overwrite(self.ncontent, b"\x1f\x20\x03\xd5" * (patch.size // 4), file_offset)
+                self.ncontent = utils.bytes_overwrite(self.ncontent, self.project.arch.nop_instruction * (patch.size // 4), file_offset)
                 if(patch.size >= len(new_code)):
                     file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                 else:
+                    header_patches.append(ReplaceFunctionPatch)
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
                     new_code = self.compile_function(patch.asm_code, entry=detour_pos + offset, symbols=patch.symbols)
@@ -262,8 +266,6 @@ class DetourBackendAarch64(DetourBackendElf):
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
 
-        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
-                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch, ReplaceFunctionPatch]
         if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
                 any([isinstance(p,SegmentHeaderPatch) for p in patches]):
             # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers
@@ -373,7 +375,6 @@ class DetourBackendAarch64(DetourBackendElf):
 
     def insert_detour(self, patch):
         detour_size = 4
-        arm_nop = b"\x1f\x20\x03\xd5"
 
         if self.try_without_cfg:
             offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
@@ -425,7 +426,7 @@ class DetourBackendAarch64(DetourBackendElf):
                     if b in self.touched_bytes:
                         raise DoubleDetourException("byte has been already touched: %08x" % b)
                     self.touched_bytes.add(b)
-                self.patch_bin(i.address, arm_nop)
+                self.patch_bin(i.address, self.project.arch.nop_instruction)
 
         # insert the jump detour
         offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
@@ -440,18 +441,6 @@ class DetourBackendAarch64(DetourBackendElf):
 
         return new_code
 
-    @staticmethod
-    def capstone_to_asm(instruction):
-        return instruction.mnemonic + " " + instruction.op_str
-
-    @staticmethod
-    def disassemble(code, offset=0x0):
-        md = capstone.Cs(capstone.CS_ARCH_ARM64, capstone.CS_MODE_ARM)
-        md.detail = True
-        if isinstance(code, str):
-            code = bytes(map(ord, code))
-        return list(md.disasm(code, offset))
-
     def compile_jmp(self, origin, target):
         jmp_str = '''
             b {target}
@@ -459,67 +448,11 @@ class DetourBackendAarch64(DetourBackendElf):
         return self.compile_asm(jmp_str, base=origin)
 
     @staticmethod
-    def compile_asm(code, base=None, name_map=None):
-        #print "=" * 10
-        #print code
-        #if base != None: print hex(base)
-        #if name_map != None: print {k: hex(v) for k,v in name_map.iteritems()}
-        try:
-            if name_map is not None:
-                code = code.format(**name_map)  # compile_asm
-            else:
-                code = re.subn(r'{.*?}', "0x41414141", code)[0]  # solve symbols
-        except KeyError as e:
-            raise UndefinedSymbolException(str(e)) from e
-
-        try:
-            ks = keystone.Ks(keystone.KS_ARCH_ARM64, keystone.KS_MODE_LITTLE_ENDIAN)
-            encoding, _ = ks.asm(code, base)
-        except keystone.KsError as e:
-            print("ERROR: %s" %e) #TODO raise some error
-
-        return bytes(encoding)
-
-    @staticmethod
     def get_c_function_wrapper_code(function_symbol):
         wcode = []
         wcode.append("bl {%s}" % function_symbol)
 
         return "\n".join(wcode)
-
-    @staticmethod
-    def compile_c(code, optimization='-Oz', compiler_flags=""):
-        # TODO symbol support in c code
-        with utils.tempdir() as td:
-            c_fname = os.path.join(td, "code.c")
-            object_fname = os.path.join(td, "code.o")
-            bin_fname = os.path.join(td, "code.bin")
-
-            fp = open(c_fname, 'w')
-            fp.write(code)
-            fp.close()
-
-            res = utils.exec_cmd("clang -nostdlib -mno-sse -target aarch64-linux-gnu -ffreestanding %s -o %s -c %s %s" \
-                            % (optimization, object_fname, c_fname, compiler_flags), shell=True)
-            if res[2] != 0:
-                print("CLang error:")
-                print(res[0])
-                print(res[1])
-                fp = open(c_fname, 'r')
-                fcontent = fp.read()
-                fp.close()
-                print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
-                raise CLangException
-            res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
-            if res[2] != 0:
-                print("objcopy error:")
-                print(res[0])
-                print(res[1])
-                raise ObjcopyException
-            fp = open(bin_fname, "rb")
-            compiled = fp.read()
-            fp.close()
-        return compiled
 
     @staticmethod
     def compile_function(code, compiler_flags="", entry=0x0, symbols=None, data_only=False, prefix=""):

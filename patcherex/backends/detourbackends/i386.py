@@ -307,6 +307,9 @@ class DetourBackendi386(DetourBackendElf):
                 break #at this point we applied everything in current insert_code_patches
                 # TODO symbol name, for now no name_map for InsertCode patches
 
+        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
+                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
+
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
@@ -317,6 +320,7 @@ class DetourBackendi386(DetourBackendElf):
                     file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                 else:
+                    header_patches.append(ReplaceFunctionPatch)
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
                     new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=detour_pos + offset, symbols=patch.symbols)
@@ -328,8 +332,6 @@ class DetourBackendi386(DetourBackendElf):
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
 
-        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
-                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch, ReplaceFunctionPatch]
         if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
                 any([isinstance(p,SegmentHeaderPatch) for p in patches]):
             # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers
