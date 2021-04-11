@@ -33,6 +33,9 @@ class DetourBackendMips(DetourBackendElf):
             self.added_data_segment = 0x120700000
             self.name_map.update(ADDED_DATA_START = (len(self.ncontent) % 0x1000) + self.added_data_segment)
 
+            if self.structs.elfclass == 64: # change mips64(el)-linux-gnu to mips64(el)-linux-gnuabi64
+                self.project.arch.triplet = self.project.arch.triplet + "abi64"
+
     def get_block_containing_inst(self, inst_addr):
         index = bisect.bisect_right(self.ordered_nodes, inst_addr) - 1
         node = self.cfg.model.get_any_node(self.ordered_nodes[index], is_syscall=False)
