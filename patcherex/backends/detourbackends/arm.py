@@ -1,11 +1,7 @@
 import bisect
 import logging
 import os
-import re
 from collections import defaultdict
-
-import capstone
-import keystone
 
 import cle
 from patcherex import utils
@@ -19,8 +15,7 @@ from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                InlinePatch, InsertCodePatch, RawFilePatch,
                                RawMemPatch, RemoveInstructionPatch,
                                ReplaceFunctionPatch, SegmentHeaderPatch)
-from patcherex.utils import (CLangException, ObjcopyException,
-                             UndefinedSymbolException)
+from patcherex.utils import CLangException
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
@@ -228,7 +223,7 @@ class DetourBackendArm(DetourBackendElf):
         while True:
             name_list = [str(p) if (p is None or p.name is None) else p.name for p in applied_patches]
             l.info("applied_patches is: |%s|", "-".join(name_list))
-            assert all([a == b for a, b in zip(applied_patches, insert_code_patches)])
+            assert all(a == b for a, b in zip(applied_patches, insert_code_patches))
             for patch in insert_code_patches[len(applied_patches):]:
                 self.save_state(applied_patches)
                 try:
@@ -283,8 +278,8 @@ class DetourBackendArm(DetourBackendElf):
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
 
-        if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
-                any([isinstance(p,SegmentHeaderPatch) for p in patches]):
+        if any(isinstance(p,ins) for ins in header_patches for p in self.added_patches) or \
+                any(isinstance(p,SegmentHeaderPatch) for p in patches):
             # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers
 
             # 6) SegmentHeaderPatch
@@ -430,7 +425,7 @@ class DetourBackendArm(DetourBackendElf):
             else:
                 i.overwritten = "out"
         l.debug("\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
-        assert any([i.overwritten != "out" for i in movable_instructions])
+        assert any(i.overwritten != "out" for i in movable_instructions)
 
         # replace overwritten instructions with nops
         for i in movable_instructions:
@@ -471,7 +466,7 @@ class DetourBackendArm(DetourBackendElf):
 
         return "\n".join(wcode)
 
-    def compile_c(self, code, optimization='-Oz', compiler_flags="", is_thumb=False):
+    def compile_c(self, code, optimization='-Oz', compiler_flags="", is_thumb=False): # pylint: disable=arguments-differ
         return super().compile_c(code, optimization=optimization, compiler_flags=("-mthumb " if is_thumb else "-mno-thumb ") + compiler_flags)
 
     @staticmethod

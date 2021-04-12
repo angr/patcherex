@@ -463,7 +463,7 @@ class DetourBackendElf(Backend):
         try:
             ks = self.project.arch.keystone_thumb if is_thumb else self.project.arch.keystone
             encoding, _ = ks.asm(code, base)
-        except Exception as e:
+        except self.project.arch.keystone.KsError as e:
             print("ERROR: %s" %e) #TODO raise some error
 
         return bytes(encoding)

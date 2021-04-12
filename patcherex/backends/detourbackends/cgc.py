@@ -577,7 +577,7 @@ class DetourBackendCgc(Backend):
         # basically like AddCodePatch but we detour by changing oep
         # and we jump at the end of all of them
         # resolving symbols
-        if any([isinstance(p, AddEntryPointPatch) for p in patches]):
+        if any(isinstance(p, AddEntryPointPatch) for p in patches):
             pre_entrypoint_code_position = self.get_current_code_position()
             current_symbol_pos = self.get_current_code_position()
             entrypoint_patches = [p for p in patches if isinstance(p,AddEntryPointPatch)]
@@ -663,7 +663,7 @@ class DetourBackendCgc(Backend):
         while True:
             name_list = [str(p) if (p is None or p.name is None) else p.name for p in applied_patches]
             l.info("applied_patches is: |%s|", "-".join(name_list))
-            assert all([a == b for a, b in zip(applied_patches, insert_code_patches)])
+            assert all(a == b for a, b in zip(applied_patches, insert_code_patches))
             for patch in insert_code_patches[len(applied_patches):]:
                 self.save_state(applied_patches)
                 try:
@@ -692,8 +692,8 @@ class DetourBackendCgc(Backend):
 
         header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
-        if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
-                any([isinstance(p,SegmentHeaderPatch) for p in patches]):
+        if any(isinstance(p,ins) for ins in header_patches for p in self.added_patches) or \
+                any(isinstance(p,SegmentHeaderPatch) for p in patches):
             # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers
 
             # 6) SegmentHeaderPatch
@@ -908,7 +908,7 @@ class DetourBackendCgc(Backend):
             else:
                 i.overwritten = "out"
         l.debug("\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
-        assert any([i.overwritten != "out" for i in movable_instructions])
+        assert any(i.overwritten != "out" for i in movable_instructions)
         # replace overwritten instructions with nops
         for i in movable_instructions:
             if i.overwritten != "out":

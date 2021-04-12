@@ -1,18 +1,14 @@
-import bisect
 import logging
 import os
-import re
 from collections import defaultdict
 
-import capstone
 import cle
-import keystone
-from elftools.construct.lib import Container
 from elftools.elf.elffile import ELFFile
 from patcherex import utils
-from patcherex.backends.detourbackends._utils import (
-    DetourException, DoubleDetourException, DuplicateLabelsException,
-    IncompatiblePatchesException, MissingBlockException)
+from patcherex.backends.detourbackends._utils import (DetourException,
+                                                      DoubleDetourException,
+                                                      DuplicateLabelsException,
+                                                      MissingBlockException)
 from patcherex.backends.detourbackends.arm import DetourBackendArm, l
 from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                AddRODataPatch, AddRWDataPatch,
@@ -20,8 +16,7 @@ from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                InlinePatch, InsertCodePatch, RawFilePatch,
                                RawMemPatch, RemoveInstructionPatch,
                                ReplaceFunctionPatch, SegmentHeaderPatch)
-from patcherex.utils import (CLangException, ObjcopyException,
-                             UndefinedSymbolException)
+from patcherex.utils import CLangException
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
@@ -200,7 +195,7 @@ class DetourBackendArmStm32(DetourBackendArm):
         while True:
             name_list = [str(p) if (p is None or p.name is None) else p.name for p in applied_patches]
             l.info("applied_patches is: |%s|", "-".join(name_list))
-            assert all([a == b for a, b in zip(applied_patches, insert_code_patches)])
+            assert all(a == b for a, b in zip(applied_patches, insert_code_patches))
             for patch in insert_code_patches[len(applied_patches):]:
                 self.save_state(applied_patches)
                 try:

@@ -1,14 +1,10 @@
 import bisect
 import logging
 import os
-import re
 from collections import defaultdict
 
-import capstone
-import keystone
-from elftools.elf.elffile import ELFFile
-
 import cle
+from elftools.elf.elffile import ELFFile
 from patcherex import utils
 from patcherex.backends.detourbackends._elf import DetourBackendElf, l
 from patcherex.backends.detourbackends._utils import (
@@ -20,8 +16,7 @@ from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                InlinePatch, InsertCodePatch, RawFilePatch,
                                RawMemPatch, RemoveInstructionPatch,
                                ReplaceFunctionPatch, SegmentHeaderPatch)
-from patcherex.utils import (CLangException, ObjcopyException,
-                             UndefinedSymbolException)
+from patcherex.utils import CLangException, ObjcopyException
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
@@ -211,7 +206,7 @@ class DetourBackendAarch64(DetourBackendElf):
         while True:
             name_list = [str(p) if (p is None or p.name is None) else p.name for p in applied_patches]
             l.info("applied_patches is: |%s|", "-".join(name_list))
-            assert all([a == b for a, b in zip(applied_patches, insert_code_patches)])
+            assert all(a == b for a, b in zip(applied_patches, insert_code_patches))
             for patch in insert_code_patches[len(applied_patches):]:
                 self.save_state(applied_patches)
                 try:
@@ -266,8 +261,8 @@ class DetourBackendAarch64(DetourBackendElf):
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
 
-        if any([isinstance(p,ins) for ins in header_patches for p in self.added_patches]) or \
-                any([isinstance(p,SegmentHeaderPatch) for p in patches]):
+        if any(isinstance(p,ins) for ins in header_patches for p in self.added_patches) or \
+                any(isinstance(p,SegmentHeaderPatch) for p in patches):
             # either implicitly (because of a patch adding code or data) or explicitly, we need to change segment headers
 
             # 6) SegmentHeaderPatch
@@ -417,7 +412,7 @@ class DetourBackendAarch64(DetourBackendElf):
             else:
                 i.overwritten = "out"
         l.debug("\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
-        assert any([i.overwritten != "out" for i in movable_instructions])
+        assert any(i.overwritten != "out" for i in movable_instructions)
 
         # replace overwritten instructions with nops
         for i in movable_instructions:

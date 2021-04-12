@@ -248,7 +248,7 @@ class DetourBackendAVR(DetourBackendElf):
         while True:
             name_list = [str(p) if (p is None or p.name is None) else p.name for p in applied_patches]
             l.info("applied_patches is: |%s|", "-".join(name_list))
-            assert all([a == b for a, b in zip(applied_patches, insert_code_patches)])
+            assert all(a == b for a, b in zip(applied_patches, insert_code_patches))
             for patch in insert_code_patches[len(applied_patches):]:
                 self.save_state(applied_patches)
                 try:
@@ -402,7 +402,7 @@ class DetourBackendAVR(DetourBackendElf):
             else:
                 i.overwritten = "out"
         l.debug("\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
-        assert any([i.overwritten != "out" for i in movable_instructions])
+        assert any(i.overwritten != "out" for i in movable_instructions)
 
         # replace overwritten instructions with nops
         for i in movable_instructions:
@@ -415,7 +415,7 @@ class DetourBackendAVR(DetourBackendElf):
 
         # insert the jump detour
         offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
-        detour_jmp_code = self.compile_jmp(detour_pos, self.get_current_code_position() + offset)
+        detour_jmp_code = self.compile_jmp(self.get_current_code_position() + offset)
         self.patch_bin(detour_pos, detour_jmp_code)
         patched_bbcode = self.read_mem_from_file(block_addr, block.size)
         patched_bbinstructions = self.disassemble(patched_bbcode, block_addr)
@@ -427,7 +427,7 @@ class DetourBackendAVR(DetourBackendElf):
         return new_code
 
     @staticmethod
-    def disassemble(code, offset=0x0):
+    def disassemble(code, offset=0x0): # pylint: disable=arguments-differ
         with utils.tempdir() as td:
             bin_fname = os.path.join(td, "code.bin")
 
@@ -451,14 +451,14 @@ class DetourBackendAVR(DetourBackendElf):
                 result.append(instr)
         return result
 
-    def compile_jmp(self, origin, target):
+    def compile_jmp(self, target):
         jmp_str = '''
             jmp {target}
         '''.format(**{'target': hex(int(target))})
         return self.compile_asm(jmp_str)
 
     @staticmethod
-    def compile_asm(code, name_map=None):
+    def compile_asm(code, name_map=None): # pylint: disable=arguments-differ
         if not code.endswith("\n"): # prevent avr-as warning
             code += "\n"
         try:
