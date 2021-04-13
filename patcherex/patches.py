@@ -70,7 +70,7 @@ class CodePatch(Patch):
     """
     Base class for all code patches
     """
-    def __init__(self, name, asm_code, is_c=False, is_att=False, optimization="-Oz", compiler_flags="-m32"):
+    def __init__(self, name, asm_code, is_c=False, is_att=False, optimization="-Oz", compiler_flags="-m32", is_thumb=False):
         super(CodePatch, self).__init__(name)
 
         self.asm_code = asm_code
@@ -78,6 +78,7 @@ class CodePatch(Patch):
         self.optimization = optimization
         self.is_att = is_att
         self.compiler_flags = compiler_flags
+        self.is_thumb = is_thumb
 
     def att_asm(self, c_as_asm=False):
         """
@@ -122,17 +123,17 @@ class CodePatch(Patch):
 
 
 class AddCodePatch(CodePatch):
-    def __init__(self, asm_code, name=None, is_c=False, is_att=False, optimization="-Oz", compiler_flags="-m32"):
+    def __init__(self, asm_code, name=None, is_c=False, is_att=False, optimization="-Oz", compiler_flags="-m32", is_thumb=False):
         super(AddCodePatch, self).__init__(name, asm_code, is_c=is_c, is_att=is_att,
-                                           optimization=optimization, compiler_flags=compiler_flags)
+                                           optimization=optimization, compiler_flags=compiler_flags, is_thumb=is_thumb)
 
     def __repr__(self):
         return "AddCodePatch [%s] (%d) %s %s" % (self.name,len(self.asm_code),self.is_c,self.optimization)
 
 
 class AddEntryPointPatch(CodePatch):
-    def __init__(self, asm_code, name=None, is_att=False, priority=1, after_restore=False):
-        super(AddEntryPointPatch, self).__init__(name, asm_code, is_att=is_att)
+    def __init__(self, asm_code, name=None, is_att=False, priority=1, after_restore=False, is_thumb=True):
+        super(AddEntryPointPatch, self).__init__(name, asm_code, is_att=is_att, is_thumb=is_thumb)
         self.priority = priority
         self.after_restore = after_restore
 
@@ -154,6 +155,17 @@ class InsertCodePatch(CodePatch):
 
     def __repr__(self):
         return "InsertCodePatch [%s] %08x (%d), pr: %d" % (self.name,self.addr,len(self.code),self.priority)
+
+class ReplaceFunctionPatch(CodePatch):
+    def __init__(self, addr, size, code, name=None, is_att=False, priority=1, symbols=None):
+        super(ReplaceFunctionPatch, self).__init__(name, asm_code=code, is_att=is_att)
+        self.addr = addr
+        self.size = size
+        self.symbols = symbols
+        self.priority = priority
+
+    def __repr__(self):
+        return "ReplaceFunctionPatch [%s] %08x (%d), pr: %d" % (self.name,self.addr,len(self.asm_code),self.priority)
 
 
 class RawFilePatch(Patch):

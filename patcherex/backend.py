@@ -96,7 +96,7 @@ class Backend(object):
         # 1) ida-like cfg
         # 2) with some strategies we don't need the cfg, we should be able to apply those strategies even if the cfg fails
         l.info("CFG start...")
-        cfg = self.project.analyses.CFGFast(normalize=True, collect_data_references=True)
+        cfg = self.project.analyses.CFGFast(normalize=True, data_references=True)
         l.info("... CFG end")
 
         return cfg
@@ -104,7 +104,7 @@ class Backend(object):
     def _get_ordered_nodes(self, cfg):
         prev_addr = None
         ordered_nodes = []
-        for n in sorted(cfg.nodes(), key=lambda x: x.addr):
+        for n in sorted(cfg.model.nodes(), key=lambda x: x.addr):
             if n.addr == prev_addr:
                 continue
             prev_addr = n.addr

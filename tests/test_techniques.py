@@ -994,16 +994,6 @@ def test_backdoor(BackendClass, data_fallback, try_pdf_removal):
         # deal with endianness craziness
         return bytes([ l[3],l[2],l[1],l[0],0,0,0,l[4] ])
 
-
-    import patcherex
-    backdoor_content = patcherex.get_backdoorpov()
-    nose.tools.assert_equal(backdoor_content[:16], b"\x7fCGC\x01\x01\x01C\x01Merino\x00")
-    nose.tools.assert_true(len(backdoor_content) > (5*pow(2,19))) # size is bigger than number of challenges times 5 bytes
-
-    backdoor_content = patcherex.patch_master.get_backdoorpov()
-    nose.tools.assert_equal(backdoor_content[:16], b"\x7fCGC\x01\x01\x01C\x01Merino\x00")
-    nose.tools.assert_true(len(backdoor_content) > (5*pow(2,19))) # size is bigger than number of challenges times 5 bytes
-
     for bitflip in [False,True]:
         print("======== Bitflip:", bitflip)
         filepath = os.path.join(bin_location, "CADET_00003")

@@ -1,14 +1,19 @@
 #!/usr/bin/env python
 
+import logging
 import os
 import subprocess
-import logging
 import unittest
 
-import patcherex
 import shellphish_qemu
+
+import patcherex
 from patcherex.backends.detourbackend import DetourBackend
-from patcherex.patches import AddCodePatch, AddRODataPatch, InsertCodePatch, AddLabelPatch, AddRWDataPatch, AddRWInitDataPatch, AddEntryPointPatch, InlinePatch, RawFilePatch, RawMemPatch,RemoveInstructionPatch
+from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
+                               AddRODataPatch, AddRWDataPatch,
+                               AddRWInitDataPatch, InlinePatch,
+                               InsertCodePatch, RawFilePatch, RawMemPatch,
+                               RemoveInstructionPatch, ReplaceFunctionPatch)
 
 
 class Tests(unittest.TestCase):
@@ -259,8 +264,31 @@ class Tests(unittest.TestCase):
             exc = True
         self.assertTrue(exc)
 
-    def run_test(self, file, patches, set_oep=None, inputs=None, expected_output=None, expected_returnCode=None):
-        filepath = os.path.join(self.bin_location, file)
+    def test_replace_function_patch(self):
+        code = '''
+        int add(int a, int b){ for(;; b--, a+=2) if(b <= 0) return a; }
+        '''
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x400536, 36, code)], expected_output=b"70707070")
+
+    @unittest.skip("Not Implemented")
+    def test_replace_function_patch_with_function_reference(self):
+        code = '''
+        extern int add(int, int);
+        extern int subtract(int, int);
+        int multiply(int a, int b){ for(int c = 0;; b = subtract(b, 1), c = subtract(c, a)) if(b <= 0) return c; }
+        '''
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x40057e, 0x71, code, symbols={"add" : 0x400536, "subtract" : 0x40055a})], expected_output=b"-21-21")
+
+    @unittest.skip("Not Implemented")
+    def test_replace_function_patch_with_function_reference_and_rodata(self):
+        code = '''
+        extern int printf(const char *format, ...);
+        int multiply(int a, int b){ printf("%sWorld %s %s %s %d\\n", "Hello ", "Hello ", "Hello ", "Hello ", a * b);printf("%sWorld\\n", "Hello "); return a * b; }
+        '''
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x40057e, 0x71, code, symbols={"printf" : 0x400610})], expected_output=b"Hello World Hello  Hello  Hello  21\nHello World\n2121")
+
+    def run_test(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None):
+        filepath = os.path.join(self.bin_location, filename)
         pipe = subprocess.PIPE
 
         with patcherex.utils.tempdir() as td:
@@ -271,7 +299,7 @@ class Tests(unittest.TestCase):
                 backend.set_oep(backend.name_map[set_oep])
             backend.save(tmp_file)
             p = subprocess.Popen([tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
-            res = p.communicate(inputs)
+            res = p.communicate(inputvalue)
             if expected_output:
                 self.assertEqual(res[0], expected_output)
             if expected_returnCode:

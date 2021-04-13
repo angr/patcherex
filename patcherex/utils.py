@@ -2,13 +2,11 @@ import os
 import re
 import sys
 import shutil
-import struct
 import capstone
 import tempfile
 import contextlib
 import subprocess
 import fnmatch
-import os
 import string
 
 from .errors import ASMConverterError, ASMConverterNotImplementedError
@@ -298,6 +296,7 @@ class ASMConverter(object):
         if m:
             imm = m.group(1)
             return "$%s" % imm
+        return None
 
     @staticmethod
     def to_att(op, mnemonic=None):
@@ -649,7 +648,9 @@ def compile_asm(code, base=None, name_map=None, bits=32):
     #if name_map != None: print {k: hex(v) for k,v in name_map.iteritems()}
     try:
         if name_map is not None:
-            code = code.format(**name_map)
+            code = code.format(**name_map) # compile_asm
+        else:
+            code = re.subn(r'{.*?}', "0x41414141", code)[0] # solve symbols
     except KeyError as e:
         raise UndefinedSymbolException(str(e))
 
@@ -682,51 +683,17 @@ def compile_asm(code, base=None, name_map=None, bits=32):
     return compiled
 
 
-def compile_asm_fake_symbol(code, base=None, bits=32):
-    code = re.subn(r'{.*?}', "0x41414141", code)[0]
-
-    with tempdir() as td:
-        asm_fname = os.path.join(td, "asm.s")
-        bin_fname = os.path.join(td, "bin.o")
-
-        fp = open(asm_fname, "wb")
-        fp.write(b"bits %d\n" % bits)
-        if base is not None:
-            fp.write(bytes("org %#x\n" % base, "utf-8"))
-        fp.write(bytes(code, "utf-8"))
-        fp.close()
-
-        res = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)
-        if res[2] != 0:
-            print("NASM error:")
-            print(res[0])
-            print(res[1])
-            fp = open(asm_fname, 'r')
-            fcontent = fp.read()
-            fp.close()
-            print("\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))]))
-            raise NasmException
-
-        fp = open(bin_fname, "rb")
-        compiled = fp.read()
-        fp.close()
-
-    return compiled
-
-
 def get_nasm_c_wrapper_code(function_symbol, get_return=False, debug=False):
     # TODO maybe with better calling convention on llvm this can be semplified
     wcode = []
     wcode.append("pusha")
     # TODO add param list handling, right two params in ecx/edx are supported
-    '''
-    assert len(param_list) <= 2 # TODO support more parameters
-    if len(param_list) == 1:
-        wcode.append("mov ecx, %s" % param_list[0])
-    if len(param_list) == 2:
-        wcode.append("mov ecx, %s" % param_list[0])
-        wcode.append("mov edx, %s" % param_list[1])
-    '''
+    # assert len(param_list) <= 2 # TODO support more parameters
+    # if len(param_list) == 1:
+    #     wcode.append("mov ecx, %s" % param_list[0])
+    # if len(param_list) == 2:
+    #     wcode.append("mov ecx, %s" % param_list[0])
+    #     wcode.append("mov edx, %s" % param_list[1])
     if debug:
         wcode.append("int 0x3")
     wcode.append("call {%s}" % function_symbol)
@@ -737,7 +704,7 @@ def get_nasm_c_wrapper_code(function_symbol, get_return=False, debug=False):
     return "\n".join(wcode)
 
 
-def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
+def compile_c(code, optimization='-Oz', compiler_flags="-m32"):
     # TODO symbol support in c code
     with tempdir() as td:
         c_fname = os.path.join(td, "code.c")
@@ -759,7 +726,7 @@ def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
             fp.close()
             print("\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))]))
             raise CLangException
-        res = exec_cmd("objcopy -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
+        res = exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
         if res[2] != 0:
             print("objcopy error:")
             print(res[0])
@@ -786,7 +753,7 @@ def redirect_stdout(new_target1, new_target2):
 
 def find_files(folder,extension,only_exec=False):
     matches = []
-    for root, dirnames, filenames in os.walk(folder):
+    for root, _, filenames in os.walk(folder):
         for filename in fnmatch.filter(filenames, extension):
             full_name = os.path.join(root, filename)
             if not only_exec or os.access(full_name, os.X_OK):
@@ -795,7 +762,7 @@ def find_files(folder,extension,only_exec=False):
 
 
 def round_up_to_page(addr):
-    return (addr + 0x1000 - 1) / 0x1000 * 0x1000
+    return int((addr + 0x1000 - 1) / 0x1000) * 0x1000
 
 
 def string_to_labels(tstr):

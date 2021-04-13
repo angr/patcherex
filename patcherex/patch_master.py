@@ -14,7 +14,6 @@ import concurrent.futures
 import datetime
 import tempfile
 import termcolor
-import traceback
 import time
 import pickle
 import platform
@@ -56,14 +55,6 @@ from .patches import *
 from .networkrules import NetworkRules
 
 
-def get_backdoorpov():
-    self_location_folder = os.path.dirname(os.path.realpath(__file__))
-    backdoorpov_fname = os.path.join(self_location_folder,"../backdoor_stuff/backdoor_pov.pov")
-    with open(backdoorpov_fname, "rb") as fp:
-        content = fp.read()
-    return content
-
-
 def test_bin_with_qemu(original,patched_blob,bitflip=False):
     import shellphish_qemu
     import subprocess32
@@ -92,7 +83,7 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
                 # I have seen: "OSError: [Errno 32] Broken pipe"
                 # likely because the process dies before it reads all the input
                 # I just "pass", the code later on will check if it is a crash or normal exit
-                if p.returncode == None:
+                if p.returncode is None:
                     # returncode == None means the process is still running
                     # this means the process did not terminate
                     # I am not even sure this is possible, but I am going to terminate it to be sure
@@ -401,7 +392,7 @@ if __name__ == "__main__":
 
         # handle generate_ methods returning also a network rule
         bitflip = False
-        if res[0] == None:
+        if res[0] is None:
             sys.exit(33)
         if not any([output_fname.endswith("_"+str(i)) for i in range(2,10)]):
             fp = open(os.path.join(os.path.dirname(output_fname),"ids.rules"),"wb")
@@ -421,7 +412,7 @@ if __name__ == "__main__":
     elif sys.argv[1] == "multi" or sys.argv[1] == "multi_name" or sys.argv[1] == "multi_name2":
         out = sys.argv[2]
         techniques = sys.argv[3].split(",")
-        if "--test" == sys.argv[7]:
+        if sys.argv[7] == "--test":
             test_results = True
         else:
             test_results = False
@@ -504,5 +495,3 @@ if __name__ == "__main__":
         pickle.dump(res_dict,open(sys.argv[4],"wb"))
 
         #IPython.embed()
-
-
