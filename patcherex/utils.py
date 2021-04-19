@@ -13,6 +13,7 @@ import string
 
 from .errors import ASMConverterError, ASMConverterNotImplementedError
 
+
 class NasmException(Exception):
     pass
 
@@ -63,7 +64,7 @@ class ASMConverter(object):
         # register
         if len(op) == 3 and op.startswith('e') and op[-1] in ('x', 'i', 'p'):
             return 4
-        elif len(op) == 2 and any([ c in string.ascii_lowercase for c in op ]):
+        elif len(op) == 2 and any([c in string.ascii_lowercase for c in op]):
             if not op.endswith('h') and not op.endswith('l'):
                 return 2
             else:
@@ -146,8 +147,8 @@ class ASMConverter(object):
 
             # base + index * scale + displacement
             scale_regex = "(0x1|0x2|0x4|0x8|1|2|4|8)"
-            m = re.match(r"\s*([^\s\+\-]+)\s*([\+])\s*([^\s\+\-]+)\s*\*"+ scale_regex + \
-                    r"\s*([\+\-])\s*([^\s\+\-]+)\s*$", mem_ptr)
+            m = re.match(r"\s*([^\s\+\-]+)\s*([\+])\s*([^\s\+\-]+)\s*\*" + scale_regex + \
+                         r"\s*([\+\-])\s*([^\s\+\-]+)\s*$", mem_ptr)
             if m:
                 part_0, sign_1, part_1, scale, sign_2, part_2 = m.groups()
                 if all(c in string.digits for c in part_1):
@@ -164,9 +165,9 @@ class ASMConverter(object):
                     disp = '-' + disp
                 # negative scale should be invalid:
                 # "error: scale factor in address must be 1, 2, 4 or 8\nmovl    -0x10(%esi, %edi, -1)"
-                scale = str((int(scale,base=0)))
+                scale = str((int(scale, base=0)))
 
-                tstr =  "%s(%s, %s, %s)" % (disp, base_reg, index_reg, scale)
+                tstr = "%s(%s, %s, %s)" % (disp, base_reg, index_reg, scale)
                 return tstr
 
             # base + index + displacement
@@ -178,7 +179,7 @@ class ASMConverter(object):
                     # part_1 is displacement
                     part_2, part_1 = part_1, part_2
 
-                if not all(c in string.digits+"xX" for c in part_2):
+                if not all(c in string.digits + "xX" for c in part_2):
                     raise ASMConverterError('Unsupported displacement string "%s"' % part_2)
 
                 base_reg = ASMConverter.reg_to_att(part_0)
@@ -186,7 +187,7 @@ class ASMConverter(object):
                 index_reg = ASMConverter.reg_to_att(part_1)
                 if index_reg is None: raise ASMConverterError('Unsupported index register "%s"' % part_1)
 
-                disp = str((int(part_2,base=0)))
+                disp = str((int(part_2, base=0)))
 
                 if sign_2 == '-':
                     disp = '-' + disp
@@ -312,20 +313,20 @@ class ASMConverter(object):
         if op[0] == '{' and op[-1] == '}':
             # it's a label
             label = op[1:-1]
-            if mnemonic[0] == 'j' or mnemonic in ('call', ):
+            if mnemonic[0] == 'j' or mnemonic in ('call',):
                 return 'label', '%s' % label
             else:
                 return 'label', '$' + label
 
         new_op = ASMConverter.reg_to_att(op)
         if new_op is not None:
-            if mnemonic[0] == 'j' or mnemonic in ('call', ):
+            if mnemonic[0] == 'j' or mnemonic in ('call',):
                 return 'reg', '*%s' % new_op
             else:
                 return 'reg', new_op
         new_op = ASMConverter.mem_to_att(op)
         if new_op is not None:
-            if mnemonic[0] != 'j' and mnemonic not in ('call', ):
+            if mnemonic[0] != 'j' and mnemonic not in ('call',):
                 return 'mem', new_op
             else:
                 return 'mem', '*%s' % new_op
@@ -476,7 +477,7 @@ class ASMConverter(object):
                 # suffix the mnemonic
                 mnemonic = ASMConverter.mnemonic_to_att(mnemonic, size, op_sort=op_sort)
 
-                #if mnemonic[0] == 'j' and op_sort == 'label':
+                # if mnemonic[0] == 'j' and op_sort == 'label':
                 #    op = "." + op
 
                 # converted.append('#CONVERTED FROM: %s\n' % l)
@@ -509,7 +510,7 @@ class ASMConverter(object):
 def bytes_overwrite(tstr, new, pos=None):
     if pos is None:
         pos = len(tstr)
-    return tstr[:pos] + new + tstr[pos+len(new):]
+    return tstr[:pos] + new + tstr[pos + len(new):]
 
 
 def pad_bytes(tstr, align, pad=b"\x00"):
@@ -521,12 +522,12 @@ def pad_bytes(tstr, align, pad=b"\x00"):
 
 
 def elf_to_cgc(tstr):
-    assert(tstr.startswith(ELF_HEADER))
+    assert (tstr.startswith(ELF_HEADER))
     return bytes_overwrite(tstr, CGC_HEADER, 0)
 
 
 def cgc_to_elf(tstr):
-    assert(tstr.startswith(CGC_HEADER))
+    assert (tstr.startswith(CGC_HEADER))
     return bytes_overwrite(tstr, ELF_HEADER, 0)
 
 
@@ -588,22 +589,22 @@ def instruction_to_str(instruction, print_bytes=True):
     else:
         pbytes = ""
     return "0x%x %s:\t%s\t%s %s" % (instruction.address, pbytes, instruction.mnemonic, instruction.op_str,
-                                    "<"+instruction.overwritten+">" if hasattr(instruction, 'overwritten') else "")
+                                    "<" + instruction.overwritten + ">" if hasattr(instruction, 'overwritten') else "")
 
 
 def capstone_to_nasm(instruction):
-        tstr = "db "
-        tstr += ",".join([hex(b) for b in instruction.bytes])
-        tstr += " ;"+instruction_to_str(instruction, print_bytes=False)
-        return tstr
+    tstr = "db "
+    tstr += ",".join([hex(b) for b in instruction.bytes])
+    tstr += " ;" + instruction_to_str(instruction, print_bytes=False)
+    return tstr
 
 
 def bytes_to_asm(in_str, comment=None):
-        tstr = "db "
-        tstr += ",".join([hex(ord(b)) for b in in_str])
-        if comment != None:
-            tstr += " ; "+comment
-        return tstr
+    tstr = "db "
+    tstr += ",".join([hex(ord(b)) for b in in_str])
+    if comment != None:
+        tstr += " ; " + comment
+    return tstr
 
 
 def disassemble(code, offset=0x0, bits=32):
@@ -643,10 +644,10 @@ def get_multiline_str():
 
 
 def compile_asm(code, base=None, name_map=None, bits=32):
-    #print "=" * 10
-    #print code
-    #if base != None: print hex(base)
-    #if name_map != None: print {k: hex(v) for k,v in name_map.iteritems()}
+    # print "=" * 10
+    # print code
+    # if base != None: print hex(base)
+    # if name_map != None: print {k: hex(v) for k,v in name_map.iteritems()}
     try:
         if name_map is not None:
             code = code.format(**name_map)
@@ -669,11 +670,18 @@ def compile_asm(code, base=None, name_map=None, bits=32):
             print("NASM error:")
             print(res[0])
             print(res[1])
-            fp = open(asm_fname, 'r')
-            fcontent = fp.read()
-            fp.close()
-            print("\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))]))
-            raise NasmException
+            print("NASM failed, trying to compile with gcc")
+            asm_fname = rewrite_file(asm_fname)
+            res = exec_cmd("gcc -c %s -o %s" % (asm_fname, bin_fname), shell=True)
+            if res[2] != 0:
+                print("NASM and gcc failed to compile the assembly code")
+                print(res[0])
+                print(res[1])
+                fp = open(asm_fname, 'r')
+                fcontent = fp.read()
+                fp.close()
+                print("\n".join(["%02d\t%s" % (i + 1, l) for i, l in enumerate(fcontent.split("\n"))]))
+                raise NasmException
 
         fp = open(bin_fname, "rb")
         compiled = fp.read()
@@ -704,7 +712,7 @@ def compile_asm_fake_symbol(code, base=None, bits=32):
             fp = open(asm_fname, 'r')
             fcontent = fp.read()
             fp.close()
-            print("\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))]))
+            print("\n".join(["%02d\t%s" % (i + 1, l) for i, l in enumerate(fcontent.split("\n"))]))
             raise NasmException
 
         fp = open(bin_fname, "rb")
@@ -731,7 +739,7 @@ def get_nasm_c_wrapper_code(function_symbol, get_return=False, debug=False):
         wcode.append("int 0x3")
     wcode.append("call {%s}" % function_symbol)
     if get_return:
-        wcode.append("mov [esp+28], eax") #FIXME check
+        wcode.append("mov [esp+28], eax")  # FIXME check
     wcode.append("popa")
 
     return "\n".join(wcode)
@@ -749,7 +757,7 @@ def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
         fp.close()
 
         res = exec_cmd("clang -nostdlib -mno-sse -ffreestanding %s -o %s -c %s %s" \
-                        % (optimization, object_fname, c_fname, compiler_flags), shell=True)
+                       % (optimization, object_fname, c_fname, compiler_flags), shell=True)
         if res[2] != 0:
             print("CLang error:")
             print(res[0])
@@ -757,7 +765,7 @@ def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
             fp = open(c_fname, 'r')
             fcontent = fp.read()
             fp.close()
-            print("\n".join(["%02d\t%s"%(i+1,l) for i,l in enumerate(fcontent.split("\n"))]))
+            print("\n".join(["%02d\t%s" % (i + 1, l) for i, l in enumerate(fcontent.split("\n"))]))
             raise CLangException
         res = exec_cmd("objcopy -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
         if res[2] != 0:
@@ -772,6 +780,19 @@ def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
     return compiled
 
 
+def rewrite_file(input_file):
+    intel_syntax = "_start:\n.intel_syntax noprefix\n"
+    new_file = "/tmp/intel.s"
+    with open(input_file, "r") as fin:
+        data = fin.read().splitlines(True)
+    req_data = data[4:-7]
+    req_data = ''.join(req_data)
+    with open(new_file, "a+") as fout:
+        fout.write(intel_syntax)
+        fout.write(req_data)
+        return new_file
+
+
 @contextlib.contextmanager
 def redirect_stdout(new_target1, new_target2):
     old_target1, sys.stdout = sys.stdout, new_target1  # replace sys.stdout
@@ -784,7 +805,7 @@ def redirect_stdout(new_target1, new_target2):
         sys.stderr = old_target2
 
 
-def find_files(folder,extension,only_exec=False):
+def find_files(folder, extension, only_exec=False):
     matches = []
     for root, dirnames, filenames in os.walk(folder):
         for filename in fnmatch.filter(filenames, extension):
@@ -802,7 +823,7 @@ def string_to_labels(tstr):
     labels = []
     for line in tstr.split("\n"):
         line = line.strip()
-        m = re.match("^_.*:",line)
+        m = re.match("^_.*:", line)
         if m != None:
             labels.append(m.group(0))
     labels = [l for l in labels if not any([c in l for c in "( )"])]
