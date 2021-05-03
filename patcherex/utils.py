@@ -665,18 +665,15 @@ def compile_asm(code, base=None, name_map=None, bits=32):
         fp.write(bytes(code, "utf-8"))
         fp.close()
 
-        res = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)
-        if res[2] != 0:
-            # print("NASM error:")
-            # print(res[0])
-            # print(res[1])
+        res_0 = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)
+        if res_0[2] != 0:
+            print("NASM error:")
+            print(res_0[0])
+            print(res_0[1])
             print("NASM failed, trying to compile with gcc")
             asm_fname = rewrite_file(asm_fname)
             res_1 = exec_cmd("gcc -c %s -o %s" % (asm_fname, bin_fname), shell=True)
-            if res[2] != 0:
-                print("NASM error:")
-                print(res[0])
-                print(res[1])
+            if res_1[2] != 0:
                 print("NASM and gcc failed to compile the assembly code")
                 print(res_1[0])
                 print(res_1[1])
