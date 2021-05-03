@@ -787,7 +787,7 @@ def rewrite_file(input_file):
         data = fin.read().splitlines(True)
     req_data = data[4:-7]
     req_data = ''.join(req_data)
-    with open(new_file, "a+") as fout:
+    with open(new_file, "w+") as fout:
         fout.write(intel_syntax)
         fout.write(req_data)
         return new_file
