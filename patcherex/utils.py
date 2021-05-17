@@ -781,7 +781,7 @@ def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
 
 
 def rewrite_file(input_file):
-    intel_syntax = "_start:\n.intel_syntax noprefix\n"
+    intel_syntax = "_start:\n.intel_syntax noprefix\n\n"
     new_file = "/tmp/intel.s"
     with open(input_file, "r") as fin:
         data = fin.read().splitlines(True)
