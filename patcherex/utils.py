@@ -673,6 +673,8 @@ def compile_asm(code, base=None, name_map=None, bits=32):
             print("NASM failed, trying to compile with gcc")
             asm_fname = rewrite_file(asm_fname)
             res_1 = exec_cmd("gcc -c %s -o %s" % (asm_fname, bin_fname), shell=True)
+            # for debugging
+            os.system(f"cp {asm_fname} /tmp/debug_asm")
             if res_1[2] != 0:
                 print("NASM and gcc failed to compile the assembly code")
                 print(res_1[0])
@@ -781,7 +783,7 @@ def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
 
 
 def rewrite_file(input_file):
-    intel_syntax = "_start:\n.intel_syntax noprefix\n\n"
+    intel_syntax = "_start:\n.intel_syntax noprefix\nnop\n"
     new_file = "/tmp/intel.s"
     with open(input_file, "r") as fin:
         data = fin.read().splitlines(True)
