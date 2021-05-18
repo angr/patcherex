@@ -664,6 +664,8 @@ def compile_asm(code, base=None, name_map=None, bits=32):
             fp.write(bytes("org %#x\n" % base, "utf-8"))
         fp.write(bytes(code, "utf-8"))
         fp.close()
+        # for debugging
+        os.system(f"cp {asm_fname} /tmp/debug_asm")
 
         res_0 = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)
         if res_0[2] != 0:
@@ -673,8 +675,6 @@ def compile_asm(code, base=None, name_map=None, bits=32):
             print("NASM failed, trying to compile with gcc")
             asm_fname = rewrite_file(asm_fname)
             res_1 = exec_cmd("gcc -c %s -o %s" % (asm_fname, bin_fname), shell=True)
-            # for debugging
-            os.system(f"cp {asm_fname} /tmp/debug_asm")
             if res_1[2] != 0:
                 print("NASM and gcc failed to compile the assembly code")
                 print(res_1[0])
