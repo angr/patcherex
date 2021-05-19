@@ -781,16 +781,16 @@ def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
 
 
 def rewrite_file(input_file):
-    intel_syntax = "_start:\n.intel_syntax noprefix\n\n"
-    new_file = "/tmp/intel.s"
+    intel_syntax = "_start:\n.intel_syntax noprefix\n"
+    # new_file = "/tmp/intel.s"
     with open(input_file, "r") as fin:
         data = fin.read().splitlines(True)
     req_data = data[4:-7]
     req_data = ''.join(req_data)
-    with open(new_file, "w+") as fout:
+    with open(input_file, "a+") as fout:
         fout.write(intel_syntax)
         fout.write(req_data)
-        return new_file
+        return input_file
 
 
 @contextlib.contextmanager
