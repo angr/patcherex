@@ -664,9 +664,6 @@ def compile_asm(code, base=None, name_map=None, bits=32):
             fp.write(bytes("org %#x\n" % base, "utf-8"))
         fp.write(bytes(code, "utf-8"))
         fp.close()
-        # for debugging
-        os.system(f"cp {asm_fname} /tmp/debug_asm")
-
         res_0 = exec_cmd("nasm -o %s %s" % (bin_fname, asm_fname), shell=True)
         if res_0[2] != 0:
             print("NASM error:")
@@ -783,14 +780,18 @@ def compile_c(code, optimization='-Oz', name_map=None, compiler_flags="-m32"):
 
 
 def rewrite_file(input_file):
-    intel_syntax = "_start:\n.intel_syntax noprefix\nnop\n"
+    intel_syntax = "_start:\n.intel_syntax noprefix\n"
     with open(input_file, "r") as fin:
         data = fin.read().splitlines(True)
-    req_data = data[4:-7]
-    req_data = ''.join(req_data)
-    with open(input_file, "a+") as fout:
-        fout.write(intel_syntax)
+        fin.close()
+
+    del data[0:data.index("; --- custom code start\n")+1]
+    del data[data.index("; --- custom code end\n"):len(data)-1]
+
+    req_data = intel_syntax + ''.join(data)
+    with open(input_file, "w") as fout:
         fout.write(req_data)
+        fout.close()
         return input_file
 
 
