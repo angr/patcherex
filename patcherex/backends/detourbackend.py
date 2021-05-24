@@ -1331,8 +1331,10 @@ class DetourBackend(Backend):
                 if i.overwritten != "out":
                     for b in range(i.address, i.address+len(i.bytes)):
                         if b in self.touched_bytes:
+                            os.environ["PATCH_APPLIED"] = "True"
                             raise DoubleDetourException("byte has been already touched: %08x" % b)
                         else:
+                            os.environ["PATCH_APPLIED"] = "False"
                             self.touched_bytes.add(b)
                     self.patch_bin(i.address, one_byte_nop*len(i.bytes))
 
