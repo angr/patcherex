@@ -40,8 +40,8 @@ class DetourBackendElf(Backend):
         self.name_map = RejectingDict()
 
         # where to put the segments in memory
-        self.added_code_segment = 0x0600000
-        self.added_data_segment = 0x0700000
+        self.added_code_segment = 0x1600000
+        self.added_data_segment = 0x1700000
         current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
         self.single_segment_header_size = current_hdr["e_phentsize"]
         assert self.single_segment_header_size >= self.structs.Elf_Phdr.sizeof()
