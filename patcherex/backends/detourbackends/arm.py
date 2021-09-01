@@ -257,6 +257,9 @@ class DetourBackendArm(DetourBackendElf):
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
                 l.warning("ReplaceFunctionPatch: ARM/Thumb interworking is not yet supported.")
+                for name, addr in self.name_map.items():
+                    if patch.symbols is not None and name not in patch.symbols.keys():
+                        patch.symbols[name] = addr
                 is_thumb = self.check_if_thumb(patch.addr)
                 patch.addr = patch.addr - (patch.addr % 2)
                 new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=patch.addr, symbols=patch.symbols)
@@ -480,10 +483,10 @@ class DetourBackendArm(DetourBackendElf):
             with open(c_fname, 'w') as fp:
                 fp.write(code)
 
-            linker_script = "SECTIONS { .text : { *(.text) "
+            linker_script = "SECTIONS { .text : SUBALIGN(0) { . = " + hex(entry) + "; *(.text) "
             if symbols:
                 for i in symbols:
-                    linker_script += i + " = " + hex(symbols[i] - entry) + ";"
+                    linker_script += i + " = " + hex(symbols[i]) + ";"
             linker_script += "}}"
 
             with open(linker_script_fname, 'w') as fp:
@@ -499,5 +502,5 @@ class DetourBackendArm(DetourBackendElf):
                 raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
 
             ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0})
-            compiled = ld.memory.load(ld.all_objects[0].entry, 0xFFFFFFFFFFFFFFFF)
+            compiled = ld.memory.load(ld.all_objects[0].entry + entry, ld.memory.max_addr)
         return compiled

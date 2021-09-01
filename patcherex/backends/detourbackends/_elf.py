@@ -164,7 +164,8 @@ class DetourBackendElf(Backend):
                     segment["p_vaddr"]   = self.phdr_start + self.first_load["p_vaddr"]
                     segment["p_paddr"]   = self.phdr_start + self.first_load["p_vaddr"]
 
-            self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
+            if self.phdr_segment is not None:
+                self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
 
             # change pointer to program headers to point at the end of the elf
             current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
@@ -172,8 +173,6 @@ class DetourBackendElf(Backend):
             current_hdr["e_phoff"] = len(self.ncontent)
             self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Ehdr.build(current_hdr), 0)
 
-            print("putting them at %#x" % self.phdr_start)
-            print("current len: %#x" % len(self.ncontent))
             for segment in segments:
                 if segment["p_type"] == "PT_PHDR":
                     segment = self.phdr_segment
@@ -205,14 +204,15 @@ class DetourBackendElf(Backend):
         l.debug("added_data_file_start: %#x", self.added_data_file_start)
         added_segments = 0
 
-        # add a LOAD segment for the PHDR segment
-        phdr_segment_header = Container(**{ "p_type":   1,                                      "p_offset": self.phdr_segment["p_offset"],
-                                            "p_vaddr":  self.phdr_segment["p_vaddr"],           "p_paddr":  self.phdr_segment["p_paddr"],
-                                            "p_filesz": self.phdr_segment["p_filesz"],          "p_memsz":  self.phdr_segment["p_memsz"],
-                                            "p_flags":  0x4,                                    "p_align":  0x1000})
-        self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(phdr_segment_header),
-                                                self.original_header_end + (2 * self.structs.Elf_Phdr.sizeof()))
-        added_segments += 1
+        if self.phdr_segment is not None:
+            # add a LOAD segment for the PHDR segment
+            phdr_segment_header = Container(**{ "p_type":   1,                                      "p_offset": self.phdr_segment["p_offset"],
+                                                "p_vaddr":  self.phdr_segment["p_vaddr"],           "p_paddr":  self.phdr_segment["p_paddr"],
+                                                "p_filesz": self.phdr_segment["p_filesz"],          "p_memsz":  self.phdr_segment["p_memsz"],
+                                                "p_flags":  0x4,                                    "p_align":  0x1000})
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(phdr_segment_header),
+                                                    self.original_header_end + (2 * self.structs.Elf_Phdr.sizeof()))
+            added_segments += 1
 
         # add a LOAD segment for the DATA segment
         data_segment_header = Container(**{ "p_type":   1,                                      "p_offset": self.added_data_file_start,
