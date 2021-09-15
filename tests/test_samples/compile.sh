@@ -1,1 +1,0 @@
-../../../compilerex/compile.sh
