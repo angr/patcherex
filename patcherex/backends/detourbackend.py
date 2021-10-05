@@ -1267,7 +1267,6 @@ class DetourBackend(Backend):
                                     for i in classified_instructions
                                     if i.overwritten == 'pre'])
         injected_code += "\n"
-        injected_code += "; --- custom code start\n" + patch_code + "\n" + "; --- custom code end\n" + "\n"
         injected_code += "\n".join([utils.capstone_to_nasm(i)
                                     for i in classified_instructions
                                     if i.overwritten == 'culprit'])
@@ -1275,6 +1274,15 @@ class DetourBackend(Backend):
         injected_code += "\n".join([utils.capstone_to_nasm(i)
                                     for i in classified_instructions
                                     if i.overwritten == 'post'])
+        injected_code += "\n"
+        injected_code += "; --- custom code start\n" + patch_code + "\n" + "; --- custom code end\n" + "\n"
+        # injected_code += "\n".join([utils.capstone_to_nasm(i)
+        #                             for i in classified_instructions
+        #                             if i.overwritten == 'culprit'])
+        # injected_code += "\n"
+        # injected_code += "\n".join([utils.capstone_to_nasm(i)
+        #                             for i in classified_instructions
+        #                             if i.overwritten == 'post'])
         injected_code += "\n"
         jmp_back_target = None
         for i in reversed(classified_instructions):  # jmp back to the one after the last byte of the last non-out
