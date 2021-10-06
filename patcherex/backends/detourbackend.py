@@ -1262,28 +1262,39 @@ class DetourBackend(Backend):
 
     def compile_moved_injected_code(self, classified_instructions, patch_code, offset=0):
         # create injected_code (pre, injected, culprit, post, jmp_back)
-        injected_code = "_patcherex_begin_patch:\n"
-        injected_code += "\n".join([utils.capstone_to_nasm(i)
-                                    for i in classified_instructions
-                                    if i.overwritten == 'pre'])
-        injected_code += "\n"
-        injected_code += "\n".join([utils.capstone_to_nasm(i)
-                                    for i in classified_instructions
-                                    if i.overwritten == 'culprit'])
-        injected_code += "\n"
-        injected_code += "\n".join([utils.capstone_to_nasm(i)
-                                    for i in classified_instructions
-                                    if i.overwritten == 'post'])
-        injected_code += "\n"
-        injected_code += "; --- custom code start\n" + patch_code + "\n" + "; --- custom code end\n" + "\n"
-        # injected_code += "\n".join([utils.capstone_to_nasm(i)
-        #                             for i in classified_instructions
-        #                             if i.overwritten == 'culprit'])
-        # injected_code += "\n"
-        # injected_code += "\n".join([utils.capstone_to_nasm(i)
-        #                             for i in classified_instructions
-        #                             if i.overwritten == 'post'])
-        injected_code += "\n"
+
+        if "header_patch" in patch_code:
+            injected_code = "_patcherex_begin_patch:\n"
+            injected_code += "\n".join([utils.capstone_to_nasm(i)
+                                        for i in classified_instructions
+                                        if i.overwritten == 'pre'])
+            injected_code += "\n"
+            injected_code += "; --- custom code start\n" + patch_code + "\n" + "; --- custom code end\n" + "\n"
+            injected_code += "\n".join([utils.capstone_to_nasm(i)
+                                        for i in classified_instructions
+                                        if i.overwritten == 'culprit'])
+            injected_code += "\n"
+            injected_code += "\n".join([utils.capstone_to_nasm(i)
+                                        for i in classified_instructions
+                                        if i.overwritten == 'post'])
+            injected_code += "\n"
+        else:
+            injected_code = "_patcherex_begin_patch:\n"
+            injected_code += "\n".join([utils.capstone_to_nasm(i)
+                                        for i in classified_instructions
+                                        if i.overwritten == 'pre'])
+            injected_code += "\n"
+            injected_code += "\n".join([utils.capstone_to_nasm(i)
+                                        for i in classified_instructions
+                                        if i.overwritten == 'culprit'])
+            injected_code += "\n"
+            injected_code += "\n".join([utils.capstone_to_nasm(i)
+                                        for i in classified_instructions
+                                        if i.overwritten == 'post'])
+            injected_code += "\n"
+            injected_code += "; --- custom code start\n" + patch_code + "\n" + "; --- custom code end\n" + "\n"
+            injected_code += "\n"
+
         jmp_back_target = None
         for i in reversed(classified_instructions):  # jmp back to the one after the last byte of the last non-out
             if i.overwritten != "out":
