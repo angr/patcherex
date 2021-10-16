@@ -256,7 +256,6 @@ class DetourBackendArm(DetourBackendElf):
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
-                l.warning("ReplaceFunctionPatch: ARM/Thumb interworking is not yet supported.")
                 for name, addr in self.name_map.items():
                     if patch.symbols is not None and name not in patch.symbols.keys():
                         patch.symbols[name] = addr
@@ -472,8 +471,7 @@ class DetourBackendArm(DetourBackendElf):
     def compile_c(self, code, optimization='-Oz', compiler_flags="", is_thumb=False): # pylint: disable=arguments-differ
         return super().compile_c(code, optimization=optimization, compiler_flags=("-mthumb " if is_thumb else "-mno-thumb ") + compiler_flags)
 
-    @staticmethod
-    def compile_function(code, compiler_flags="", is_thumb=False, entry=0x0, symbols=None):
+    def compile_function(self, code, compiler_flags="", is_thumb=False, entry=0x0, symbols=None):
         with utils.tempdir() as td:
             c_fname = os.path.join(td, "code.c")
             object_fname = os.path.join(td, "code.o")
@@ -503,4 +501,20 @@ class DetourBackendArm(DetourBackendElf):
 
             ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0})
             compiled = ld.memory.load(ld.all_objects[0].entry + entry, ld.memory.max_addr)
+
+            disasm = self.disassemble(compiled, entry, is_thumb=is_thumb)
+            disasm_str = ""
+            for instr in disasm:
+                if is_thumb and instr.mnemonic == "bl" and instr.operands[0].imm in symbols.values():
+                    disasm_str += self.capstone_to_asm(instr).replace("bl", "blx") + "\n"
+                elif is_thumb and instr.mnemonic == "blx" and (instr.operands[0].imm + 1) in symbols.values():
+                    disasm_str += self.capstone_to_asm(instr).replace("blx", "bl") + "\n"
+                elif not is_thumb and instr.mnemonic == "bl" and (instr.operands[0].imm + 1) in symbols.values():
+                    disasm_str += self.capstone_to_asm(instr).replace("bl", "blx") + "\n"
+                elif not is_thumb and instr.mnemonic == "blx" and instr.operands[0].imm in symbols.values():
+                    disasm_str += self.capstone_to_asm(instr).replace("blx", "bl") + "\n"
+                else:
+                    disasm_str += self.capstone_to_asm(instr) + "\n"
+            reassembled = self.compile_asm(disasm_str, base=entry, name_map={}, is_thumb=is_thumb)
+            compiled = reassembled + compiled[len(reassembled):]
         return compiled
