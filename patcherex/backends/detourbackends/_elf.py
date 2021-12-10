@@ -3,9 +3,11 @@ import logging
 import os
 import re
 from collections import OrderedDict
+from enum import IntFlag
 
 from elftools.construct.lib import Container
 from elftools.elf.elffile import ELFFile
+from elftools.elf.constants import P_FLAGS, SH_FLAGS
 
 from patcherex import utils
 from patcherex.backend import Backend
@@ -18,11 +20,22 @@ from patcherex.utils import (CLangException, ObjcopyException,
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
+class Perm(IntFlag):
+    UNDEF = 8
+    R = 4
+    W = 2
+    E = 1
+    RW = R | W
+    RE = R | E
+    RWE = R | W | E
+
+
 class DetourBackendElf(Backend):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None, replace_note_segment=False, try_without_cfg=False):
+    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False):
         super().__init__(filename, project_options={"main_opts": {"base_addr": base_address}})
 
+        self.elf = ELFFile(open(filename, "rb"))
         self.modded_segments = self.dump_segments() # dump_segments also set self.structs
 
         self.try_without_cfg = try_without_cfg
@@ -67,12 +80,108 @@ class DetourBackendElf(Backend):
         self.first_load = None
         self.phdr_start = None
         self.replace_note_segment = replace_note_segment
+        self.try_reuse_unused_space = try_reuse_unused_space
+        self.free_space = []
+        self.loaded_free_space = []
+        self.find_space()
 
-    def is_patched(self):
-        return self.ncontent.startswith(self.patched_tag, self.structs.Elf_Ehdr.sizeof())
+    def find_space(self):
+        # FUTURE: we might want to split LOAD segment for finer granularity of permission control
+        # We may generate new free space, when we have jumping ReplaceFunctionPatch, it creates lots of NOPs
+
+        # only consider load_segments & SHF_ALLOC sections
+        l.info("Finding available space for patches")
+        load_segments = [segment for segment in self.elf.iter_segments() if segment["p_type"] == "PT_LOAD"]
+        sorted_segments = sorted(load_segments, key=lambda x: x['p_offset'])
+        alloc_sections = [section for section in self.elf.iter_sections() if section['sh_flags'] & SH_FLAGS.SHF_ALLOC]
+        sorted_sections = sorted(alloc_sections, key=lambda x: (x['sh_offset'], x['sh_size']))
+
+        # Find Space Between Sections
+        for prev, next in zip(sorted_sections, sorted_sections[1:]):
+            # The Space must be within the same segment
+            for segment in sorted_segments:
+                if segment.section_in_segment(prev) and segment.section_in_segment(next):
+                    if next['sh_offset'] > (prev['sh_offset'] + prev['sh_size']):
+                        self.free_space.append({
+                            "type": "loaded",
+                            "file_start": prev['sh_offset'] + prev['sh_size'],
+                            "file_size": next['sh_offset'] - (prev['sh_offset'] + prev['sh_size']),
+                            "mem_start": prev['sh_addr'] + prev['sh_size'],
+                            "mem_size": next['sh_addr'] - (prev['sh_addr'] + prev['sh_size']),
+                            "perm": Perm.RW if segment['p_flags'] & P_FLAGS.PF_W else Perm.RE
+                        })
+                
+
+        # Find Space Between Segments
+        for prev, next in zip(sorted_segments, sorted_segments[1:]):
+            if next['p_offset'] > (prev['p_offset'] + prev['p_filesz']):
+                self.free_space.append({
+                    "type": "file",
+                    "file_start": prev['p_offset'] + prev['p_filesz'],
+                    "file_size": next['p_offset'] - (prev['p_offset'] + prev['p_filesz']),
+                    "perm": Perm.UNDEF
+                })
+            if next['p_vaddr'] > (prev['p_vaddr'] + prev['p_memsz']):
+                self.free_space.append({
+                    "type": "memory",
+                    "mem_start": prev['p_vaddr'] + prev['p_memsz'],
+                    "mem_size": next['p_vaddr'] - (prev['p_vaddr'] + prev['p_memsz']),
+                    "perm": Perm.UNDEF
+                })
+
+        self.free_space.append({
+            "type": "file",
+            "file_start": sorted_segments[-1]['p_offset'] + sorted_segments[-1]['p_filesz'],
+            "file_size": -1,
+            "perm": Perm.UNDEF
+        })
+        self.free_space.append({
+            "type": "memory",
+            "mem_start": sorted_segments[-1]['p_vaddr'] + sorted_segments[-1]['p_memsz'],
+            "mem_size": -1,
+            "perm": Perm.UNDEF
+        })
+        self.loaded_free_space = sorted([space for space in self.free_space if space['type'] == "loaded"], key=lambda x: -x['file_size'])
+        l.debug(f"List of all avilable spaces: {self.loaded_free_space}")
+
+        if self.try_reuse_unused_space:
+            for space in self.loaded_free_space:
+                if space['perm'] == Perm.RW:
+                    self.reuse_data = space
+                    l.info(f"Found RW space to reuse: {self.reuse_data}")
+                    break
+            else:
+                raise Exception("No RW space to reuse")
+            for space in self.loaded_free_space:
+                if space['perm'] == Perm.RE:
+                    self.reuse_code = space
+                    l.info(f"Found RE space to reuse: {self.reuse_code}")
+                    break
+            else:
+                raise Exception("No RE space to reuse")
 
     def setup_headers(self, segments):
-        if self.replace_note_segment:
+        if self.try_reuse_unused_space:
+            if len(self.added_code) > 0:
+                if len(self.added_code) < self.reuse_code["file_size"]:
+                    self.added_code_file_start = self.reuse_code["file_start"]
+                    self.reuse_code["file_start"] += len(self.added_code)
+                    self.reuse_code["file_size"] -= len(self.added_code)
+                    l.info("Reusing space for code: 0x%x" % self.added_code_file_start)
+                else:
+                    raise Exception("Not enough RE space to reuse")
+            if len(self.added_data) > 0:
+                if len(self.added_data) < self.reuse_data["file_size"]:
+                    self.added_data_file_start = self.reuse_data["start"]
+                    self.reuse_data["file_start"] += len(self.added_data)
+                    self.reuse_data["file_size"] -= len(self.added_data)
+                    l.info("Reusing space for data: 0x%x" % self.added_data_file_start)
+                else:
+                    raise Exception("Not enough RW space to reuse")
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.added_code, self.added_code_file_start)
+            self.ncontent = utils.bytes_overwrite(self.ncontent, self.added_data, self.added_data_file_start)
+        elif self.replace_note_segment:
+            l.info("Replacing note segment to load segment")
             current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
             note_segment_header_loc = current_hdr["e_phoff"]
 
@@ -88,11 +197,9 @@ class DetourBackendElf(Backend):
 
                 note_segment_header_loc += current_hdr["e_phentsize"]
         else:
-            #if self.is_patched():
-            #    return
-
             # copying original program headers (potentially modified by patches)
             # in the new place (at the  end of the file)
+            l.info("Copying original program headers")
             load_segments_rounded = []
             for segment in segments:
                 if segment["p_type"] == "PT_LOAD":
@@ -261,6 +368,8 @@ class DetourBackendElf(Backend):
             raise MissingBlockException("Couldn't find a block containing address %#x" % inst_addr)
 
     def get_current_code_position(self):
+        if self.try_reuse_unused_space:
+            return self.name_map["ADDED_CODE_START"] + len(self.added_code)
         return self.name_map["ADDED_CODE_START"] + (len(self.ncontent) - self.added_code_file_start)
 
     def save_state(self,applied_patches):
@@ -479,8 +588,8 @@ class DetourBackendElf(Backend):
         # TODO
         # 1) ida-like cfg
         # 2) with some strategies we don't need the cfg, we should be able to apply those strategies even if the cfg fails
-        l.info("CFG start...")
-        cfg = self.project.analyses.CFGFast(normalize=True, data_references=True, force_complete_scan=False)
-        l.info("... CFG end")
+        l.info("Start generating CFG.")
+        cfg = self.project.analyses.CFGFast(normalize=True, data_references=True, force_complete_scan=False, show_progressbar=True)
+        l.info("Finish generating CFG.")
 
         return cfg

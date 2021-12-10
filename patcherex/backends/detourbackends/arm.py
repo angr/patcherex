@@ -21,10 +21,10 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendArm(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None, replace_note_segment=False, try_without_cfg=False):
+    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False):
         if try_without_cfg:
             raise NotImplementedError()
-        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg)
+        super().__init__(filename, base_address=base_address, try_reuse_unused_space=try_reuse_unused_space, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg)
 
     def get_block_containing_inst(self, inst_addr):
         index = bisect.bisect_right(self.ordered_nodes, inst_addr) - 1
@@ -118,6 +118,8 @@ class DetourBackendArm(DetourBackendElf):
 
         # 1) Add{RO/RW/RWInit}DataPatch
         self.added_data_file_start = len(self.ncontent)
+        if self.try_reuse_unused_space:
+            self.name_map.force_insert("ADDED_DATA_START", self.reuse_data['mem_start'])
         curr_data_position = self.name_map["ADDED_DATA_START"]
         for patch in patches:
             if isinstance(patch, (AddRWDataPatch, AddRODataPatch, AddRWInitDataPatch)):
@@ -129,13 +131,16 @@ class DetourBackendArm(DetourBackendElf):
                 if patch.name is not None:
                     self.name_map[patch.name] = curr_data_position
                 curr_data_position += len(final_patch_data)
-                self.ncontent = utils.bytes_overwrite(self.ncontent, final_patch_data)
+                if not self.try_reuse_unused_space:
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, final_patch_data)
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
         self.ncontent = utils.pad_bytes(self.ncontent, 0x10)  # some minimal alignment may be good
 
         self.added_code_file_start = len(self.ncontent)
-        if self.replace_note_segment:
+        if self.try_reuse_unused_space:
+            self.name_map.force_insert("ADDED_CODE_START", self.reuse_code['mem_start'])
+        elif self.replace_note_segment:
             self.name_map.force_insert("ADDED_CODE_START", int((curr_data_position + 0x10 - 1) / 0x10) * 0x10)
         else:
             self.name_map.force_insert("ADDED_CODE_START", (len(self.ncontent) % 0x1000) + self.added_code_segment)
@@ -171,7 +176,8 @@ class DetourBackendArm(DetourBackendElf):
                                                  self.name_map,
                                                  is_thumb=patch.is_thumb)
                 self.added_code += new_code
-                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                if not self.try_reuse_unused_space:
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
 
@@ -194,7 +200,8 @@ class DetourBackendArm(DetourBackendElf):
                                              is_thumb=patch.is_thumb)
                 self.added_code += new_code
                 self.added_patches.append(patch)
-                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                if not self.try_reuse_unused_space:
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.set_oep(new_oep + 1 if patch.is_thumb else new_oep)
                 l.info("Added patch: %s", str(patch))
 
@@ -222,7 +229,6 @@ class DetourBackendArm(DetourBackendElf):
         applied_patches = []
         while True:
             name_list = [str(p) if (p is None or p.name is None) else p.name for p in applied_patches]
-            l.info("applied_patches is: |%s|", "-".join(name_list))
             assert all(a == b for a, b in zip(applied_patches, insert_code_patches))
             for patch in insert_code_patches[len(applied_patches):]:
                 self.save_state(applied_patches)
@@ -232,7 +238,8 @@ class DetourBackendArm(DetourBackendElf):
                         self.name_map[patch.name] = self.get_current_code_position()
                     new_code = self.insert_detour(patch)
                     self.added_code += new_code
-                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                    if not self.try_reuse_unused_space:
+                        self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                     applied_patches.append(patch)
                     self.added_patches.append(patch)
                     l.info("Added patch: %s", str(patch))
@@ -267,18 +274,20 @@ class DetourBackendArm(DetourBackendElf):
                 if(patch.size >= len(new_code)):
                     file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
+                    l.info("Added patch: %s", str(patch))
                 else:
                     header_patches.append(ReplaceFunctionPatch)
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
                     new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=detour_pos + offset, symbols=patch.symbols)
                     self.added_code += new_code
-                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                    if not self.try_reuse_unused_space:
+                        self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                     # compile jmp
                     jmp_code = self.compile_jmp(patch.addr, detour_pos + offset, is_thumb=is_thumb)
                     self.patch_bin(patch.addr, jmp_code)
+                    l.info("Added patch: %s, @0x%x", str(patch), detour_pos + offset)
                 self.added_patches.append(patch)
-                l.info("Added patch: %s", str(patch))
 
         if any(isinstance(p,ins) for ins in header_patches for p in self.added_patches) or \
                 any(isinstance(p,SegmentHeaderPatch) for p in patches):

@@ -30,7 +30,9 @@ class DetourBackendAVR(DetourBackendElf):
     # =========== WIP =============
     # Designed for ATMega328p, not tested for other chips
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None, replace_note_segment=False, try_without_cfg=False):
+    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False):
+        if try_reuse_unused_space:
+            raise NotImplementedError()
         if replace_note_segment:
             raise NotImplementedError()
         if try_without_cfg:
@@ -68,9 +70,6 @@ class DetourBackendAVR(DetourBackendElf):
     @staticmethod
     def insert_bytes(original_content, new_content, pos):
         return original_content[:pos] + new_content + original_content[pos:]
-
-    def is_patched(self):
-        return False  # We don't know
 
     def get_current_code_position(self):
         return self.name_map["ADDED_CODE_START"] + len(self.added_code)
