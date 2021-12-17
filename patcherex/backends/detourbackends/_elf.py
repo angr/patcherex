@@ -99,17 +99,17 @@ class DetourBackendElf(Backend):
         sorted_sections = sorted(alloc_sections, key=lambda x: (x['sh_offset'], x['sh_size']))
 
         # Find Space Between Sections
-        for prev, next in zip(sorted_sections, sorted_sections[1:]):
+        for prev_sec, next_sec in zip(sorted_sections, sorted_sections[1:]):
             # The Space must be within the same segment
             for segment in sorted_segments:
-                if segment.section_in_segment(prev) and segment.section_in_segment(next):
-                    if next['sh_offset'] > (prev['sh_offset'] + prev['sh_size']):
+                if segment.section_in_segment(prev_sec) and segment.section_in_segment(next_sec):
+                    if next_sec['sh_offset'] > (prev_sec['sh_offset'] + prev_sec['sh_size']):
                         self.free_space.append({
                             "type": "loaded",
-                            "file_start": prev['sh_offset'] + prev['sh_size'],
-                            "file_size": next['sh_offset'] - (prev['sh_offset'] + prev['sh_size']),
-                            "mem_start": prev['sh_addr'] + prev['sh_size'],
-                            "mem_size": next['sh_addr'] - (prev['sh_addr'] + prev['sh_size']),
+                            "file_start": prev_sec['sh_offset'] + prev_sec['sh_size'],
+                            "file_size": next_sec['sh_offset'] - (prev_sec['sh_offset'] + prev_sec['sh_size']),
+                            "mem_start": prev_sec['sh_addr'] + prev_sec['sh_size'],
+                            "mem_size": next_sec['sh_addr'] - (prev_sec['sh_addr'] + prev_sec['sh_size']),
                             "perm": Perm.RW if segment['p_flags'] & P_FLAGS.PF_W else Perm.RE
                         })
                 
@@ -144,20 +144,20 @@ class DetourBackendElf(Backend):
             "perm": Perm.UNDEF
         })
         self.loaded_free_space = sorted([space for space in self.free_space if space['type'] == "loaded"], key=lambda x: -x['file_size'])
-        l.debug(f"List of all avilable spaces: {self.loaded_free_space}")
+        l.debug("List of all avilable spaces: %s", self.loaded_free_space)
 
         if self.try_reuse_unused_space:
             for space in self.loaded_free_space:
                 if space['perm'] == Perm.RW:
                     self.reuse_data = space
-                    l.info(f"Found RW space to reuse: {self.reuse_data}")
+                    l.info("Found RW space to reuse: %s", self.reuse_data)
                     break
             else:
                 raise Exception("No RW space to reuse")
             for space in self.loaded_free_space:
                 if space['perm'] == Perm.RE:
                     self.reuse_code = space
-                    l.info(f"Found RE space to reuse: {self.reuse_code}")
+                    l.info("Found RE space to reuse: %s", self.reuse_code)
                     break
             else:
                 raise Exception("No RE space to reuse")
@@ -169,7 +169,7 @@ class DetourBackendElf(Backend):
                     self.added_code_file_start = self.reuse_code["file_start"]
                     self.reuse_code["file_start"] += len(self.added_code)
                     self.reuse_code["file_size"] -= len(self.added_code)
-                    l.info("Reusing space for code: 0x%x" % self.added_code_file_start)
+                    l.info("Reusing space for code: 0x%x", self.added_code_file_start)
                 else:
                     raise Exception("Not enough RE space to reuse")
             if len(self.added_data) > 0:
@@ -177,7 +177,7 @@ class DetourBackendElf(Backend):
                     self.added_data_file_start = self.reuse_data["start"]
                     self.reuse_data["file_start"] += len(self.added_data)
                     self.reuse_data["file_size"] -= len(self.added_data)
-                    l.info("Reusing space for data: 0x%x" % self.added_data_file_start)
+                    l.info("Reusing space for data: 0x%x", self.added_data_file_start)
                 else:
                     raise Exception("Not enough RW space to reuse")
             self.ncontent = utils.bytes_overwrite(self.ncontent, self.added_code, self.added_code_file_start)
@@ -450,7 +450,7 @@ class DetourBackendElf(Backend):
         end = address+size-1  # we will take the byte at end
         start_p = address & 0xfffffff000
         end_p = end & 0xfffffff000
-        mlist = list()
+        mlist = []
 
         if start_p == end_p:
             mlist.append((self.maddress_to_baddress(start), self.maddress_to_baddress(end)+1))
@@ -557,9 +557,9 @@ class DetourBackendElf(Backend):
                 print("CLang error:")
                 print(res[0])
                 print(res[1])
-                fp = open(c_fname, 'r')
-                fcontent = fp.read()
-                fp.close()
+                fcontent = None
+                with open(c_fname, 'r') as fp:
+                    fcontent = fp.read()
                 print("\n".join(["%02d\t%s"%(i+1,j) for i,j in enumerate(fcontent.split("\n"))]))
                 raise CLangException
             res = utils.exec_cmd("objcopy -B i386 -O binary -j .text %s %s" % (object_fname, bin_fname), shell=True)
@@ -568,9 +568,9 @@ class DetourBackendElf(Backend):
                 print(res[0])
                 print(res[1])
                 raise ObjcopyException
-            fp = open(bin_fname, "rb")
-            compiled = fp.read()
-            fp.close()
+            compiled = None
+            with open(bin_fname, "rb") as fp:
+                compiled = fp.read()
         return compiled
 
     @staticmethod

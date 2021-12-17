@@ -21,10 +21,12 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendArm(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False):
+    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, 
+        replace_note_segment=False, try_without_cfg=False):
         if try_without_cfg:
             raise NotImplementedError()
-        super().__init__(filename, base_address=base_address, try_reuse_unused_space=try_reuse_unused_space, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg)
+        super().__init__(filename, base_address=base_address, try_reuse_unused_space=try_reuse_unused_space, 
+            replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg)
 
     def get_block_containing_inst(self, inst_addr):
         index = bisect.bisect_right(self.ordered_nodes, inst_addr) - 1
@@ -69,13 +71,13 @@ class DetourBackendArm(DetourBackendElf):
                     patches.remove(sp)
 
         #deal with AddLabel patches
-        lpatches = [p for p in patches if (isinstance(p, AddLabelPatch))]
+        lpatches = [p for p in patches if isinstance(p, AddLabelPatch)]
         for p in lpatches:
             self.name_map[p.name] = p.addr
 
         # check for duplicate labels, it is not very necessary for this backend
         # but it is better to behave in the same way of the reassembler backend
-        relevant_patches = [p for p in patches if (isinstance(p, (AddCodePatch, InsertCodePatch, AddEntryPointPatch)))]
+        relevant_patches = [p for p in patches if isinstance(p, (AddCodePatch, InsertCodePatch, AddEntryPointPatch))]
         all_code = ""
         for p in relevant_patches:
             if isinstance(p, InsertCodePatch):
@@ -271,7 +273,7 @@ class DetourBackendArm(DetourBackendElf):
                 new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=patch.addr, symbols=patch.symbols)
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, (b"\x00\xBF" * (patch.size // 2)) if is_thumb else (b"\x00\xF0\x20\xE3" * (patch.size // 4)), file_offset)
-                if(patch.size >= len(new_code)):
+                if patch.size >= len(new_code):
                     file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                     l.info("Added patch: %s", str(patch))
