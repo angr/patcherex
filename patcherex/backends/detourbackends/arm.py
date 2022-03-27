@@ -270,7 +270,7 @@ class DetourBackendArm(DetourBackendElf):
                         patch.symbols[name] = addr
                 is_thumb = self.check_if_thumb(patch.addr)
                 patch.addr = patch.addr - (patch.addr % 2)
-                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=patch.addr, symbols=patch.symbols)
+                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=patch.addr, symbols=patch.symbols, stacklayout=patch.stacklayout)
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, (b"\x00\xBF" * (patch.size // 2)) if is_thumb else (b"\x00\xF0\x20\xE3" * (patch.size // 4)), file_offset)
                 if patch.size >= len(new_code):
@@ -283,7 +283,7 @@ class DetourBackendArm(DetourBackendElf):
                     header_patches.append(ReplaceFunctionPatch)
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
-                    new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=detour_pos + offset, symbols=patch.symbols)
+                    new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=detour_pos + offset, symbols=patch.symbols, stacklayout=patch.stacklayout)
                     self.added_code += new_code
                     if not self.try_reuse_unused_space:
                         self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
@@ -489,9 +489,11 @@ class DetourBackendArm(DetourBackendElf):
     def compile_c(self, code, optimization='-Oz', compiler_flags="", is_thumb=False): # pylint: disable=arguments-differ
         return super().compile_c(code, optimization=optimization, compiler_flags=("-mthumb " if is_thumb else "-mno-thumb ") + compiler_flags)
 
-    def compile_function(self, code, compiler_flags="", is_thumb=False, entry=0x0, symbols=None):
+    def compile_function(self, code, compiler_flags="", is_thumb=False, entry=0x0, symbols=None, stacklayout=None):
         with utils.tempdir() as td:
             c_fname = os.path.join(td, "code.c")
+            ll_fname = os.path.join(td, "code.ll")
+            ll2_fname = os.path.join(td, "code.2.ll")
             object_fname = os.path.join(td, "code.o")
             object2_fname = os.path.join(td, "code.2.o")
             linker_script_fname = os.path.join(td, "code.lds")
@@ -508,14 +510,54 @@ class DetourBackendArm(DetourBackendElf):
             with open(linker_script_fname, 'w') as fp:
                 fp.write(linker_script)
 
-            res = utils.exec_cmd("clang -target arm-linux-gnueabihf -o %s -c %s %s %s" \
-                            % (object_fname, c_fname, compiler_flags, "-mthumb" if is_thumb else "-mno-thumb"), shell=True)
-            if res[2] != 0:
-                raise CLangException("CLang error: " + str(res[0] + res[1], 'utf-8'))
+            if stacklayout is None:
+                res = utils.exec_cmd("clang -target arm-linux-gnueabihf -o %s -c %s %s %s -I /usr/arm-linux-gnueabihf/include/" \
+                                % (object_fname, c_fname, compiler_flags, "-mthumb" if is_thumb else "-mno-thumb"), shell=True)
+                if res[2] != 0:
+                    raise CLangException("Clang error: " + str(res[0] + res[1], 'utf-8'))
 
-            res = utils.exec_cmd("ld.lld -relocatable %s -T %s -o %s" % (object_fname, linker_script_fname, object2_fname), shell=True)
-            if res[2] != 0:
-                raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
+                res = utils.exec_cmd("ld.lld -relocatable %s -T %s -o %s" % (object_fname, linker_script_fname, object2_fname), shell=True)
+                if res[2] != 0:
+                    raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
+            else:
+                clang_path = "/home/precompiled_llvm_binaries/clang"
+                lld_path = "/home/precompiled_llvm_binaries/ld.lld"
+                opt_path = "/home/precompiled_llvm_binaries/opt"
+                llc_path = "/home/precompiled_llvm_binaries/llc"
+                LLVMAMP_path = "/home/precompiled_llvm_binaries/LLVMAMP.so"
+
+                # clang_path = "/home/dennydai/purseclab/AMP_llvm/build/bin/clang"
+                # c -> ll
+                res = utils.exec_cmd(f"{clang_path} -target arm-linux-gnueabihf -S -w -emit-llvm -g -o {ll_fname} {'-mthumb' if is_thumb else '-mno-thumb'} {c_fname} {compiler_flags} -I /usr/arm-linux-gnueabihf/include/ -I /usr/lib/clang/10/include", shell=True)
+                if res[2] != 0:
+                    raise Exception("Clang Error: " + str(res[0] + res[1], 'utf-8'))
+
+                # ll --force-dso-local-> ll
+                res = utils.exec_cmd(f"{opt_path} -load {LLVMAMP_path} --force-dso-local -S {ll_fname} -o {ll_fname}", shell=True)
+                if res[2] != 0:
+                    raise Exception("opt Error: " + str(res[0] + res[1], 'utf-8'))
+
+                res = utils.exec_cmd(f"{opt_path} -S {ll_fname} -o {ll_fname}", shell=True)
+                if res[2] != 0:
+                    raise Exception("opt Error: " + str(res[0] + res[1], 'utf-8'))
+
+                if stacklayout == {}:
+                    ll2_fname = ll_fname
+                else:
+                    self.addAMPDebug(ll_fname, ll2_fname, stacklayout)
+                    
+
+                # ll + AMPDebug -> obj
+                res = utils.exec_cmd(f"{llc_path} -o {object_fname} {ll2_fname} -relocation-model=pic --filetype=obj", shell=True)
+                if res[2] != 0:
+                    raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
+                print(str(res[1], 'utf-8'))# TODO: remove this
+
+                # relocate
+                res = utils.exec_cmd(f"{lld_path} -relocatable {object_fname} -T {linker_script_fname} -o {object2_fname}", shell=True)
+                if res[2] != 0:
+                    raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
+                print(str(res[1], 'utf-8'))
 
             ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0})
             compiled = ld.memory.load(ld.all_objects[0].entry + entry, ld.memory.max_addr)

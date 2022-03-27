@@ -315,7 +315,7 @@ class DetourBackendi386(DetourBackendElf):
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
-                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=patch.addr, symbols=patch.symbols)
+                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=patch.addr, symbols=patch.symbols, stacklayout=patch.stacklayout)
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, b"\x90" * patch.size, file_offset)
                 if(patch.size >= len(new_code)):
@@ -325,7 +325,7 @@ class DetourBackendi386(DetourBackendElf):
                     header_patches.append(ReplaceFunctionPatch)
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
-                    new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=detour_pos + offset, symbols=patch.symbols)
+                    new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=detour_pos + offset, symbols=patch.symbols, stacklayout=patch.stacklayout)
                     self.added_code += new_code
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                     # compile jmp
@@ -481,10 +481,11 @@ class DetourBackendi386(DetourBackendElf):
 
         return new_code
 
-    @staticmethod
-    def compile_function(code, compiler_flags="", bits=32, entry=0x0, symbols=None):
+    def compile_function(self, code, compiler_flags="", bits=32, entry=0x0, symbols=None, stacklayout=None):
         with utils.tempdir() as td:
             c_fname = os.path.join(td, "code.c")
+            ll_fname = os.path.join(td, "code.ll")
+            ll2_fname = os.path.join(td, "code.2.ll")
             object_fname = os.path.join(td, "code.o")
             object2_fname = os.path.join(td, "code.2.o")
             linker_script_fname = os.path.join(td, "code.lds")
@@ -492,23 +493,60 @@ class DetourBackendi386(DetourBackendElf):
             with open(c_fname, 'w') as fp:
                 fp.write(code)
 
-            linker_script = "SECTIONS { .text : { *(.text) "
+            linker_script = "SECTIONS { .text : SUBALIGN(0) { . = " + hex(entry) + "; *(.text) "
             if symbols is not None:
                 for i in symbols:
-                    linker_script += i + " = " + hex(symbols[i] - entry) + ";"
+                    linker_script += i + " = " + hex(symbols[i]) + ";"
             linker_script += "}}"
 
             with open(linker_script_fname, 'w') as fp:
                 fp.write(linker_script)
 
-            res = utils.exec_cmd("clang -o %s %s -c %s %s" % (object_fname, "-m32" if bits == 32 else "-m64", c_fname, compiler_flags), shell=True)
-            if res[2] != 0:
-                raise CLangException("CLang error: " + str(res[0] + res[1], 'utf-8'))
+            if stacklayout is None:
+                res = utils.exec_cmd("clang -Wno-incompatible-library-redeclaration -o %s %s -c %s %s" % (object_fname, "-m32" if bits == 32 else "-m64", c_fname, compiler_flags), shell=True)
+                if res[2] != 0:
+                    raise CLangException("Clang error: " + str(res[0] + res[1], 'utf-8'))
 
-            res = utils.exec_cmd("ld.lld -relocatable %s -T %s -o %s" % (object_fname, linker_script_fname, object2_fname), shell=True)
-            if res[2] != 0:
-                raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
+                res = utils.exec_cmd("ld.lld -relocatable %s -T %s -o %s" % (object_fname, linker_script_fname, object2_fname), shell=True)
+                if res[2] != 0:
+                    raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
+            else:
+                clang_path = "/home/precompiled_llvm_binaries/clang"
+                lld_path = "/home/precompiled_llvm_binaries/ld.lld"
+                opt_path = "/home/precompiled_llvm_binaries/opt"
+                llc_path = "/home/precompiled_llvm_binaries/llc"
+                LLVMAMP_path = "/home/precompiled_llvm_binaries/LLVMAMP.so"
+                # c -> ll
+                res = utils.exec_cmd(f"{clang_path} -Wno-incompatible-library-redeclaration -S -w -emit-llvm -g -o {ll_fname} {'-m32' if bits == 32 else '-m64'} {c_fname} {compiler_flags} -I /usr/lib/clang/10/include", shell=True)
+                if res[2] != 0:
+                    raise Exception("Clang Error: " + str(res[0] + res[1], 'utf-8'))
+
+                # ll --force-dso-local-> ll
+                res = utils.exec_cmd(f"{opt_path} -load {LLVMAMP_path} --force-dso-local -S {ll_fname} -o {ll_fname}", shell=True)
+                if res[2] != 0:
+                    raise Exception("opt Error: " + str(res[0] + res[1], 'utf-8'))
+
+                res = utils.exec_cmd(f"{opt_path} -S {ll_fname} -o {ll_fname}", shell=True)
+                if res[2] != 0:
+                    raise Exception("opt Error: " + str(res[0] + res[1], 'utf-8'))
+
+                if stacklayout == {}:
+                    ll2_fname = ll_fname
+                else:
+                    self.addAMPDebug(ll_fname, ll2_fname, stacklayout)
+
+                # ll + AMPDebug -> obj
+                res = utils.exec_cmd(f"{llc_path} -o {object_fname} {ll2_fname} -relocation-model=pic --x86-asm-syntax=intel --filetype=obj", shell=True)
+                if res[2] != 0:
+                    raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
+                print(str(res[1], 'utf-8'))# TODO: remove this
+
+                # relocate
+                res = utils.exec_cmd(f"{lld_path} -relocatable {object_fname} -T {linker_script_fname} -o {object2_fname}", shell=True)
+                if res[2] != 0:
+                    raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
+                print(str(res[1], 'utf-8'))
 
             ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0})
-            compiled = ld.memory.load(ld.all_objects[0].entry, 0xFFFFFFFFFFFFFFFF)
+            compiled = ld.memory.load(ld.all_objects[0].entry + entry, 0xFFFFFFFFFFFFFFFF)
         return compiled

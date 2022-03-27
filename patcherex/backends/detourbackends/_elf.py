@@ -614,3 +614,59 @@ class DetourBackendElf(Backend):
         l.info("Finish generating CFG.")
 
         return cfg
+
+    @staticmethod
+    def addAMPDebug(original, patched, stacklayout):
+        functions = stacklayout['functions']
+
+        # collect metadata
+        metadata = []
+        with open(original, 'r') as ir:
+            for line in ir:
+                DILocalVariable = re.match(r'^!(?P<index>\d+)\s=\s!DILocalVariable\(name: \"(?P<name>\w+)\"(.*)scope: !(?P<scope>\d+)(.*)type: !(?P<type>\d+)(.*)$', line)
+                DISubprogram    = re.match(r'^!(?P<index>\d+)\s=\sdistinct !DISubprogram\(name: \"(?P<name>\w+)\"(.*)$', line)
+                DILexicalBlock  = re.match(r'^!(?P<index>\d+)\s=\sdistinct !DILexicalBlock\(scope: !(?P<scope>\d+)(.*)$', line)
+                DICompositeType = re.match(r'^!(?P<index>\d+)\s=\s!DICompositeType\((.*)size: (?P<size>\d+)(.*)$', line)
+                DIBasicType     = re.match(r'^!(?P<index>\d+)\s=\s!DIBasicType\((.*)size: (?P<size>\d+)(.*)$', line)
+                Others = re.match(r'^!(?P<index>\d+)\s=\s(.*)$', line)
+                if DILocalVariable:
+                    metadata.append({"class" : "DILocalVariable", "name" : DILocalVariable.group('name'), "scope" : int(DILocalVariable.group('scope')), "type" : int(DILocalVariable.group('type')), "patched" : False})
+                elif DISubprogram:
+                    metadata.append({"class" : "DISubprogram", "name" : DISubprogram.group('name')})
+                elif DILexicalBlock:
+                    metadata.append({"class" : "DILexicalBlock", "scope" : int(DILexicalBlock.group('scope'))})
+                elif DICompositeType:
+                    metadata.append({"class" : "DICompositeType", "size" : int(DICompositeType.group('size'))})
+                elif DIBasicType:
+                    metadata.append({"class" : "DIBasicType", "size" : int(DIBasicType.group('size'))})
+                elif Others:
+                    metadata.append({"class" : "Others"})
+
+        # add ampdebug
+        stack_bottom = 0
+        with open(original, 'r') as ir, open(patched, 'w+') as ir_new:
+            for line in ir:
+                DILocalVariable = re.match(r'^!(?P<index>\d+)\s=\s!DILocalVariable\(name: \"(?P<name>\w+)\"(.*)scope: !(?P<scope>\d+)(.*)$', line)
+                if DILocalVariable:
+                    flag = False
+                    for function in functions:
+                        for variable in function['variables']:
+                            scope = int(DILocalVariable.group('scope'))
+                            index = int(DILocalVariable.group('index'))
+
+                            # Find belonging function
+                            while metadata[scope]['class'] == 'DILexicalBlock':
+                                scope = metadata[scope]['scope']
+
+                            # if function names and variable names matchs, add ampdebug info 
+                            if metadata[scope]['class'] == 'DISubprogram' and metadata[scope]['name'] == function['name']:
+                                if metadata[index]['class'] == 'DILocalVariable' and metadata[index]['name'] == variable['name']:
+                                    line = line.replace("scope", "ampdebug: " + str(variable['StkLoc']) + ", scope")
+                                    print(f"[+] {function['name']}:{variable['name']}")
+                                    metadata[index]['patched'] = True
+                ir_new.write(line)
+
+        for meta in metadata:
+            if meta["class"] == "DILocalVariable" and not meta['patched']:
+                print("MISSING")
+                print(meta['name'])
