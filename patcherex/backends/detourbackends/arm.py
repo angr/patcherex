@@ -12,8 +12,8 @@ from patcherex.backends.detourbackends._utils import (
 from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                AddRODataPatch, AddRWDataPatch,
                                AddRWInitDataPatch, AddSegmentHeaderPatch,
-                               InlinePatch, InsertCodePatch, RawFilePatch,
-                               RawMemPatch, RemoveInstructionPatch,
+                               InlinePatch, InsertCodePatch, InsertFunctionPatch,
+                               RawFilePatch, RawMemPatch, RemoveInstructionPatch,
                                ReplaceFunctionPatch, SegmentHeaderPatch)
 from patcherex.utils import CLangException
 
@@ -226,7 +226,7 @@ class DetourBackendArm(DetourBackendElf):
         # these patches specify an address in some basic block, In general we will move the basic block
         # and fix relative offsets
         # With this backend heer we can fail applying a patch, in case, resolve dependencies
-        insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
+        insert_code_patches = [p for p in patches if isinstance(p, (InsertCodePatch, InsertFunctionPatch))]
         insert_code_patches = sorted(insert_code_patches, key=lambda x:-1*x.priority)
         applied_patches = []
         while True:
@@ -259,7 +259,7 @@ class DetourBackendArm(DetourBackendElf):
                 break #at this point we applied everything in current insert_code_patches
                 # TODO symbol name, for now no name_map for InsertCode patches
 
-        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
+        header_patches = [InsertCodePatch,InsertFunctionPatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
 
         # 5.5) ReplaceFunctionPatch
@@ -410,6 +410,58 @@ class DetourBackendArm(DetourBackendElf):
                                               name_map=self.name_map, is_thumb=is_thumb)
         return compiled_code
 
+    def compile_moved_injected_code_for_insertfunctionpatch(self, classified_instructions, patch, offset=0, is_thumb=False):
+        fake_func_code_compiled = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=self.get_current_code_position(), symbols=patch.symbols)
+        if len(fake_func_code_compiled) % 2 == 1:
+            fake_func_code_compiled += b"\x00"
+        pre_code = "\n".join([self.capstone_to_asm(i)
+                                    for i in classified_instructions
+                                    if i.overwritten == 'pre'])
+        pre_code += "\n"
+        pre_code += "push {{r0-r3}}\n"
+        pre_code += patch.prefunc + "\n"
+        # return to end of the func_code
+        pre_code += "mov lr, pc\n"
+        pre_code += "add lr, #" + hex(len(fake_func_code_compiled)+2+(1 if is_thumb else 0)) + "\n" # +2 is for (add lr, #X) instruction
+        # removing blank lines
+        pre_code = "\n".join([line for line in pre_code.split("\n") if line != ""])
+        pre_code_compiled = self.compile_asm(pre_code,
+                                              base=self.get_current_code_position(),
+                                              name_map=self.name_map, is_thumb=is_thumb)
+
+
+        func_code_compiled = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=self.get_current_code_position() + len(pre_code_compiled), symbols=patch.symbols)
+        
+        if len(func_code_compiled) % 2 == 1:
+            func_code_compiled += b"\x00"
+        post_code = "pop {{r0-r3}}\n"
+        post_code += "\n".join([self.capstone_to_asm(i)
+                                    for i in classified_instructions
+                                    if i.overwritten == 'culprit'])
+        post_code += "\n"
+        post_code += "\n".join([self.capstone_to_asm(i)
+                                    for i in classified_instructions
+                                    if i.overwritten == 'post'])
+        post_code += "\n"
+        if "RESTORE_CONTEXT" in patch.postfunc:
+            post_code = patch.postfunc.replace("RESTORE_CONTEXT", post_code)
+        else:
+            post_code = patch.postfunc + "\n" + post_code
+        jmp_back_target = None
+        for i in reversed(classified_instructions):  # jmp back to the one after the last byte of the last non-out
+            if i.overwritten != "out":
+                jmp_back_target = i.address+len(i.bytes)
+                break
+        assert jmp_back_target is not None
+        post_code += "b %s" % hex(int(jmp_back_target) - offset) + "\n"
+        # removing blank lines
+        post_code = "\n".join([line for line in post_code.split("\n") if line != ""])
+
+        post_code_compiled = self.compile_asm(post_code,
+                                              base=self.get_current_code_position() + len(pre_code_compiled) + len(func_code_compiled),
+                                              name_map=self.name_map, is_thumb=is_thumb)
+        return pre_code_compiled + func_code_compiled + post_code_compiled
+
     def insert_detour(self, patch):
         # TODO allow special case to patch syscall wrapper epilogue
         # (not that important since we do not want to patch epilogue in syscall wrapper)
@@ -465,7 +517,10 @@ class DetourBackendArm(DetourBackendElf):
         l.debug("patched bb instructions:\n %s",
                 "\n".join([utils.instruction_to_str(i) for i in patched_bbinstructions]))
 
-        new_code = self.compile_moved_injected_code(movable_instructions, patch.code, offset=offset, is_thumb=self.check_if_thumb(patch.addr))
+        if isinstance(patch, InsertFunctionPatch):
+            new_code = self.compile_moved_injected_code_for_insertfunctionpatch(movable_instructions, patch, offset=offset, is_thumb=self.check_if_thumb(patch.addr))
+        else:
+            new_code = self.compile_moved_injected_code(movable_instructions, patch.code, offset=offset, is_thumb=self.check_if_thumb(patch.addr))
 
         return new_code
 

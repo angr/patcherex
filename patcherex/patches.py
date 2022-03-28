@@ -168,6 +168,18 @@ class ReplaceFunctionPatch(CodePatch):
     def __repr__(self):
         return "ReplaceFunctionPatch [%s] %08x (%d), pr: %d" % (self.name,self.addr,len(self.asm_code),self.priority)
 
+class InsertFunctionPatch(CodePatch):
+    def __init__(self, addr, func, prefunc, postfunc, name=None, is_att=False, priority=1, symbols=None):
+        super(InsertFunctionPatch, self).__init__(name, asm_code=postfunc, is_att=is_att)
+        self.addr = addr
+        self.func = func
+        self.prefunc = prefunc
+        self.postfunc = postfunc
+        self.symbols = symbols
+        self.priority = priority
+
+    def __repr__(self):
+        return "InsertFunctionPatch [%s] %08x, pr: %d" % (self.name,self.addr,self.priority)
 
 class RawFilePatch(Patch):
 
