@@ -3,3 +3,4 @@
 *.egg-info
 .idea
 deps
+patcherex/prebuilt/*
