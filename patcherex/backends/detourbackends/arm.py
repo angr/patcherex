@@ -411,29 +411,22 @@ class DetourBackendArm(DetourBackendElf):
         return compiled_code
 
     def compile_moved_injected_code_for_insertfunctionpatch(self, classified_instructions, patch, offset=0, is_thumb=False):
-        fake_func_code_compiled = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=self.get_current_code_position(), symbols=patch.symbols)
-        if len(fake_func_code_compiled) % 2 == 1:
-            fake_func_code_compiled += b"\x00"
+        # Prepare pre_code with dummy function address
         pre_code = "\n".join([self.capstone_to_asm(i)
                                     for i in classified_instructions
                                     if i.overwritten == 'pre'])
         pre_code += "\n"
         pre_code += "push {{r0-r3}}\n"
         pre_code += patch.prefunc + "\n"
-        # return to end of the func_code
-        pre_code += "mov lr, pc\n"
-        pre_code += "add lr, #" + hex(len(fake_func_code_compiled)+2+(1 if is_thumb else 0)) + "\n" # +2 is for (add lr, #X) instruction
-        # removing blank lines
+        pre_code += f"bl {self.get_current_code_position() + 0x40}\n"
         pre_code = "\n".join([line for line in pre_code.split("\n") if line != ""])
-        pre_code_compiled = self.compile_asm(pre_code,
+
+        # compile pre_code to get the size of it
+        fake_pre_code_compiled = self.compile_asm(pre_code,
                                               base=self.get_current_code_position(),
                                               name_map=self.name_map, is_thumb=is_thumb)
 
-
-        func_code_compiled = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=self.get_current_code_position() + len(pre_code_compiled), symbols=patch.symbols)
-        
-        if len(func_code_compiled) % 2 == 1:
-            func_code_compiled += b"\x00"
+        # prepare post code
         post_code = "pop {{r0-r3}}\n"
         post_code += "\n".join([self.capstone_to_asm(i)
                                     for i in classified_instructions
@@ -454,13 +447,25 @@ class DetourBackendArm(DetourBackendElf):
                 break
         assert jmp_back_target is not None
         post_code += "b %s" % hex(int(jmp_back_target) - offset) + "\n"
-        # removing blank lines
         post_code = "\n".join([line for line in post_code.split("\n") if line != ""])
 
+        # compile post_code
         post_code_compiled = self.compile_asm(post_code,
-                                              base=self.get_current_code_position() + len(pre_code_compiled) + len(func_code_compiled),
+                                              base=self.get_current_code_position() + len(fake_pre_code_compiled),
                                               name_map=self.name_map, is_thumb=is_thumb)
-        return pre_code_compiled + func_code_compiled + post_code_compiled
+
+        # recompile pre_code with the correct function address
+        pre_code = pre_code[:pre_code.rfind('\n')] + f"\nbl {self.get_current_code_position() + len(fake_pre_code_compiled) + len(post_code_compiled)}\n"
+        pre_code_compiled = self.compile_asm(pre_code,
+                                              base=self.get_current_code_position(),
+                                              name_map=self.name_map, is_thumb=is_thumb)
+
+        # compile the function itslef
+        func_code_compiled = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=self.get_current_code_position() + len(pre_code_compiled) + len(post_code_compiled), symbols=patch.symbols)
+        if len(func_code_compiled) % 2 == 1:
+            func_code_compiled += b"\x00"
+
+        return pre_code_compiled + post_code_compiled + func_code_compiled
 
     def insert_detour(self, patch):
         # TODO allow special case to patch syscall wrapper epilogue
