@@ -277,8 +277,7 @@ class DetourBackendArm(DetourBackendElf):
                     file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                     l.info("Added patch: %s", str(patch))
-                    self.patch_info["function_starts"]["original"].append(patch.addr)
-                    self.patch_info["function_starts"]["patched"].append(patch.addr)
+                    self.patch_info["cfgfast_options"]["patched"]["function_starts"].append(hex(patch.addr))
                 else:
                     header_patches.append(ReplaceFunctionPatch)
                     detour_pos = self.get_current_code_position()
@@ -291,8 +290,7 @@ class DetourBackendArm(DetourBackendElf):
                     jmp_code = self.compile_jmp(patch.addr, detour_pos + offset, is_thumb=is_thumb)
                     self.patch_bin(patch.addr, jmp_code)
                     l.info("Added patch: %s, @0x%x", str(patch), detour_pos + offset)
-                    self.patch_info["function_starts"]["original"].append(patch.addr)
-                    self.patch_info["function_starts"]["patched"].append(detour_pos + offset + 1 if is_thumb else 0)
+                    self.patch_info["cfgfast_options"]["patched"]["function_starts"].append(hex(detour_pos + offset + 1 if is_thumb else 0))
                 self.added_patches.append(patch)
 
         if any(isinstance(p,ins) for ins in header_patches for p in self.added_patches) or \
@@ -321,8 +319,8 @@ class DetourBackendArm(DetourBackendElf):
         else:
             l.info("no patches, the binary will not be touched")
 
-        self.patch_info["regions"]["patched"].append([self.name_map["ADDED_CODE_START"], self.name_map["ADDED_CODE_START"] + len(self.added_code)])
-        # self.patch_info["regions"]["patched"].append([self.name_map["ADDED_DATA_START"], self.name_map["ADDED_DATA_START"] + len(self.added_data)])
+        self.patch_info["cfgfast_options"]["patched"]["regions"].append([hex(self.name_map["ADDED_CODE_START"]), hex(self.name_map["ADDED_CODE_START"] + len(self.added_code))])
+        # self.patch_info["cfgfast_options"]["patched"]["regions"].append([self.name_map["ADDED_DATA_START"], self.name_map["ADDED_DATA_START"] + len(self.added_data)])
 
     def check_if_movable(self, instruction, is_thumb=False):
         # the idea here is an instruction is movable if and only if
@@ -468,6 +466,9 @@ class DetourBackendArm(DetourBackendElf):
                                               name_map=self.name_map, is_thumb=is_thumb)
 
         # compile the function itslef
+        patch_info_addr = self.get_current_code_position() + len(pre_code_compiled) + len(function_call_compiled) + len(post_code_compiled) + 1 if is_thumb else 0
+        self.patch_info["cfgfast_options"]["patched"]["function_starts"].append(hex(patch_info_addr))
+        self.patch_info["patcherex_added_functions"].append(hex(patch_info_addr))
         func_code_compiled = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=self.get_current_code_position() + len(pre_code_compiled) + len(function_call_compiled) + len(post_code_compiled), symbols=patch.symbols)
         if len(func_code_compiled) % 4 != 0:
             func_code_compiled += b"\x00"*(4 - len(func_code_compiled) % 4)

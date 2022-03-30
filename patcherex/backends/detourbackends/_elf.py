@@ -85,7 +85,10 @@ class DetourBackendElf(Backend):
         self.loaded_free_space = []
         self.find_space()
 
-        self.patch_info = {"regions": {"original": [], "patched": []}, "new_segments": [], "function_starts": {"original": [], "patched": []}}
+        # regions: addtional regions created by patcherex
+        # function_starts: ReplaceFunctionPatch's start address + InsertFunctionPatch's function's start address
+        # patcherex_added_functions: InsertFunctionPatch's function's start address
+        self.patch_info = {"cfgfast_options": {"original":{"regions": [], "function_starts": []}, "patched":{"regions": [], "function_starts": []}}, "patcherex_added_functions": []}
 
     def find_space(self):
         # FUTURE: we might want to split LOAD segment for finer granularity of permission control
@@ -322,10 +325,10 @@ class DetourBackendElf(Backend):
             self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(phdr_segment_header),
                                                     self.original_header_end + (2 * self.structs.Elf_Phdr.sizeof()))
             added_segments += 1
-            self.patch_info["new_segments"].append({  "p_type":   1,                                      "p_offset": self.phdr_segment["p_offset"],
-                                                        "p_vaddr":  self.phdr_segment["p_vaddr"],           "p_paddr":  self.phdr_segment["p_paddr"],
-                                                        "p_filesz": self.phdr_segment["p_filesz"],          "p_memsz":  self.phdr_segment["p_memsz"],
-                                                        "p_flags":  0x4,                                    "p_align":  0x1000})
+            # self.patch_info["new_segments"].append({  "p_type":   1,                                      "p_offset": self.phdr_segment["p_offset"],
+            #                                             "p_vaddr":  self.phdr_segment["p_vaddr"],           "p_paddr":  self.phdr_segment["p_paddr"],
+            #                                             "p_filesz": self.phdr_segment["p_filesz"],          "p_memsz":  self.phdr_segment["p_memsz"],
+            #                                             "p_flags":  0x4,                                    "p_align":  0x1000})
 
         # add a LOAD segment for the DATA segment
         data_segment_header = Container(**{ "p_type":   1,                                      "p_offset": self.added_data_file_start,
@@ -335,10 +338,10 @@ class DetourBackendElf(Backend):
         self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(data_segment_header),
                                                 self.original_header_end + self.structs.Elf_Phdr.sizeof())
         added_segments += 1
-        self.patch_info["new_segments"].append({  "p_type":   1,                                      "p_offset": self.added_data_file_start,
-                                                    "p_vaddr":  self.name_map["ADDED_DATA_START"],      "p_paddr":  self.name_map["ADDED_DATA_START"],
-                                                    "p_filesz": len(self.added_data),                   "p_memsz":  len(self.added_data),
-                                                    "p_flags":  0x6,                                    "p_align":  0x1000})
+        # self.patch_info["new_segments"].append({  "p_type":   1,                                      "p_offset": self.added_data_file_start,
+        #                                             "p_vaddr":  self.name_map["ADDED_DATA_START"],      "p_paddr":  self.name_map["ADDED_DATA_START"],
+        #                                             "p_filesz": len(self.added_data),                   "p_memsz":  len(self.added_data),
+        #                                             "p_flags":  0x6,                                    "p_align":  0x1000})
 
         # add a LOAD segment for the CODE segment
         code_segment_header = Container(**{ "p_type":   1,                                      "p_offset": self.added_code_file_start,
@@ -348,10 +351,10 @@ class DetourBackendElf(Backend):
         self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(code_segment_header),
                                             self.original_header_end)
         added_segments += 1
-        self.patch_info["new_segments"].append({  "p_type":   1,                                      "p_offset": self.added_code_file_start,
-                                                    "p_vaddr":  self.name_map["ADDED_CODE_START"],      "p_paddr":  self.name_map["ADDED_CODE_START"],
-                                                    "p_filesz": len(self.added_code),                   "p_memsz":  len(self.added_code),
-                                                    "p_flags":  0x5,                                    "p_align":  0x1000})
+        # self.patch_info["new_segments"].append({  "p_type":   1,                                      "p_offset": self.added_code_file_start,
+        #                                             "p_vaddr":  self.name_map["ADDED_CODE_START"],      "p_paddr":  self.name_map["ADDED_CODE_START"],
+        #                                             "p_filesz": len(self.added_code),                   "p_memsz":  len(self.added_code),
+        #                                             "p_flags":  0x5,                                    "p_align":  0x1000})
 
         current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
         current_hdr["e_phnum"] += added_segments
