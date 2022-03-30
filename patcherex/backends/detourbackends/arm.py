@@ -416,18 +416,23 @@ class DetourBackendArm(DetourBackendElf):
                                     for i in classified_instructions
                                     if i.overwritten == 'pre'])
         pre_code += "\n"
-        pre_code += "push {{r0-r3}}\n"
+        pre_code += "push {{r0-r11}}\n"
         pre_code += patch.prefunc + "\n"
-        pre_code += f"bl {self.get_current_code_position() + 0x40}\n"
         pre_code = "\n".join([line for line in pre_code.split("\n") if line != ""])
 
-        # compile pre_code to get the size of it
-        fake_pre_code_compiled = self.compile_asm(pre_code,
+        # compile pre_code
+        pre_code_compiled = self.compile_asm(pre_code,
                                               base=self.get_current_code_position(),
                                               name_map=self.name_map, is_thumb=is_thumb)
 
+        # compile function_call to get the size of it
+        fake_function_call = f"bl {self.get_current_code_position() + 0x40}\n"
+        fake_function_call_compiled = self.compile_asm(fake_function_call,
+                                              base=self.get_current_code_position() + len(pre_code_compiled),
+                                              name_map=self.name_map, is_thumb=is_thumb)
+
         # prepare post code
-        post_code = "pop {{r0-r3}}\n"
+        post_code = "pop {{r0-r11}}\n"
         post_code += "\n".join([self.capstone_to_asm(i)
                                     for i in classified_instructions
                                     if i.overwritten == 'culprit'])
@@ -451,21 +456,23 @@ class DetourBackendArm(DetourBackendElf):
 
         # compile post_code
         post_code_compiled = self.compile_asm(post_code,
-                                              base=self.get_current_code_position() + len(fake_pre_code_compiled),
+                                              base=self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled),
                                               name_map=self.name_map, is_thumb=is_thumb)
+        if (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4 != 0:
+            post_code_compiled += b"\x00"*(4 - (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4)
 
-        # recompile pre_code with the correct function address
-        pre_code = pre_code[:pre_code.rfind('\n')] + f"\nbl {self.get_current_code_position() + len(fake_pre_code_compiled) + len(post_code_compiled)}\n"
-        pre_code_compiled = self.compile_asm(pre_code,
-                                              base=self.get_current_code_position(),
+        # recompile function call with the correct function address
+        function_call = f"bl {self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)}\n"
+        function_call_compiled = self.compile_asm(function_call,
+                                              base=self.get_current_code_position() + len(pre_code_compiled),
                                               name_map=self.name_map, is_thumb=is_thumb)
 
         # compile the function itslef
-        func_code_compiled = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=self.get_current_code_position() + len(pre_code_compiled) + len(post_code_compiled), symbols=patch.symbols)
-        if len(func_code_compiled) % 2 == 1:
-            func_code_compiled += b"\x00"
+        func_code_compiled = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=self.get_current_code_position() + len(pre_code_compiled) + len(function_call_compiled) + len(post_code_compiled), symbols=patch.symbols)
+        if len(func_code_compiled) % 4 != 0:
+            func_code_compiled += b"\x00"*(4 - len(func_code_compiled) % 4)
 
-        return pre_code_compiled + post_code_compiled + func_code_compiled
+        return pre_code_compiled + function_call_compiled + post_code_compiled + func_code_compiled
 
     def insert_detour(self, patch):
         # TODO allow special case to patch syscall wrapper epilogue
@@ -637,3 +644,18 @@ class DetourBackendArm(DetourBackendElf):
             reassembled = self.compile_asm(disasm_str, base=entry, name_map={}, is_thumb=is_thumb)
             compiled = reassembled + compiled[len(reassembled):]
         return compiled
+
+    @staticmethod
+    def generate_asm_jump_on_return_val(mapping):
+        asm = ""
+        for ret_val, jmp_addr in mapping.items():
+            asm += f"cmp r0, #{ret_val}\n"
+            asm += f"beq _label_{ret_val}\n"
+        asm += f"RESTORE_CONTEXT\n"
+        asm += f"b _end\n"
+        for ret_val, jmp_addr in mapping.items():
+            asm += f"_label_{ret_val}:\n"
+            asm += f"RESTORE_CONTEXT\n"
+            asm += f"b #{hex(jmp_addr)}\n"
+        asm += f"_end:\n"
+        return asm
