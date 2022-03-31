@@ -4,6 +4,7 @@ import os
 from collections import defaultdict
 
 import cle
+import re
 from patcherex import utils
 from patcherex.backends.detourbackends._elf import DetourBackendElf, l
 from patcherex.backends.detourbackends._utils import (
@@ -659,4 +660,36 @@ class DetourBackendArm(DetourBackendElf):
             asm += f"RESTORE_CONTEXT\n"
             asm += f"b #{hex(jmp_addr)}\n"
         asm += f"_end:\n"
+        return asm
+    
+    @staticmethod
+    def generate_asm_for_arguments(arg_list):
+        if len(arg_list) > 4:
+            raise Exception("Currently Patcherex Only Supports Up to 4 Arguments")
+        asm = ""
+        const_pool = ""
+        for arg in arg_list:
+            _const_pool = re.search(r"b _end\n(.*)_end:", arg, re.DOTALL)
+            if _const_pool:
+                const_pool += f"{_const_pool.group(1)}\n"
+
+
+        for i in range(1, len(arg_list)):
+            if "b _end" in arg_list[i]:
+                asm += f"{arg_list[i][:arg_list[i].index('b _end')]}\n"
+            else:
+                asm += f"{arg_list[i]}\n"
+            asm += f"mov r{i}, r0\n"
+        
+            if "b _end" in arg_list[0]:
+                asm += f"{arg_list[0][:arg_list[0].index('b _end')]}\n"
+            else:
+                asm += f"{arg_list[0]}\n"
+
+        if const_pool:
+            const_pool_list = const_pool.splitlines()
+            const_pool = "\n".join(sorted(set(const_pool_list), key=const_pool_list.index))
+            asm += "b _end\n"
+            asm += const_pool
+            asm += "_end:\n"
         return asm
