@@ -10,7 +10,6 @@ from multiprocessing import Pool, Manager
 from functools import partial
 
 import progressbar
-import nose.tools
 
 from patcherex.backends import ReassemblerBackend
 from patcherex.patches import *
@@ -75,7 +74,7 @@ def run_functionality(filename, save_as=None, optimize=False):
         print(p._compiler_stdout)
         print(p._compiler_stderr)
 
-    nose.tools.assert_true(r, 'Reassembler fails on binary %s' % filename)
+    assert r, 'Reassembler fails on binary %s' % filename
 
 def test_functionality():
     binaries = [
@@ -207,7 +206,7 @@ def run_shadowstack(filename):
         print(p._compiler_stdout)
         print(p._compiler_stderr)
 
-    nose.tools.assert_true(r, 'Shadowstack patching with reassembler fails on binary %s' % filename)
+    assert r, 'Shadowstack patching with reassembler fails on binary %s' % filename
 
 def test_shadowstack():
     binaries = [
@@ -239,7 +238,7 @@ def run_shiftstack(filename):
         print(p._compiler_stdout)
         print(p._compiler_stderr)
 
-    nose.tools.assert_true(r, 'ShiftStack patching with reassembler fails on binary %s' % filename)
+    assert r, 'ShiftStack patching with reassembler fails on binary %s' % filename
 
 def test_shiftstack():
     binaries = [
@@ -266,7 +265,7 @@ def run_adversarial(filename):
         print(p._compiler_stdout)
         print(p._compiler_stderr)
 
-    nose.tools.assert_true(r, 'Adversarial patching with reassembler fails on binary %s' % filename)
+    assert r, 'Adversarial patching with reassembler fails on binary %s' % filename
 
 def disabled_adversarial():
     binaries = [
@@ -309,7 +308,7 @@ def run_optimization(filename):
         print(b2._compiler_stdout)
         print(b2._compiler_stderr)
 
-    nose.tools.assert_true(r, 'Optimization fails on binary %s' % filename)
+    assert r, 'Optimization fails on binary %s' % filename
 
 def test_optimization():
     binaries = [
