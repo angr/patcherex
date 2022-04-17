@@ -6,11 +6,11 @@ import subprocess
 import logging
 from functools import wraps
 
-import patcherex
+from tracer import QEMURunner
 import shellphish_qemu
+import patcherex
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import *
-from tracer import QEMURunner
 
 l = logging.getLogger("patcherex.test.test_detourbackend")
 
@@ -511,7 +511,7 @@ def test_added_code_and_data_complex():
         print(res, p.returncode)
 
         # this is a special case in which fallback we get different results if data_fallback is used!
-        if global_data_fallback==True:
+        if global_data_fallback is True:
             assert res[0].startswith(expected) and p.returncode == 255
         else:
             assert expected == res[0] and p.returncode == -11
@@ -646,7 +646,7 @@ def test_complex1():
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
-        assert (b"\n\nEASTER EGG!\n\n" + test_str) in res[0] and p.returncode == 52
+        assert b"\n\nEASTER EGG!\n\n" + test_str in res[0] and p.returncode == 52
 
 
 def test_double_patch_collision():
@@ -1559,7 +1559,7 @@ def test_pdf_removal():
             backend.save(tmp_file)
             # backend.save("../../vm/shared/patched")
             res = QEMURunner(tmp_file, b"\n", record_stdout=True)
-            assert res.reg_vals == None
+            assert res.reg_vals is None
             original = res.stdout
             print(filepath)
             print(original)
@@ -1568,7 +1568,7 @@ def test_pdf_removal():
             backend.apply_patches(patches)
             backend.save(tmp_file)
             res = QEMURunner(tmp_file, b"\n", record_stdout=True)
-            assert res.reg_vals == None
+            assert res.reg_vals is None
             mod = res.stdout
             fsize = os.path.getsize(tmp_file)
             print(hex(fsize), hex(osize))
@@ -1581,7 +1581,7 @@ def test_pdf_removal():
             backend.apply_patches(patches)
             backend.save(tmp_file)
             res = QEMURunner(tmp_file, b"\n", record_stdout=True)
-            assert res.reg_vals == None
+            assert res.reg_vals is None
             mod = res.stdout
             fsize = os.path.getsize(tmp_file)
             print(hex(fsize), hex(osize))
