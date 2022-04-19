@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-import nose
 import struct
 import subprocess
 import logging
