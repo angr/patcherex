@@ -444,26 +444,26 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             res = QEMURunner(vulnerable_fname1,"00000002\n43456789\n",record_stdout=True)
             assert res.reg_vals['eip'] == 0x43456789
             res = QEMURunner(vulnerable_fname1,"00000003\n53456789\n",record_stdout=True)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x53456789)
+            assert res.reg_vals['eip'] == 0x53456789
             res = QEMURunner(vulnerable_fname1,"00000004\n63456789\n",record_stdout=True)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x63456789)
+            assert res.reg_vals['eip'] == 0x63456789
 
             res = QEMURunner(vulnerable_fname1,"00000001\n08048640\n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
-            nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x0)
+            assert res.reg_vals['ebp'] & 0xfffff000 == 0x08048000
+            assert res.reg_vals['eip'] == 0x0
             res = QEMURunner(vulnerable_fname1,"00000002\n08048640\n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
-            nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x0)
+            assert res.reg_vals['ebp'] & 0xfffff000 == 0x08048000
+            assert res.reg_vals['eip'] == 0x0
             res = QEMURunner(vulnerable_fname1,"00000003\n08048640\n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
-            nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x0)
+            assert res.reg_vals['ebp'] & 0xfffff000 == 0x08048000
+            assert res.reg_vals['eip'] == 0x0
             res = QEMURunner(vulnerable_fname1,"00000004\n08048640  \n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
-            nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x30303030)
+            assert res.reg_vals['ebp'] & 0xfffff000 == 0x08048000
+            assert res.reg_vals['eip'] == 0x30303030
             '''
 
             res = QEMURunner(vulnerable_fname1, b"00000001\n" + addr_str + b"\n", record_stdout=True)
@@ -476,21 +476,21 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             assert res.stdout == b"hello\nCGCCGCCGC"
             '''
             res = QEMURunner(vulnerable_fname1,"00000002\n"+addr_str+"\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+            assert res.stdout == "hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1,"00000002\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+            assert res.stdout == "hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1,"00000003\n"+addr_str+"\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+            assert res.stdout == "hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1,"00000003\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+            assert res.stdout == "hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1,"00000003\n"+addr_str+"\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+            assert res.stdout == "hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            assert res.stdout == "hello\nCGC"
             res = QEMURunner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            assert res.stdout == "hello\nCGC"
             res = QEMURunner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            assert res.stdout == "hello\nCGC"
             '''
 
         with patcherex.utils.tempdir() as td:
@@ -513,13 +513,13 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
                 print(hex(res.reg_vals['eip']))
                 assert res.reg_vals['eip'] != 0x23456789
                 # res = QEMURunner(patched_fname1,"00000002\n23456789\n",record_stdout=True)
-                # nose.tools.assert_equal(res.stdout,"hello\nCGC")
+                # assert res.stdout == "hello\nCGC"
                 # print hex(res.reg_vals['eip'])
-                # nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
+                # assert res.reg_vals['eip'] != 0x23456789
                 # res = QEMURunner(patched_fname1,"00000003\n23456789\n",record_stdout=True)
-                # nose.tools.assert_equal(res.stdout,"hello\nCGC")
+                # assert res.stdout == "hello\nCGC"
                 # print hex(res.reg_vals['eip'])
-                # nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
+                # assert res.reg_vals['eip'] != 0x23456789
                 res = QEMURunner(patched_fname1,
                                  b"00000004\n23456789\n",
                                  record_stdout=True,
@@ -564,11 +564,11 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             res = QEMURunner(patched_fname1,"00000002\n"+addr_str+"\n",record_stdout=True)
             assert res.stdout == "hello\nCGC"
             print hex(res.reg_vals['eip'])
-            nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
+            assert res.reg_vals['eip'] == 0x8047333
             #stack -> stack
             res = QEMURunner(patched_fname1,"00000002\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            nose.tools.assert_true(res.reg_vals == None)
+            assert res.stdout =="hello\nCGCCGCCGC"
+            assert res.reg_vals is None
             '''
 
             #heap -> main
@@ -576,12 +576,12 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             res = QEMURunner(patched_fname1,"00000003\n08048620\n",record_stdout=True)
             assert res.stdout == "hello\nCGC"
             print hex(res.reg_vals['eip'])
-            nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
+            assert res.reg_vals['eip'] == 0x8047333
             '''
             '''
             #heap -> stack
             res = QEMURunner(patched_fname1,"00000003\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            assert res.stdout == "hello\nCGC"
             print hex(res.reg_vals['eip'])
             assert res.reg_vals['eip'] == 0x8047333
             '''
@@ -602,14 +602,14 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             '''
             #unknown -> stack
             res = QEMURunner(patched_fname1,"00000004\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            nose.tools.assert_true(res.reg_vals == None)
+            assert res.stdout == "hello\nCGC"
+            assert res.reg_vals is None
             '''
             #unknown -> heap
             '''
             res = QEMURunner(patched_fname1,"00000004\n"+addr_str+"\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            nose.tools.assert_true(res.reg_vals == None)
+            assert res.stdout == "hello\nCGC"
+            assert res.reg_vals is None
             '''
 
             # call gadget
@@ -617,13 +617,13 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             if i == 0 and BackendClass != ReassemblerBackend:
                 gadget_addr = "08048971"
                 res = QEMURunner(patched_fname1,"00000001\n"+gadget_addr+"\n",record_stdout=True)
-                nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
+                assert res.reg_vals['eip'] == 0x8047332
                 # res = QEMURunner(patched_fname1,"00000002\n08048640\n",record_stdout=True)
-                # nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
+                # assert res.reg_vals['eip'] == 0x8047332
                 # res = QEMURunner(patched_fname1,"00000003\n08048640\n",record_stdout=True)
-                # nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
+                # assert res.reg_vals['eip'] == 0x8047332
                 res = QEMURunner(patched_fname1,"00000004\n"+gadget_addr+"\n",record_stdout=True)
-                nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
+                assert res.reg_vals['eip'] == 0x8047332
 
                 patched_fname2 = os.path.join(td, "patched2")
                 backend = BackendClass(vulnerable_fname1+"_exec_allocate",data_fallback,\
@@ -635,9 +635,9 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
                 # backend.save("/tmp/aaa")
 
                 res = QEMURunner(patched_fname1,"00000001\n"+"b7fff000"+"\n",record_stdout=True)
-                nose.tools.assert_true(res.reg_vals['eip'] != 0xb7fff000)
+                assert res.reg_vals['eip'] != 0xb7fff000
                 res = QEMURunner(patched_fname2,"00000001\n"+"b7fff000"+"\n",record_stdout=True)
-                nose.tools.assert_true(res.reg_vals['eip'] == 0xb7fff000) #because we detect executable allocate memory
+                assert res.reg_vals['eip'] == 0xb7fff000 #because we detect executable allocate memory
             '''
 
 
@@ -671,9 +671,9 @@ def test_freeregs():
 
         print(tbin, hex(addr), is_tail, ecx_free, edx_free)
         res = sr.is_reg_free(addr,"ecx",is_tail,debug=True)
-        nose.tools.assert_equal(ecx_free,res)
+        assert ecx_free == res
         res = sr.is_reg_free(addr,"edx",is_tail,debug=True)
-        nose.tools.assert_equal(edx_free,res)
+        assert edx_free == res
 
     #import IPython; IPython.embed()
 
