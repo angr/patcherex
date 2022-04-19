@@ -758,11 +758,6 @@ class TestCase(unittest.TestCase):
         patches.append(AddRODataPatch(b"0123456789abcdef", "aaa"))
         patches.append(AddRODataPatch(b"\n", "aaa"))
         exc = False
-        # try:
-        #     backend.apply_patches(patches)
-        # except ValueError:
-        #     exc = True
-        # assert exc
         with self.assertRaises(ValueError):
             backend.apply_patches(patches)
 
@@ -782,11 +777,8 @@ class TestCase(unittest.TestCase):
         '''
         patches.append(AddCodePatch(added_code,"aaa"))
         exc = False
-        try:
+        with self.assertRaises(ValueError):
             backend.apply_patches(patches)
-        except ValueError:
-            exc = True
-        assert exc
 
 
     def test_random_canary(self):
