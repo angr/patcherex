@@ -1585,21 +1585,5 @@ Welcome to Palindrome Finder
                 assert original == mod
 
 
-    def run_all(self):
-        functions = globals()
-        all_functions = dict(filter((lambda x: x[0].startswith('test_')), functions.items()))
-        for f in sorted(all_functions.keys()):
-            if hasattr(all_functions[f], '__call__'):
-                l.info("testing %s" % str(f))
-                all_functions[f]()
-
-
 if __name__ == "__main__":
-    import sys
-    logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
-    logging.getLogger("patcherex.test.test_detourbackend").setLevel("INFO")
-    if len(sys.argv) > 1:
-        globals()['test_' + sys.argv[1]]()
-    else:
-        run_all()
-
+    unittest.main()
