@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-import nose
 import struct
 import subprocess
 import logging
@@ -129,7 +128,7 @@ def test_shadowstack(BackendClass, data_fallback, try_pdf_removal):
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(b"\x00" * 1000 + b"\n")
     print(res, p.returncode)
-    nose.tools.assert_equal((p.returncode == -11), True)
+    assert p.returncode == -11
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
@@ -142,7 +141,7 @@ def test_shadowstack(BackendClass, data_fallback, try_pdf_removal):
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"\x00" * 100 + b"\n")
         print(res, p.returncode)
-        nose.tools.assert_equal(p.returncode == 68, True)
+        assert p.returncode == 68
 
 
 @add_fallback_strategy
@@ -162,7 +161,7 @@ def test_packer(BackendClass, data_fallback, try_pdf_removal):
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
-        nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
+        assert res[0] == expected and p.returncode == 0
 
 
 @add_fallback_strategy
@@ -173,7 +172,7 @@ def test_simplecfi(BackendClass, data_fallback, try_pdf_removal):
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(b"\x00" * 1000 + b"\n")
     print(res, p.returncode)
-    nose.tools.assert_equal((p.returncode == -11), True)
+    assert p.returncode == -11
 
     #0x80480a0 is the binary entry point
     exploiting_input = b"AAAA" + b"\x00"*80 + struct.pack("<I",0x80480a0)*20 + b"\n"
@@ -182,7 +181,7 @@ def test_simplecfi(BackendClass, data_fallback, try_pdf_removal):
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(exploiting_input)
     expected_retcode = 1 #should be -11
-    nose.tools.assert_equal((res[0][:200] == expected1[:200] and p.returncode == expected_retcode), True)
+    assert res[0][:200] == expected1[:200] and p.returncode == expected_retcode
 
     expected2 = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     expected3 = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
@@ -197,12 +196,12 @@ def test_simplecfi(BackendClass, data_fallback, try_pdf_removal):
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
-        nose.tools.assert_equal((res[0] == expected2 and p.returncode == 0), True)
+        assert res[0] == expected2 and p.returncode == 0
 
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(exploiting_input)
         print(res, p.returncode)
-        nose.tools.assert_equal((res[0] == expected3 and p.returncode == 0x45), True)
+        assert res[0] == expected3 and p.returncode == 0x45
 
 
 @add_fallback_strategy
@@ -213,7 +212,7 @@ def test_qemudetection(BackendClass, data_fallback, try_pdf_removal):
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(b"\x00" * 1000 + b"\n")
     print(res, p.returncode)
-    nose.tools.assert_equal((p.returncode == -11), True)
+    assert p.returncode == -11
 
     expected = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
     with patcherex.utils.tempdir() as td:
@@ -227,12 +226,12 @@ def test_qemudetection(BackendClass, data_fallback, try_pdf_removal):
         p = subprocess.Popen([old_qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
-        nose.tools.assert_equal(p.returncode == 0x40 or p.returncode == 0x41, True)
+        assert p.returncode == 0x40 or p.returncode == 0x41
 
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"A" * 10 + b"\n")
         print(res, p.returncode)
-        nose.tools.assert_equal((res[0] == expected and p.returncode == 0), True)
+        assert res[0] == expected and p.returncode == 0
 
 
 @add_fallback_strategy
@@ -243,7 +242,7 @@ def test_randomsyscallloop(BackendClass, data_fallback, try_pdf_removal):
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(b"\x00" * 1000 + b"\n")
     print(res, p.returncode)
-    nose.tools.assert_equal((p.returncode == -11), True)
+    assert p.returncode == -11
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
@@ -256,8 +255,8 @@ def test_randomsyscallloop(BackendClass, data_fallback, try_pdf_removal):
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"\x00" * 100 + b"\n")
         print(res, p.returncode)
-        nose.tools.assert_equal(res[0] == b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: ", True)
-        nose.tools.assert_equal(p.returncode == -11, True)
+        assert res[0] == b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "
+        assert p.returncode == -11
 
 
 @add_fallback_strategy
@@ -268,7 +267,7 @@ def test_cpuid(BackendClass, data_fallback, try_pdf_removal):
     p = subprocess.Popen([qemu_location, filepath], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(b"\x00" * 1000 + b"\n")
     print(res, p.returncode)
-    nose.tools.assert_equal((p.returncode == -11), True)
+    assert p.returncode == -11
 
     with patcherex.utils.tempdir() as td:
         tmp_file = os.path.join(td, "patched")
@@ -281,9 +280,9 @@ def test_cpuid(BackendClass, data_fallback, try_pdf_removal):
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"\x00"*100 + b"\n")
         print(res, p.returncode)
-        nose.tools.assert_equal(res[0].endswith(b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: "), True)
-        nose.tools.assert_equal(len(res[0]) > 500, True)
-        nose.tools.assert_equal(p.returncode == -11, True)
+        assert res[0].endswith(b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: ")
+        assert len(res[0]) > 500
+        assert p.returncode == -11
 
 
 @reassembler_only
@@ -299,7 +298,7 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
     p = subprocess.Popen([qemu_location, filepath1], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate("\x00"*1000+"\n")
     print res, p.returncode
-    nose.tools.assert_equal((p.returncode == -11), True)
+    assert p.returncode == -11
     '''
 
     #0x80480a0 is the binary entry point
@@ -317,8 +316,8 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
     p = subprocess.Popen([qemu_location, filepath1], stdin=pipe, stdout=pipe, stderr=pipe)
     res = p.communicate(exploiting_input)
     print res, p.returncode
-    nose.tools.assert_equal(p.returncode != -11, True)
-    nose.tools.assert_equal(res[0].startswith(expected1),True)
+    assert p.returncode != -11
+    assert res[0].startswith(expected1)
     '''
 
     expected2 = b"\nWelcome to Palindrome Finder\n\n\tPlease enter a possible palindrome: \t\tYes, that's a palindrome!\n\n\tPlease enter a possible palindrome: "
@@ -339,12 +338,12 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
         p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate("A"*10+"\n")
         print res, p.returncode
-        nose.tools.assert_equal((res[0] == expected2 and p.returncode == 0), True)
+        assert res[0] == expected2 and p.returncode == 0
         seed = str(random.randint(0,1000000000))
         p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(exploiting_input)
         print res, p.returncode
-        nose.tools.assert_equal(p.returncode == -11, True)
+        assert p.returncode == -11
         '''
 
         tmp_file = os.path.join(td, "patched2")
@@ -362,8 +361,8 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
         p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"\x00\x01\x01" + b"A"*1000 + b"\n")
         print(res)
-        nose.tools.assert_equal(res[0] == sane_stdout, True)
-        nose.tools.assert_equal(p.returncode == sane_retcode, True)
+        assert res[0] == sane_stdout
+        assert p.returncode == sane_retcode
 
         '''
         # setjmp/longjmp
@@ -376,8 +375,8 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
         p = subprocess.Popen([qemu_location, "-seed", seed, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(input3)
         print res, p.returncode
-        nose.tools.assert_equal(res[0], expected3)
-        nose.tools.assert_equal(p.returncode, 1)
+        assert res[0] == expected3
+        assert p.returncode == 1
 
         # setjmp/longjmp with cgrex
         tmp_file = os.path.join(td, "patched4")
@@ -395,7 +394,7 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
         patched = (res[0],p.returncode)
         print expected
         print patched
-        nose.tools.assert_equal(expected, patched)
+        assert expected == patched
         '''
 
         ''' # TODO for now this is broken
@@ -415,7 +414,7 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
         patched = (res[0],p.returncode)
         print expected
         print patched
-        nose.tools.assert_equal(expected, patched)
+        assert expected == patched
         '''
 
 
@@ -432,65 +431,65 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
         vulnerable_fname1 = os.path.join(bin_location, tbin)
         if i==0: #do this only the first time
             res = QEMURunner(vulnerable_fname1, b"00000001\n", record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\nCGC")
+            assert res.stdout == b"hello\nCGC"
             res = QEMURunner(vulnerable_fname1, b"00000002\n", record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\nCGC")
+            assert res.stdout == b"hello\nCGC"
             res = QEMURunner(vulnerable_fname1, b"00000003\n", record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\nCGC")
+            assert res.stdout == b"hello\nCGC"
 
             '''
             res = QEMURunner(vulnerable_fname1,"00000001\n23456789\n",record_stdout=True)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x23456789)
+            assert res.reg_vals['eip'] == x23456789
             res = QEMURunner(vulnerable_fname1,"00000002\n43456789\n",record_stdout=True)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x43456789)
+            assert res.reg_vals['eip'] == 0x43456789
             res = QEMURunner(vulnerable_fname1,"00000003\n53456789\n",record_stdout=True)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x53456789)
+            assert res.reg_vals['eip'] == 0x53456789
             res = QEMURunner(vulnerable_fname1,"00000004\n63456789\n",record_stdout=True)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x63456789)
+            assert res.reg_vals['eip'] == 0x63456789
 
             res = QEMURunner(vulnerable_fname1,"00000001\n08048640\n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
-            nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x0)
+            assert res.reg_vals['ebp'] & 0xfffff000 == 0x08048000
+            assert res.reg_vals['eip'] == 0x0
             res = QEMURunner(vulnerable_fname1,"00000002\n08048640\n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
-            nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x0)
+            assert res.reg_vals['ebp'] & 0xfffff000 == 0x08048000
+            assert res.reg_vals['eip'] == 0x0
             res = QEMURunner(vulnerable_fname1,"00000003\n08048640\n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
-            nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x0)
+            assert res.reg_vals['ebp'] & 0xfffff000 == 0x08048000
+            assert res.reg_vals['eip'] == 0x0
             res = QEMURunner(vulnerable_fname1,"00000004\n08048640  \n",record_stdout=True)
             print {k:hex(v) for k,v in res.reg_vals.iteritems()}
-            nose.tools.assert_equal(res.reg_vals['ebp'] & 0xfffff000,0x08048000)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x30303030)
+            assert res.reg_vals['ebp'] & 0xfffff000 == 0x08048000
+            assert res.reg_vals['eip'] == 0x30303030
             '''
 
             res = QEMURunner(vulnerable_fname1, b"00000001\n" + addr_str + b"\n", record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\nCGCCGCCGC")
+            assert res.stdout == b"hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1, b"00000001\nbaaaa000\n", record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\nCGCCGCCGC")
+            assert res.stdout == b"hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1, b"00000001\n" + addr_str + b"\n", record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\nCGCCGCCGC")
+            assert res.stdout == b"hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1, b"00000002\nbaaaa000\n", record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\nCGCCGCCGC")
+            assert res.stdout == b"hello\nCGCCGCCGC"
             '''
             res = QEMURunner(vulnerable_fname1,"00000002\n"+addr_str+"\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+            assert res.stdout == "hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1,"00000002\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+            assert res.stdout == "hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1,"00000003\n"+addr_str+"\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+            assert res.stdout == "hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1,"00000003\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+            assert res.stdout == "hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1,"00000003\n"+addr_str+"\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
+            assert res.stdout == "hello\nCGCCGCCGC"
             res = QEMURunner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            assert res.stdout == "hello\nCGC"
             res = QEMURunner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            assert res.stdout == "hello\nCGC"
             res = QEMURunner(vulnerable_fname1,"00000004\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            assert res.stdout == "hello\nCGC"
             '''
 
         with patcherex.utils.tempdir() as td:
@@ -502,31 +501,31 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             backend.save(patched_fname1)
             # backend.save("/tmp/aaa")
             res = QEMURunner(patched_fname1, b"00000001\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\nCGC")
+            assert res.stdout == b"hello\nCGC"
 
             if i==0:
                 res = QEMURunner(patched_fname1,
                                  b"00000001\n23456789\n",
                                  record_stdout=True,
                                  record_core=True)
-                nose.tools.assert_equal(res.stdout, b"hello\nCGC")
+                assert res.stdout == b"hello\nCGC"
                 print(hex(res.reg_vals['eip']))
-                nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
+                assert res.reg_vals['eip'] != 0x23456789
                 # res = QEMURunner(patched_fname1,"00000002\n23456789\n",record_stdout=True)
-                # nose.tools.assert_equal(res.stdout,"hello\nCGC")
+                # assert res.stdout == "hello\nCGC"
                 # print hex(res.reg_vals['eip'])
-                # nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
+                # assert res.reg_vals['eip'] != 0x23456789
                 # res = QEMURunner(patched_fname1,"00000003\n23456789\n",record_stdout=True)
-                # nose.tools.assert_equal(res.stdout,"hello\nCGC")
+                # assert res.stdout == "hello\nCGC"
                 # print hex(res.reg_vals['eip'])
-                # nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
+                # assert res.reg_vals['eip'] != 0x23456789
                 res = QEMURunner(patched_fname1,
                                  b"00000004\n23456789\n",
                                  record_stdout=True,
                                  record_core=True)
-                nose.tools.assert_equal(res.stdout, b"hello\n")
+                assert res.stdout == b"hello\n"
                 print(hex(res.reg_vals['eip']))
-                nose.tools.assert_true(res.reg_vals['eip'] != 0x23456789)
+                assert res.reg_vals['eip'] != 0x23456789
 
             #main: 08048620, stack: baaaa000, heap: "+addr_str+"
             #main -> heap
@@ -534,62 +533,62 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
                              b"00000001\n" + bytes(addr_str) + b"\n",
                              record_stdout=True,
                              record_core=True)
-            nose.tools.assert_equal(res.stdout, b"hello\nCGC")
+            assert res.stdout == b"hello\nCGC"
             print(hex(res.reg_vals['eip']))
-            nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
+            assert res.reg_vals['eip'] == 0x8047333
             #main -> stack
             res = QEMURunner(patched_fname1,
                              b"00000001\nbaaaa000\n",
                              record_stdout=True,
                              record_core=True)
-            nose.tools.assert_equal(res.stdout, b"hello\nCGC")
+            assert res.stdout == b"hello\nCGC"
             print(hex(res.reg_vals['eip']))
-            nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
+            assert res.reg_vals['eip'] == 0x8047333
             #main -> main
             res = QEMURunner(patched_fname1,
                              b"00000001\n08048000\n",
                              record_stdout=True,
                              record_core=True)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
+            assert res.reg_vals['eip'] == 0x08048004
 
             #stack -> main
             '''
             res = QEMURunner(patched_fname1,"00000002\n08048620\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            assert res.stdout == "hello\nCGC"
             print hex(res.reg_vals['eip'])
-            nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
+            assert res.reg_vals['eip'] == 0x8047333
             '''
             '''
             #stack -> heap
             res = QEMURunner(patched_fname1,"00000002\n"+addr_str+"\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            assert res.stdout == "hello\nCGC"
             print hex(res.reg_vals['eip'])
-            nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
+            assert res.reg_vals['eip'] == 0x8047333
             #stack -> stack
             res = QEMURunner(patched_fname1,"00000002\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            nose.tools.assert_true(res.reg_vals == None)
+            assert res.stdout =="hello\nCGCCGCCGC"
+            assert res.reg_vals is None
             '''
 
             #heap -> main
             '''
             res = QEMURunner(patched_fname1,"00000003\n08048620\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            assert res.stdout == "hello\nCGC"
             print hex(res.reg_vals['eip'])
-            nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
+            assert res.reg_vals['eip'] == 0x8047333
             '''
             '''
             #heap -> stack
             res = QEMURunner(patched_fname1,"00000003\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
+            assert res.stdout == "hello\nCGC"
             print hex(res.reg_vals['eip'])
-            nose.tools.assert_true(res.reg_vals['eip'] == 0x8047333)
+            assert res.reg_vals['eip'] == 0x8047333
             '''
             #heap -> heap
             '''
             res = QEMURunner(patched_fname1,"00000003\n"+addr_str+"\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGCCGCCGC")
-            nose.tools.assert_true(res.reg_vals == None)
+            assert res.stdout == "hello\nCGCCGCCGC"
+            assert res.reg_vals is None
             '''
 
             #unknown -> main
@@ -597,19 +596,19 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
                              b"00000001\n08048000\n",
                              record_stdout=True,
                              record_core=True)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x08048004)
+            assert res.reg_vals['eip'] == 0x08048004
 
             '''
             #unknown -> stack
             res = QEMURunner(patched_fname1,"00000004\nbaaaa000\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            nose.tools.assert_true(res.reg_vals == None)
+            assert res.stdout == "hello\nCGC"
+            assert res.reg_vals is None
             '''
             #unknown -> heap
             '''
             res = QEMURunner(patched_fname1,"00000004\n"+addr_str+"\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout,"hello\nCGC")
-            nose.tools.assert_true(res.reg_vals == None)
+            assert res.stdout == "hello\nCGC"
+            assert res.reg_vals is None
             '''
 
             # call gadget
@@ -617,13 +616,13 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             if i == 0 and BackendClass != ReassemblerBackend:
                 gadget_addr = "08048971"
                 res = QEMURunner(patched_fname1,"00000001\n"+gadget_addr+"\n",record_stdout=True)
-                nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
+                assert res.reg_vals['eip'] == 0x8047332
                 # res = QEMURunner(patched_fname1,"00000002\n08048640\n",record_stdout=True)
-                # nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
+                # assert res.reg_vals['eip'] == 0x8047332
                 # res = QEMURunner(patched_fname1,"00000003\n08048640\n",record_stdout=True)
-                # nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
+                # assert res.reg_vals['eip'] == 0x8047332
                 res = QEMURunner(patched_fname1,"00000004\n"+gadget_addr+"\n",record_stdout=True)
-                nose.tools.assert_equal(res.reg_vals['eip'], 0x8047332)
+                assert res.reg_vals['eip'] == 0x8047332
 
                 patched_fname2 = os.path.join(td, "patched2")
                 backend = BackendClass(vulnerable_fname1+"_exec_allocate",data_fallback,\
@@ -635,9 +634,9 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
                 # backend.save("/tmp/aaa")
 
                 res = QEMURunner(patched_fname1,"00000001\n"+"b7fff000"+"\n",record_stdout=True)
-                nose.tools.assert_true(res.reg_vals['eip'] != 0xb7fff000)
+                assert res.reg_vals['eip'] != 0xb7fff000
                 res = QEMURunner(patched_fname2,"00000001\n"+"b7fff000"+"\n",record_stdout=True)
-                nose.tools.assert_true(res.reg_vals['eip'] == 0xb7fff000) #because we detect executable allocate memory
+                assert res.reg_vals['eip'] == 0xb7fff000 #because we detect executable allocate memory
             '''
 
 
@@ -671,9 +670,9 @@ def test_freeregs():
 
         print(tbin, hex(addr), is_tail, ecx_free, edx_free)
         res = sr.is_reg_free(addr,"ecx",is_tail,debug=True)
-        nose.tools.assert_equal(ecx_free,res)
+        assert ecx_free == res
         res = sr.is_reg_free(addr,"edx",is_tail,debug=True)
-        nose.tools.assert_equal(edx_free,res)
+        assert edx_free == res
 
     #import IPython; IPython.embed()
 
@@ -692,22 +691,22 @@ def test_transmitprotection(BackendClass, data_fallback, try_pdf_removal):
         #open("../../vm/shared/input","wb").write(tinput)
         res = QEMURunner(patched_fname1, tinput, record_stdout=True, record_core=True)
         if expected_crash:
-            nose.tools.assert_true(res.reg_vals!=None)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x8047ffb)
+            assert res.reg_vals!=None
+            assert res.reg_vals['eip'] == 0x8047ffb
         else:
-            nose.tools.assert_true(res.stdout.startswith(b"hello\n\x7fCGC\x01"))
-            nose.tools.assert_true(res.stdout.endswith(b"\x7fCGC\x01"))
+            assert res.stdout.startswith(b"hello\n\x7fCGC\x01")
+            assert res.stdout.endswith(b"\x7fCGC\x01")
             #print repr(res.stdout)
-            nose.tools.assert_equal(len(res.stdout),6+5+5+tsize)
+            assert len(res.stdout) == 6+5+5+tsize
 
     vulnerable_fname1 = os.path.join(bin_location, "patchrex/arbitrary_transmit_O0")
     vulnerable_fname2 = os.path.join(bin_location, "patchrex/arbitrary_transmit_stdin_O0")
 
     res = QEMURunner(vulnerable_fname1, b"08048000\n00000005\n", record_stdout=True)
-    nose.tools.assert_equal(res.stdout, b"hello\n\x7fCGC\x01")
+    assert res.stdout == b"hello\n\x7fCGC\x01"
     res = QEMURunner(vulnerable_fname1, b"08048000\n00000005\n4347c000\n0000000a\n", record_stdout=True)
-    nose.tools.assert_true(res.stdout.startswith(b"hello\n\x7fCGC\x01"))
-    nose.tools.assert_equal(len(res.stdout),15+4+2)
+    assert res.stdout.startswith(b"hello\n\x7fCGC\x01")
+    assert len(res.stdout) == 15+4+2
 
     for nslot in [8,16,32,100,1000]:
         print("nlslot:", nslot)
@@ -731,48 +730,48 @@ def test_transmitprotection(BackendClass, data_fallback, try_pdf_removal):
             base = b"08048000\n00000005\n"
 
             res = QEMURunner(patched_fname1, b"08048000\n00000005\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\n\x7fCGC\x01")
+            assert res.stdout == b"hello\n\x7fCGC\x01"
             res = QEMURunner(patched_fname1,
                              base + b"4347c000\n0000000a\n",
                              record_stdout=True,
                              record_core=True)
-            nose.tools.assert_true(res.stdout.startswith(b"hello\n\x7fCGC\x01"))
-            nose.tools.assert_equal(len(res.stdout),11)
-            nose.tools.assert_equal(res.reg_vals['eip'],0x08047ffc)
+            assert res.stdout.startswith(b"hello\n\x7fCGC\x01")
+            assert len(res.stdout) == 11
+            assert res.reg_vals['eip'] == 0x08047ffc
 
             res = QEMURunner(patched_fname2, b"08048000\n00000005\n",record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\n\x7fCGC\x01")
+            assert res.stdout == b"hello\n\x7fCGC\x01"
             res = QEMURunner(patched_fname2,
                              base + b"4347c000\n0000000a\n",
                              record_stdout=True,
                              record_core=True)
-            nose.tools.assert_true(res.stdout.startswith(b"hello\n\x7fCGC\x01"))
-            nose.tools.assert_equal(len(res.stdout),11)
-            nose.tools.assert_equal(res.reg_vals['eip'], 0x08047ffc)
+            assert res.stdout.startswith(b"hello\n\x7fCGC\x01")
+            assert len(res.stdout)==11
+            assert res.reg_vals['eip'] == 0x08047ffc
 
             res = QEMURunner(patched_fname1, base + b"4347bfff\n00000004\n08048000\n00000005\n", record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\n\x7fCGC\x01\x7fCGC\x01")
+            assert res.stdout == b"hello\n\x7fCGC\x01\x7fCGC\x01"
             res = QEMURunner(patched_fname1, base + b"4347bfff\n00000001\n08048000\n00000005\n", record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\n\x7fCGC\x01\x7fCGC\x01")
+            assert res.stdout == b"hello\n\x7fCGC\x01\x7fCGC\x01"
             res = QEMURunner(patched_fname1, base + b"4347d000\n00000005\n08048000\n00000005\n", record_stdout=True)
-            nose.tools.assert_equal(res.stdout, b"hello\n\x7fCGC\x01\x7fCGC\x01")
+            assert res.stdout == b"hello\n\x7fCGC\x01\x7fCGC\x01"
 
             res = QEMURunner(patched_fname1, base + b"4347c000\n00000004\n08048000\n00000005\n", record_stdout=True)
-            nose.tools.assert_true(res.stdout.startswith(b"hello\n\x7fCGC\x01"))
-            nose.tools.assert_equal(len(res.stdout), 11)
+            assert res.stdout.startswith(b"hello\n\x7fCGC\x01")
+            assert len(res.stdout) == 11
 
             res = QEMURunner(patched_fname1, base + b"4347c000\n00000000\n08048000\n00000005\n", record_stdout=True)
-            nose.tools.assert_true(res.stdout.startswith(b"hello\n\x7fCGC\x01"))
-            nose.tools.assert_equal(len(res.stdout), 16 + 0)
+            assert res.stdout.startswith(b"hello\n\x7fCGC\x01")
+            assert len(res.stdout) == 16 + 0
             res = QEMURunner(patched_fname1, base + b"4347c000\n00000001\n08048000\n00000005\n", record_stdout=True)
-            nose.tools.assert_true(res.stdout.startswith(b"hello\n\x7fCGC\x01"))
-            nose.tools.assert_equal(len(res.stdout), 16 + 1)
+            assert res.stdout.startswith(b"hello\n\x7fCGC\x01")
+            assert len(res.stdout) == 16 + 1
             res = QEMURunner(patched_fname1, base + b"4347c000\n00000002\n08048000\n00000005\n", record_stdout=True)
-            nose.tools.assert_true(res.stdout.startswith(b"hello\n\x7fCGC\x01"))
-            nose.tools.assert_equal(len(res.stdout), 16 + 2)
+            assert res.stdout.startswith(b"hello\n\x7fCGC\x01")
+            assert len(res.stdout) == 16 + 2
             res = QEMURunner(patched_fname1, base + b"4347c000\n00000003\n08048000\n00000005\n", record_stdout=True)
-            nose.tools.assert_true(res.stdout.startswith(b"hello\n\x7fCGC\x01"))
-            nose.tools.assert_equal(len(res.stdout), 16 + 3)
+            assert res.stdout.startswith(b"hello\n\x7fCGC\x01")
+            assert len(res.stdout) == 16 + 3
 
             complex_tests = [
                 (((0,1),(1,1),(2,1),(3,1)),True),
@@ -815,7 +814,7 @@ def test_shiftstack(BackendClass, data_fallback, try_pdf_removal):
         backend.apply_patches(patches)
         backend.save(tmp_file)
         res = QEMURunner(tmp_file,tinput,record_stdout=True)
-        nose.tools.assert_equal(original_output, res.stdout)
+        assert original_output == res.stdout
 
         backend = BackendClass(filepath,data_fallback,try_pdf_removal=try_pdf_removal)
         backend._debugging = True
@@ -824,7 +823,7 @@ def test_shiftstack(BackendClass, data_fallback, try_pdf_removal):
         #backend.save("/tmp/aaa")
         res = QEMURunner(tmp_file,tinput, record_stdout=True, record_core=True)
         original_reg_value = res.reg_vals
-        nose.tools.assert_equal(original_reg_value['eip'], 0x11223344)
+        assert original_reg_value['eip'] == 0x11223344
 
         random_stack_pos = set()
         for _ in range(6):
@@ -842,15 +841,15 @@ def test_shiftstack(BackendClass, data_fallback, try_pdf_removal):
             nesp = res.reg_vals['esp']
             random_stack_pos.add(nesp)
             print(hex(nesp), hex(oesp))
-            nose.tools.assert_true(oesp-pow(2,cp.max_value_pow)<=nesp<=oesp-pow(2,cp.min_value_pow))
+            assert oesp-pow(2,cp.max_value_pow)<=nesp<=oesp-pow(2,cp.min_value_pow)
             original_reg_value_mod = dict(original_reg_value)
             original_reg_value_mod.pop('esp')
             res.reg_vals.pop('esp')
             original_reg_value_mod.pop('eflags')
             res.reg_vals.pop('eflags')
-            nose.tools.assert_equal(original_reg_value_mod, res.reg_vals)
+            assert original_reg_value_mod == res.reg_vals
         print(map(hex,random_stack_pos))
-        nose.tools.assert_true(len(random_stack_pos)>=2)
+        assert len(random_stack_pos)>=2
 
 
 @try_reassembler_and_detour_full # this changes the headers, let't test it in all 4 cases
@@ -877,7 +876,7 @@ def test_nxstack(BackendClass, data_fallback, try_pdf_removal):
             # backend.save("/tmp/aaa")
             # test that behaves like the original
             res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
-            nose.tools.assert_equal(original_output, res.stdout)
+            assert original_output == res.stdout
 
             # check if the stack is where we expect
             backend = BackendClass(filepath,data_fallback,try_pdf_removal=try_pdf_removal)
@@ -890,7 +889,7 @@ def test_nxstack(BackendClass, data_fallback, try_pdf_removal):
             backend.save(tmp_file)
             res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
             nesp = res.reg_vals['esp']
-            nose.tools.assert_true(0xbaaab000 < nesp < 0xbaaac000)
+            assert 0xbaaab000 < nesp < 0xbaaac000
             '''
 
             # check if the stack is really not executable
@@ -916,10 +915,10 @@ def test_nxstack(BackendClass, data_fallback, try_pdf_removal):
                              seed=random.randint(1,1000000000),
                              qemu=shellphish_qemu.qemu_path("cgc-nxtracer"))
             if res.reg_vals == None:
-                nose.tools.assert_equal(res.returncode,46)
+                assert res.returncode == 46
             else:
-                nose.tools.assert_true(0xbaaab000 < res.reg_vals['eip'] < 0xbaaac000)
-                nose.tools.assert_true(res.reg_vals['eax']!=0x000000ab)
+                assert 0xbaaab000 < res.reg_vals['eip'] < 0xbaaac000
+                assert res.reg_vals['eax']!=0x000000ab
 
             '''
             # check if the stack is executable one page before
@@ -941,7 +940,7 @@ def test_nxstack(BackendClass, data_fallback, try_pdf_removal):
             backend.save(tmp_file)
             # backend.save("/tmp/aaa")
             res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
-            nose.tools.assert_equal(res.reg_vals['eax'],0x000000ab)
+            assert res.reg_vals['eax'] == 0x000000ab
 
             # check read write on stack to the expanded one and autogrow
             # test that behaves like the original even after all these pushes
@@ -958,7 +957,7 @@ def test_nxstack(BackendClass, data_fallback, try_pdf_removal):
             backend.save(tmp_file)
             # backend.save("/tmp/aaa")
             res = QEMURunner(tmp_file,tinput,record_stdout=True,seed=random.randint(1,1000000000))
-            nose.tools.assert_equal(original_output, res.stdout)
+            assert original_output == res.stdout
             '''
 
 
@@ -982,10 +981,10 @@ def test_adversarial(BackendClass, data_fallback, try_pdf_removal):
         patched_p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         patched_res = patched_p.communicate(tinput)
 
-        nose.tools.assert_equal(original_res[0],patched_res[0])
-        nose.tools.assert_equal(original_p.returncode,patched_p.returncode)
+        assert original_res[0] == patched_res[0]
+        assert original_p.returncode == patched_p.returncode
         # stderr is different since we leak the flag page there
-        nose.tools.assert_true(original_res[1] != patched_res[1])
+        assert original_res[1] != patched_res[1]
 
 
 @reassembler_only
@@ -1023,9 +1022,9 @@ def test_backdoor(BackendClass, data_fallback, try_pdf_removal):
                 res = QEMURunner(tmp_file,tinput,record_stdout=True,bitflip=bitflip)
                 patched_behavior = res.stdout, res.returncode
                 if index != len(tests)-1:
-                    nose.tools.assert_equal(original_behavior,patched_behavior)
+                    assert original_behavior == patched_behavior
                 else:
-                    nose.tools.assert_true(original_behavior != patched_behavior)
+                    assert original_behavior != patched_behavior
 
             # test some hardcoded values for the real backdoor
             ''' # old qemu seed-->random
@@ -1052,11 +1051,11 @@ def test_backdoor(BackendClass, data_fallback, try_pdf_removal):
                                  seed=seed,
                                  bitflip=bitflip)
                 if index != len(tests)-1:
-                    nose.tools.assert_equal(res.reg_vals['eip'],eip)
-                    nose.tools.assert_equal(res.reg_vals['ebx'],ebx)
+                    assert res.reg_vals['eip'] == eip
+                    assert res.reg_vals['ebx'] == ebx
                 else:
                     # no crash, the backdoor failed
-                    nose.tools.assert_equal(res.reg_vals,None)
+                    assert res.reg_vals is None
 
             # test the fake backdoor
             '''
@@ -1073,8 +1072,8 @@ def test_backdoor(BackendClass, data_fallback, try_pdf_removal):
                 eip_vals.add(res.reg_vals['eip'])
                 ebx_vals.add(res.reg_vals['ebx'])
             # check that ebx and eip are actually randomized by the fake backdoor
-            nose.tools.assert_equal(len(eip_vals),ntests)
-            nose.tools.assert_equal(len(ebx_vals),ntests)
+            assert len(eip_vals) == ntests
+            assert len(ebx_vals) == ntests
 
             # test real backdoor
             for index,tbin in enumerate(bins):
@@ -1091,10 +1090,10 @@ def test_backdoor(BackendClass, data_fallback, try_pdf_removal):
                 if index < len(bins)-1:
                     if not res:
                         print "failed on:", os.path.basename(tbin)
-                    nose.tools.assert_true(res)
+                    assert res
                 else:
                     # the last two are supposed to fail
-                    nose.tools.assert_equal(res,False)
+                    assert res is False
             '''
 
 
@@ -1134,7 +1133,7 @@ def test_bitflip(BackendClass, data_fallback, try_pdf_removal):
                 res = p.communicate(ostr)
                 patched = (res[0], p.returncode)
                 print(test, tlen)
-                nose.tools.assert_equal(expected, patched)
+                assert expected == patched
 
         for test in tests:
             tmp_file = os.path.join(td, "patched")
@@ -1154,7 +1153,7 @@ def test_bitflip(BackendClass, data_fallback, try_pdf_removal):
                 res = p.communicate(ostr)
                 patched = (res[0], p.returncode)
                 print(test, tlen)
-                nose.tools.assert_equal(expected, patched)
+                assert expected == patched
 
 @reassembler_only
 def test_uninitialized(BackendClass, data_fallback, try_pdf_removal):
@@ -1170,7 +1169,7 @@ def test_uninitialized(BackendClass, data_fallback, try_pdf_removal):
 
         # the exploit should no longer work
         pov = os.path.join(poll_location, "CROMU_00070_2.pov")
-        nose.tools.assert_false(CGCPovSimulator().test_binary_pov(pov, tmp_file))
+        assert not CGCPovSimulator().test_binary_pov(pov, tmp_file)
 
         # the poll should still work
         poll_input = b"\x02\x10\x00\xbf\xb6\x7e\xabZ\x3e\xbeG\x01\x06\x00u\xd3\x04E\x8ao" \
@@ -1196,7 +1195,7 @@ def test_uninitialized(BackendClass, data_fallback, try_pdf_removal):
 
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(poll_input)
-        nose.tools.assert_equal(expected_output, res[0])
+        assert expected_output == res[0]
 
 @reassembler_only
 def test_malloc_patcher(BackendClass, data_fallback, try_pdf_removal):
@@ -1212,7 +1211,7 @@ def test_malloc_patcher(BackendClass, data_fallback, try_pdf_removal):
 
         # the exploit should no longer work
         pov = os.path.join(poll_location, "NRFIN_00078_2.pov")
-        nose.tools.assert_false(CGCPovSimulator().test_binary_pov(pov, tmp_file))
+        assert not CGCPovSimulator().test_binary_pov(pov, tmp_file)
 
         # the poll should still work
         poll_input = b"a\x00\x00\x00\x00\x00\x00\x00\x00!\x00\x00\x00D1hTwKsiTm8dFvhwwrLqPiV9gogd52Xsu" \
@@ -1229,7 +1228,7 @@ def test_malloc_patcher(BackendClass, data_fallback, try_pdf_removal):
         '''
         p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(poll_input)
-        nose.tools.assert_equal(expected_output, res[0])
+        assert expected_output == res[0]
         '''
 
 
@@ -1260,9 +1259,9 @@ hello
         """
         import ipdb; ipdb.set_trace()
         res = QEMURunner(tmp_file, crash_test, record_stdout=True, record_core=True)
-        nose.tools.assert_not_equal(res.returncode, 0)
+        assert res.returncode != 0
         # shutil.copy(tmp_file, "/tmp/aaa")
-        nose.tools.assert_equal(res.reg_vals['eip'], 0x41414141)
+        assert res.reg_vals['eip'] == 0x41414141
 
         ok_test = b"""new deliverer
 nick stephens
@@ -1278,8 +1277,8 @@ nick stephens
         res = QEMURunner(tmp_file, ok_test, record_stdout=True)
         actual_ret = res.returncode
         actual_stdout = res.stdout
-        nose.tools.assert_equal(expected_ret, actual_ret)
-        nose.tools.assert_equal(expected_stdout, actual_stdout)
+        assert expected_ret == actual_ret
+        assert expected_stdout == actual_stdout
 
         '''
         backend = BackendClass(filepath2)
@@ -1294,8 +1293,8 @@ nick stephens
         res = QEMURunner(tmp_file, ok_test, record_stdout=True)
         actual_ret = res.returncode
         actual_stdout = res.stdout
-        nose.tools.assert_equal(expected_ret, actual_ret)
-        nose.tools.assert_equal(expected_stdout, actual_stdout)
+        assert expected_ret == actual_ret
+        assert expected_stdout == actual_stdout
         '''
 
 @detour_only
@@ -1318,7 +1317,7 @@ def test_countdown_1(BackendClass, data_fallback, try_pdf_removal):
         pipe = subprocess.PIPE
         p = subprocess.Popen([tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"foo\ntest\n")
-        nose.tools.assert_equal(expected_output, res[0])
+        assert expected_output == res[0]
 
 
 @detour_only
@@ -1341,7 +1340,7 @@ def test_countdown_2(BackendClass, data_fallback, try_pdf_removal):
         pipe = subprocess.PIPE
         p = subprocess.Popen([tmp_file, "-run"], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"foo\n")
-        nose.tools.assert_equal(expected_output, res[0])
+        assert expected_output == res[0]
 
 
 @detour_only
@@ -1366,7 +1365,7 @@ def test_countdown_3(BackendClass, data_fallback, try_pdf_removal):
         pipe = subprocess.PIPE
         p = subprocess.Popen([tmp_file, "-run"], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"foo\ntest\n")
-        nose.tools.assert_equal(expected_output, res[0])
+        assert expected_output == res[0]
 
 
 def run_all():
