@@ -1,3 +1,4 @@
+#pylint: disable=no-self-use, global-statement, missing-class-docstring
 #!/usr/bin/env python
 
 import unittest
@@ -1245,7 +1246,7 @@ class TestCase(unittest.TestCase):
             p = subprocess.Popen([qemu_location, tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
             res = p.communicate(b"A" * 10 + b"\n")
             print(res, p.returncode)
-            assert p.returncode == 1 
+            assert p.returncode == 1
             estr = expected_str([p21,p31])
             print(repr(estr))
             assert res[0].startswith(estr)
