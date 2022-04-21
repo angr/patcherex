@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 
 import os
-import nose
 import struct
 import subprocess
 from collections import defaultdict
@@ -73,8 +72,8 @@ def test_EAGLE_00005_bb():
     bbs = [(0x0804A73C,3),(0x0804BB3D,1),(0x0804A0E5,6),(0x0804A101,3),(0x0804B145,1),(0x0804BB42,2)]
     for addr,ni in bbs:
         n = cfg.model.get_any_node(addr)
-        nose.tools.assert_true(n != None)
-        nose.tools.assert_true(len(n.instruction_addrs) == ni)
+        assert n != None
+        assert len(n.instruction_addrs) == ni
 
     caller_map = [
         (0x8048D28,set([0x8048685,0x804877b])),
@@ -82,10 +81,10 @@ def test_EAGLE_00005_bb():
     ]
     inv_callsites = map_callsites(cfg)
     for b,clist in caller_map:
-        nose.tools.assert_true(is_last_returning_block(b,cfg,backend.project))
+        assert is_last_returning_block(b,cfg,backend.project)
         node_addresses = set([n.addr for n in last_block_to_callers(b,cfg,inv_callsites)])
         print(hex(b), "<--", map(hex, node_addresses))
-        nose.tools.assert_equal(clist,node_addresses)
+        assert clist == node_addresses
 
 
 def test_CADET_00003():
@@ -121,61 +120,61 @@ def test_CADET_00003():
     function_entrypoints = set([f.startpoint.addr for f in non_syscall_functions])
     print("additional:", list(map(hex, function_entrypoints-legitimate_functions)))
     print("skipped:", list(map(hex, legitimate_functions-function_entrypoints)))
-    nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
+    assert function_entrypoints == legitimate_functions
 
     sane_functions = [v for k,v in cfg.functions.items() if is_sane_function(v)]
     function_entrypoints = set([f.startpoint.addr for f in sane_functions])
     print("additional:", list(map(hex, function_entrypoints-legitimate_functions)))
     print("skipped:", list(map(hex, legitimate_functions-function_entrypoints)))
-    nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
+    assert function_entrypoints == legitimate_functions
 
     #something which was wrong in the past
     n = cfg.model.get_any_node(0x80485EC)
-    nose.tools.assert_true(len(n.instruction_addrs) == 1)
-    nose.tools.assert_true(n.instruction_addrs[0] == 0x80485EC)
+    assert len(n.instruction_addrs) == 1
+    assert n.instruction_addrs[0] == 0x80485EC
 
     #all sane functions ends with ret in CADET_00003
     for ff in sane_functions:
         node = cfg.model.get_any_node(ff.addr, is_syscall=False)
-        nose.tools.assert_equal(node!=None,True)
-        nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
+        assert node!=None
+        assert len(node.instruction_addrs)>0
         node = cfg.model.get_any_node(ff.addr+1, is_syscall=False,anyaddr=True)
-        nose.tools.assert_equal(node!=None,True)
-        nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
-        nose.tools.assert_equal(ff.startpoint!=None,True)
-        nose.tools.assert_equal(ff.ret_sites!=None,True)
+        assert node!=None
+        assert len(node.instruction_addrs)>0
+        assert ff.startpoint!=None
+        assert ff.ret_sites!=None
         if ff.addr == 0x080485FC or ff.addr==0x804860C:
-            nose.tools.assert_equal(ff.returning==False,True)
+            assert ff.returning==False
         if ff.returning:
-            nose.tools.assert_equal(len(ff.ret_sites)>0,True)
+            assert len(ff.ret_sites)>0
         for endpoint in ff.ret_sites:
             bb = backend.project.factory.block(endpoint.addr)
             last_instruction = bb.capstone.insns[-1]
-            nose.tools.assert_equal(last_instruction.mnemonic == u"ret", True) 
+            assert last_instruction.mnemonic == u"ret"
 
     syscalls = [v for k,v in cfg.functions.items() if v.is_syscall]
 
     for ff in syscalls:
         bb1 = cfg.model.get_any_node(ff.addr)
-        nose.tools.assert_equal(len(bb1.predecessors) >= 1, True)
+        assert len(bb1.predecessors) >= 1
         bb2 = bb1.predecessors[0]
         bb = backend.project.factory.block(bb2.addr)
         ii = bb.capstone.insns[-1]
-        nose.tools.assert_equal(ii.mnemonic ==  u"int" and ii.op_str == u"0x80", True)
+        assert ii.mnemonic ==  u"int" and ii.op_str == u"0x80"
 
     endpoint_set = set(map(lambda x:(x.addr,x.size),cfg.functions[0x08048230].endpoints))
-    nose.tools.assert_equal(set([(0x080483F4,12),(0x080483D5,20)]),endpoint_set)
+    assert set([(0x080483F4,12),(0x080483D5,20)]) == endpoint_set
     ret_set = set(map(lambda x:(x.addr,x.size),cfg.functions[0x08048230].ret_sites))
-    nose.tools.assert_equal(set([(0x080483F4,12)]),ret_set)
+    assert set([(0x080483F4,12)]) == ret_set
 
     # the following is a case of a bb that should be split by normalization
     # because the bb is split by a "subsequent" jump 
     bb = cfg.model.get_any_node(0x804824F)
-    nose.tools.assert_equal(bb != None, True)
-    nose.tools.assert_equal(bb.size == 13, True)
+    assert bb != None
+    assert bb.size == 13
     bb = cfg.model.get_any_node(0x08048230)
-    nose.tools.assert_equal(bb != None, True)
-    nose.tools.assert_equal(bb.size == 31, True)
+    assert bb != None
+    assert bb.size == 31
 
 
 def test_0b32aa01_01():
@@ -207,42 +206,42 @@ def test_0b32aa01_01():
     function_entrypoints = set([f.startpoint.addr for f in non_syscall_functions])
     print("additional:", list(map(hex,function_entrypoints-legitimate_functions)))
     print("skipped:", list(map(hex,legitimate_functions-function_entrypoints)))
-    nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
+    assert function_entrypoints == legitimate_functions
 
     sane_functions = [v for k,v in cfg.functions.items() if is_sane_function(v)]
     function_entrypoints = set([f.startpoint.addr for f in sane_functions])
     print("additional:", list(map(hex,function_entrypoints-legitimate_functions)))
     print("skipped:", list(map(hex,legitimate_functions-function_entrypoints)))
-    nose.tools.assert_equal(function_entrypoints == legitimate_functions, True)
+    assert function_entrypoints == legitimate_functions
 
     #all sane functions ends with ret in CADET_00003
     for ff in sane_functions:
         node = cfg.model.get_any_node(ff.addr, is_syscall=False)
-        nose.tools.assert_equal(node!=None,True)
-        nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
+        assert node!=None
+        assert len(node.instruction_addrs)>0
         node = cfg.model.get_any_node(ff.addr+1, is_syscall=False,anyaddr=True)
-        nose.tools.assert_equal(node!=None,True)
-        nose.tools.assert_equal(len(node.instruction_addrs)>0,True)
-        nose.tools.assert_equal(ff.startpoint!=None,True)
-        nose.tools.assert_equal(ff.ret_sites!=None,True)
+        assert node!=None
+        assert len(node.instruction_addrs)>0
+        assert ff.startpoint!=None
+        assert ff.ret_sites!=None
         if ff.addr == 0x080485FC or ff.addr==0x8048607:
-            nose.tools.assert_equal(ff.returning==False,True)
+            assert ff.returning==False
         if ff.returning:
-            nose.tools.assert_equal(len(ff.ret_sites)>0,True)
+            assert len(ff.ret_sites)>0
         for endpoint in ff.ret_sites:
             bb = backend.project.factory.block(endpoint.addr)
             last_instruction = bb.capstone.insns[-1]
-            nose.tools.assert_equal(last_instruction.mnemonic == u"ret", True) 
+            assert last_instruction.mnemonic == u"ret"
 
     syscalls = [v for k,v in cfg.functions.items() if v.is_syscall]
 
     for ff in syscalls:
         bb1 = cfg.model.get_any_node(ff.addr)
-        nose.tools.assert_equal(len(bb1.predecessors) >= 1, True)
+        assert len(bb1.predecessors) >= 1
         bb2 = bb1.predecessors[0]
         bb = backend.project.factory.block(bb2.addr)
         ii = bb.capstone.insns[-1]
-        nose.tools.assert_equal(ii.mnemonic ==  u"int" and ii.op_str == u"0x80", True)
+        assert ii.mnemonic ==  u"int" and ii.op_str == u"0x80"
 
 
 def test_detect_syscall_wrapper():
@@ -263,7 +262,7 @@ def test_detect_syscall_wrapper():
             for ff in cfg.functions.values() if cfg_utils.detect_syscall_wrapper(backend,ff)!=None])
     print("syscall wrappers in CROMU_00071:")
     print(map(lambda x:(hex(x[0]),x[1]),syscall_wrappers))
-    nose.tools.assert_equal(syscall_wrappers,legitimate_syscall_wrappers)
+    assert syscall_wrappers == legitimate_syscall_wrappers
 
     filepath = os.path.join(bin_location, "CROMU_00070")
     backend = DetourBackend(filepath)
@@ -282,7 +281,7 @@ def test_detect_syscall_wrapper():
             for ff in cfg.functions.values() if cfg_utils.detect_syscall_wrapper(backend,ff)!=None])
     print("syscall wrappers in CROMU_00070:")
     print(map(lambda x:(hex(x[0]),x[1]),syscall_wrappers))
-    nose.tools.assert_equal(syscall_wrappers,legitimate_syscall_wrappers)
+    assert syscall_wrappers == legitimate_syscall_wrappers
 
 
 def test_is_floatingpoint_function():
@@ -305,9 +304,9 @@ def test_is_floatingpoint_function():
     print(hex(first),hex(last))
     real_start = 0x804d5c6
     real_end = 0x0804D78b
-    nose.tools.assert_true(first == real_start)
-    nose.tools.assert_true(last <= real_end)
-    nose.tools.assert_true(last > real_end-0x20) #I allow some imprecision
+    assert first == real_start
+    assert last <= real_end
+    assert last > real_end-0x20 #I allow some imprecision
 
     filepath = os.path.join(bin_location, "CROMU_00070")
     backend = DetourBackend(filepath)
@@ -328,9 +327,9 @@ def test_is_floatingpoint_function():
     print(hex(first),hex(last))
     real_start = 0x0804D75f
     real_end = 0x0804D924
-    nose.tools.assert_true(first == real_start)
-    nose.tools.assert_true(last <= real_end)
-    nose.tools.assert_true(last > real_end-0x20) #I allow some imprecision
+    assert first == real_start
+    assert last <= real_end
+    assert last > real_end-0x20 #I allow some imprecision
 
 
 def test_fullcfg_properties():
@@ -365,7 +364,7 @@ def test_fullcfg_properties():
                 node_addrs_dict[node_addr].add(ff)
             # check that endpoints are the union of callouts, rets, and jumpouts
             endpoint_union = set(ff.callout_sites).union(set(ff.ret_sites).union(set(ff.jumpout_sites)))
-            nose.tools.assert_equal(set(ff.endpoints),endpoint_union)
+            assert set(ff.endpoints) == endpoint_union
 
             # check that we do not encounter any unexpected jumpout
             if not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and \
@@ -378,23 +377,23 @@ def test_fullcfg_properties():
                             print("unexpected jumpouts in", binary,
                                   list(map(lambda x: hex(x[1]), unexpected_jumpout))
                                   )
-                        nose.tools.assert_equal(len(unexpected_jumpout),0)
+                        assert len(unexpected_jumpout) == 0
 
         # check that every node only belongs to a single function
         for k,v in node_addrs_dict.items():
             if len(v)>1:
                 print("Found node in multiple functions:", hex(k), repr(v))
-            nose.tools.assert_equal(len(v),1)
+            assert len(v) == 1
 
         # check that every node only appears once in the cfg
         nn = set()
         instruction_set = set()
         for n in cfg.model.nodes():
-            nose.tools.assert_true(n.addr not in nn)
+            assert n.addr not in nn
             nn.add(n.addr)
             # check that every instruction appears only in one node
             for iaddr in n.instruction_addrs:
-                nose.tools.assert_true(iaddr not in instruction_set)
+                assert iaddr not in instruction_set
                 instruction_set.add(iaddr)
 
 
@@ -413,7 +412,7 @@ def test_jumpouts_and_indirectcalls():
             cfg_cache["binary"] = cfg
 
         ff  = cfg.functions[function_addr]
-        nose.tools.assert_equal([ a.addr for a in ff.jumpout_sites], jmps)
+        assert [ a.addr for a in ff.jumpout_sites] == jmps
 
     for binary, function_addr in exptected_unresolved_calls:
         if binary in cfg_cache:
@@ -425,7 +424,7 @@ def test_jumpouts_and_indirectcalls():
             cfg_cache["binary"] = cfg
 
         ff  = cfg.functions[function_addr]
-        nose.tools.assert_true(ff.has_unresolved_calls)
+        assert ff.has_unresolved_calls
 
 
 def test_setlongjmp_detection():
@@ -444,9 +443,9 @@ def test_setlongjmp_detection():
         for k,ff in cfg.functions.items():
             msg = "detection failure in %s (%#x vs %#x)"
             if cfg_utils.is_setjmp(backend,ff):
-                nose.tools.assert_equal(setjmp,ff.addr,"setjmp " + msg %(tbin,setjmp,ff.addr))
+                assert setjmp,ff.addr == "setjmp " + msg %(tbin,setjmp,ff.addr)
             elif cfg_utils.is_longjmp(backend,ff):
-                nose.tools.assert_equal(longjmp,ff.addr,"longjmp " + msg %(tbin,setjmp,ff.addr))
+                assert longjmp,ff.addr == "longjmp " + msg %(tbin,setjmp,ff.addr)
 
 
 def run_all():
