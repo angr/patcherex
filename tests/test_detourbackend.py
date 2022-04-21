@@ -1,4 +1,3 @@
-#pylint: disable=no-self-use, global-statement, missing-class-docstring
 #!/usr/bin/env python
 
 import unittest
@@ -23,6 +22,8 @@ global_data_fallback = None
 global_try_pdf_removal = True
 
 class TestCase(unittest.TestCase):
+    # pylint: disable= wildcard-import, no-self-argument, consider-using-with, no-self-use, global-statement, missing-class-docstring
+
     def add_fallback_strategy(f):
         @wraps(f)
         def wrapper(self):
