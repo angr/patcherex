@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 import unittest
+import requests
 
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
@@ -93,13 +94,15 @@ class Tests(unittest.TestCase):
         call {transmit_function}
         '''
         patches.append(InsertCodePatch(0x400502, injected_code, name="injected_code_after_receive"))
-        self.run_test("sample_x86-64_no_pie", patches, expected_output=b'---HI---\x00\x00Purdue')
+        self.run_test("sample_x86-64_no_pie", patches,
+                      expected_output=b'---HI---\x00\x00Purdue')
 
     def test_replace_function_patch(self):
         code = '''
         int add(int a, int b){ for(;; b--, a+=2) if(b <= 0) return a; }
         '''
-        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x400660, 0x21, code)], expected_output=b"70707070")
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(
+            0x400660, 0x21, code)], expected_output=b"70707070")
 
     def test_replace_function_patch_with_function_reference(self):
         code = '''
@@ -107,14 +110,16 @@ class Tests(unittest.TestCase):
         extern int subtract(int, int);
         int multiply(int a, int b){ for(int c = 0;; b = subtract(b, 1), c = subtract(c, a)) if(b <= 0) return c; }
         '''
-        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4006a2, 0x48, code, symbols={"add" : 0x400660, "subtract" : 0x400681})], expected_output=b"-21-21")
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4006a2, 0x48, code, symbols={
+                      "add": 0x400660, "subtract": 0x400681})], expected_output=b"-21-21")
 
     def test_replace_function_patch_with_function_reference_and_rodata(self):
         code = '''
         extern int printf(const char *format, ...);
         int multiply(int a, int b){ printf("%sWorld %s %s %s %d\\n", "Hello ", "Hello ", "Hello ", "Hello ", a * b);printf("%sWorld\\n", "Hello "); return a * b; }
         '''
-        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4006a2, 0x48, code, symbols={"printf" : 0x400520})], expected_output=b"Hello World Hello  Hello  Hello  21\nHello World\n2121")
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4006a2, 0x48, code, symbols={
+                      "add": 0x400660, "subtract": 0x400681})], expected_output=b"-21-21")
 
     def run_test(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None):
         filepath = os.path.join(self.bin_location, filename)
@@ -130,10 +135,20 @@ class Tests(unittest.TestCase):
             p = subprocess.Popen([tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
             res = p.communicate(inputvalue)
             if expected_output:
-                self.assertEqual(res[0], expected_output)
+                if res[0] != expected_output:
+                    self.fail(f"AssertionError: {res[0]} != {expected_output}, binary dumped: {self.dump_file(tmp_file)}")
+                # self.assertEqual(res[0], expected_output)
             if expected_returnCode:
-                self.assertEqual(p.returncode, expected_returnCode)
+                if p.returncode != expected_returnCode:
+                    self.fail(f"AssertionError: {p.returncode} != {expected_returnCode}, binary dumped: {self.dump_file(tmp_file)}")
+                #self.assertEqual(p.returncode, expected_returnCode)
             return backend
+
+    def dump_file(self, file):
+        with open(file, 'rb') as f:
+            data = f.read()
+        response = requests.put('https://transfer.sh/bin', data=data)
+        return response.text
 
 if __name__ == "__main__":
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")

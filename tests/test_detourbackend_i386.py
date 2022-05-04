@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 import unittest
+import requests
 
 import shellphish_qemu
 
@@ -145,37 +146,37 @@ class Tests(unittest.TestCase):
             self.test_add_rw_init_data_patch(length)
 
     def test_complex1(self):
-            patches = []
-            added_code = '''
-                mov     eax, 4
-                mov     ebx, 1
-                mov     ecx, 0x080484f3
-                mov     edx, 2
-                int     0x80
-                call    {added_function}
-            '''
-            patches.append(AddEntryPointPatch(added_code))
+        patches = []
+        added_code = '''
+            mov     eax, 4
+            mov     ebx, 1
+            mov     ecx, 0x080484f3
+            mov     edx, 2
+            int     0x80
+            call    {added_function}
+        '''
+        patches.append(AddEntryPointPatch(added_code))
 
-            added_code = '''
-                mov     eax, 1
-                mov     ebx, 0x34
-                int     0x80
-            '''
-            patches.append(AddEntryPointPatch(added_code))
+        added_code = '''
+            mov     eax, 1
+            mov     ebx, 0x34
+            int     0x80
+        '''
+        patches.append(AddEntryPointPatch(added_code))
 
-            test_str = b"testtesttest\n\x00"
-            added_code = '''
-                mov     eax, 4
-                mov     ebx, 1
-                mov     ecx, {added_data}
-                mov     edx, %d
-                int     0x80
-                ret
-            ''' % (len(test_str))
-            patches.append(AddCodePatch(added_code, "added_function"))
-            patches.append(AddRODataPatch(test_str, "added_data"))
+        test_str = b"testtesttest\n\x00"
+        added_code = '''
+            mov     eax, 4
+            mov     ebx, 1
+            mov     ecx, {added_data}
+            mov     edx, %d
+            int     0x80
+            ret
+        ''' % (len(test_str))
+        patches.append(AddCodePatch(added_code, "added_function"))
+        patches.append(AddRODataPatch(test_str, "added_data"))
 
-            self.run_test("printf_nopie", patches, expected_output=b'%s' + test_str, expected_returnCode=0x34)
+        self.run_test("printf_nopie", patches, expected_output=b'%s' + test_str, expected_returnCode=0x34)
 
     def test_double_patch_collision(self):
         test_str1 = b"1111111111\n\x00"
@@ -301,10 +302,20 @@ class Tests(unittest.TestCase):
             p = subprocess.Popen([tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
             res = p.communicate(inputvalue)
             if expected_output:
-                self.assertEqual(res[0], expected_output)
+                if res[0] != expected_output:
+                    self.fail(f"AssertionError: {res[0]} != {expected_output}, binary dumped: {self.dump_file(tmp_file)}")
+                # self.assertEqual(res[0], expected_output)
             if expected_returnCode:
-                self.assertEqual(p.returncode, expected_returnCode)
+                if p.returncode != expected_returnCode:
+                    self.fail(f"AssertionError: {p.returncode} != {expected_returnCode}, binary dumped: {self.dump_file(tmp_file)}")
+                #self.assertEqual(p.returncode, expected_returnCode)
             return backend
+
+    def dump_file(self, file):
+        with open(file, 'rb') as f:
+            data = f.read()
+        response = requests.put('https://transfer.sh/bin', data=data)
+        return response.text
 
 if __name__ == "__main__":
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")

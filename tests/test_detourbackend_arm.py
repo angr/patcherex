@@ -4,6 +4,7 @@ import logging
 import os
 import subprocess
 import unittest
+import requests
 
 import shellphish_qemu
 
@@ -152,33 +153,33 @@ class Tests(unittest.TestCase):
             self.test_add_rw_init_data_patch(length)
 
     def test_complex1(self):
-            patches = []
-            added_code = '''
-                mov r7, 0x4
-                mov r0, 0x1
-                ldr r1, =0x10450
-                mov r2, 2
-                svc 0
-                bl {added_function}
-                mov r7, 0x1
-                mov r0, 0x34
-                svc 0
-            '''
-            patches.append(AddEntryPointPatch(added_code))
+        patches = []
+        added_code = '''
+            mov r7, 0x4
+            mov r0, 0x1
+            ldr r1, =0x10450
+            mov r2, 2
+            svc 0
+            bl {added_function}
+            mov r7, 0x1
+            mov r0, 0x34
+            svc 0
+        '''
+        patches.append(AddEntryPointPatch(added_code))
 
-            test_str = b"testtesttest\n\x00"
-            added_code = '''
-                mov r7, 0x4
-                mov r0, 0x1
-                ldr r1, ={added_data}
-                mov r2, %d
-                svc 0
-                bx lr
-            ''' % (len(test_str))
-            patches.append(AddCodePatch(added_code, "added_function", is_thumb=True))
-            patches.append(AddRODataPatch(test_str, "added_data"))
+        test_str = b"testtesttest\n\x00"
+        added_code = '''
+            mov r7, 0x4
+            mov r0, 0x1
+            ldr r1, ={added_data}
+            mov r2, %d
+            svc 0
+            bx lr
+        ''' % (len(test_str))
+        patches.append(AddCodePatch(added_code, "added_function", is_thumb=True))
+        patches.append(AddRODataPatch(test_str, "added_data"))
 
-            self.run_test("printf_nopie", patches, expected_output=b'%s' + test_str, expected_returnCode=0x34)
+        self.run_test("printf_nopie", patches, expected_output=b'%s' + test_str, expected_returnCode=0x34)
 
     def test_double_patch_collision(self):
         test_str1 = b"1111111111\n\x00"
@@ -284,10 +285,20 @@ class Tests(unittest.TestCase):
             p = subprocess.Popen([self.qemu_location, "-L", "/usr/arm-linux-gnueabihf", tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
             res = p.communicate(inputvalue)
             if expected_output:
-                self.assertEqual(res[0], expected_output)
+                if res[0] != expected_output:
+                    self.fail(f"AssertionError: {res[0]} != {expected_output}, binary dumped: {self.dump_file(tmp_file)}")
+                # self.assertEqual(res[0], expected_output)
             if expected_returnCode:
-                self.assertEqual(p.returncode, expected_returnCode)
+                if p.returncode != expected_returnCode:
+                    self.fail(f"AssertionError: {p.returncode} != {expected_returnCode}, binary dumped: {self.dump_file(tmp_file)}")
+                #self.assertEqual(p.returncode, expected_returnCode)
             return backend
+
+    def dump_file(self, file):
+        with open(file, 'rb') as f:
+            data = f.read()
+        response = requests.put('https://transfer.sh/bin', data=data)
+        return response.text
 
 if __name__ == "__main__":
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
