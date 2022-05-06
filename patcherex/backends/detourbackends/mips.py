@@ -177,9 +177,9 @@ class DetourBackendMips(DetourBackendElf):
                     instructions += "lw $ra, 0($sp)\nlw $v0, 4($sp)\naddi $sp, $sp, 8"
                     instructions += "\nj {}".format(hex(int(old_oep)))
                 else: # 64 bits
-                    instructions = "dsub $sp, $sp, 16\nsd $v0, 8($sp)\nsd $ra, 0($sp)"
+                    instructions = "dsub $sp, $sp, 0x10\nsd $v0, 8($sp)\nsd $ra, 0($sp)"
                     instructions += patch.asm_code
-                    instructions += "ld $ra, 0($sp)\nld $v0, 8($sp)\ndaddi $sp, $sp, 16"
+                    instructions += "ld $ra, 0($sp)\nld $v0, 8($sp)\ndaddi $sp, $sp, 0x10"
                     instructions += "\nj {}".format(hex(int(old_oep)))
                 new_code = self.compile_asm(instructions,
                                              self.get_current_code_position(),

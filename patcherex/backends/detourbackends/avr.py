@@ -182,18 +182,18 @@ class DetourBackendAVR(DetourBackendElf):
             data_load_start_hi8, data_load_start_lo8 = data_load_start >> 8, data_load_start & 0xFF
 
             do_copy_data_code = '''
-                ldi r17, %d
-                ldi r26, %d
-                ldi r27, %d
-                ldi r30, %d
-                ldi r31, %d
+                ldi r17, %s
+                ldi r26, %s
+                ldi r27, %s
+                ldi r30, %s
+                ldi r31, %s
                 rjmp +0x16
                 lpm r0, z+
                 st x+, r0
-                cpi r26, %d
+                cpi r26, %s
                 cpc r27, r17
                 brne 0x2
-            ''' % (data_end_hi8, data_start_lo8, data_start_hi8, data_load_start_lo8, data_load_start_hi8, data_end_lo8)
+            ''' % (hex(data_end_hi8), hex(data_start_lo8), hex(data_start_hi8), hex(data_load_start_lo8), hex(data_load_start_hi8), hex(data_end_lo8))
 
             # TODO: should not be hardcoded to 0x8c
             # we are assuming that 0x8c is end of orginal __do_copy_data and start of __do_clear_bss
@@ -293,7 +293,8 @@ class DetourBackendAVR(DetourBackendElf):
                     current_Shdr['sh_addr'] = self.text_section_size
                 else:
                     current_Shdr['sh_offset'] += len(self.added_code) + len(self.added_data)
-                self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Shdr.build(current_Shdr), current_Ehdr['e_shoff'] + current_Ehdr['e_shentsize'] * current_Shdr_index)
+                self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Shdr.build(
+                    current_Shdr), current_Ehdr['e_shoff'] + current_Ehdr['e_shentsize'] * current_Shdr_index)
 
     def check_if_movable(self, instruction, is_thumb=False):
         # FIXME: assuming only rjmp, rcall, and br* are not movable
@@ -462,6 +463,7 @@ class DetourBackendAVR(DetourBackendElf):
             code += "\n"
         try:
             if name_map is not None:
+                name_map = {k:hex(v) for (k,v) in name_map.items()}
                 code = code.format(**name_map)  # compile_asm
             else:
                 code = re.subn(r'{.*?}', "0x41414141", code)[0]  # solve symbols # TODO
@@ -558,7 +560,8 @@ class DetourBackendAVR(DetourBackendElf):
                 fp.write(linker_script)
 
             # Object File --LinkerScript--> Object File
-            res = utils.exec_cmd("avr-ld -relocatable %s -T %s -o %s" % (object_fname, linker_script_fname, object2_fname), shell=True)
+            res = utils.exec_cmd("avr-ld -relocatable %s -T %s -o %s" %
+                                 (object_fname, linker_script_fname, object2_fname), shell=True)
             if res[2] != 0:
                 raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
 

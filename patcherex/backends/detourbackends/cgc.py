@@ -524,12 +524,12 @@ class DetourBackendCgc(Backend):
                 _skip_data:
                     mov esi, _to_init_data
                     mov edi, %s
-                    mov ecx, %d
+                    mov ecx, %s
                     cld
                     rep movsb
                 ''' % (",".join([hex(x) for x in self.to_init_data]), \
                         hex(self.name_map["ADDED_DATA_START"] + self.added_rwdata_len), \
-                        self.added_rwinitdata_len)
+                        hex(self.added_rwinitdata_len))
                 patches.append(AddEntryPointPatch(code,priority=1000,name="INIT_DATA"))
 
             # 1.3) AddRODataPatch

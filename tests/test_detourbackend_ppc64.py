@@ -35,7 +35,7 @@ class Tests(unittest.TestCase):
     def test_add_code_patch(self):
         added_code = '''
             li r0, 1
-            li r3, 50
+            li r3, 0x32
             sc
         '''
         self.run_test("printf_nopie", [AddCodePatch(added_code, "added_code")], set_oep="added_code", expected_returnCode=0x32)
@@ -47,9 +47,9 @@ class Tests(unittest.TestCase):
             li r3, 1
             lis r4, {added_data}@h
             ori r4, r4, {added_data}@l
-            li r5, %d
+            li r5, %s
             sc
-        ''' % (len(test_str))
+        ''' % hex(len(test_str))
         p1 = InsertCodePatch(0x1000065c, added_code)
         p2 = AddRODataPatch(test_str, "added_data")
 
@@ -82,9 +82,9 @@ class Tests(unittest.TestCase):
             li r3, 1
             lis r4, {added_data}@h
             ori r4, r4, {added_data}@l
-            li r5, %d
+            li r5, %s
             sc
-        ''' % tlen
+        ''' % hex(tlen)
         p2 = InsertCodePatch(0x1000065c, added_code, "added_code")
 
         self.run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0x0)
@@ -94,7 +94,7 @@ class Tests(unittest.TestCase):
         added_code = '''
             li r3, 0x41
             li r4, 0x0
-            li r5, %d
+            li r5, %s
             lis r6, {added_data_rw}@h
             ori r6, r6, {added_data_rw}@l
             _loop:
@@ -110,7 +110,7 @@ class Tests(unittest.TestCase):
             lis r4, {added_data_rw}@h
             ori r4, r4, {added_data_rw}@l
             sc
-        ''' % tlen
+        ''' % hex(tlen)
         p2 = InsertCodePatch(0x1000065c, added_code, "modify_and_print")
 
         self.run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0)
@@ -122,9 +122,9 @@ class Tests(unittest.TestCase):
             li r3, 1
             lis r4, {added_data_rw}@h
             ori r4, r4, {added_data_rw}@l
-            li r5, %d
+            li r5, %s
             sc
-        ''' % tlen
+        ''' % hex(tlen)
         p2 = InsertCodePatch(0x1000065c, added_code, "print")
 
         self.run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0)
@@ -182,10 +182,10 @@ class Tests(unittest.TestCase):
             li r3, 1
             lis r4, {added_data}@h
             ori r4, r4, {added_data}@l
-            li r5, %d
+            li r5, %s
             sc
             blr
-        ''' % (len(test_str))
+        ''' % hex(len(test_str))
         patches.append(AddCodePatch(added_code, "added_function"))
         patches.append(AddRODataPatch(test_str, "added_data"))
 
@@ -199,17 +199,17 @@ class Tests(unittest.TestCase):
             li r3, 1
             lis r4, {str1}@h
             ori r4, r4, {str1}@l
-            li r5, %d
+            li r5, %s
             sc
-        ''' % (len(test_str1))
+        ''' % hex(len(test_str1))
         added_code2 = '''
             li r0, 4
             li r3, 1
             lis r4, {str2}@h
             ori r4, r4, {str2}@l
-            li r5, %d
+            li r5, %s
             sc
-        ''' % (len(test_str2))
+        ''' % hex(len(test_str2))
 
         p1 = InsertCodePatch(0x1000065c, added_code1, name="p1", priority=100)
         p2 = InsertCodePatch(0x1000065c, added_code2, name="p2", priority=1)

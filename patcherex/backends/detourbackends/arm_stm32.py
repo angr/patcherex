@@ -282,9 +282,9 @@ class DetourBackendArmStm32(DetourBackendArm):
         # I don't know why but "b target" simply won't work, so I use "bl target" instead
         jmp_str = '''
             push {{lr}}
-            bl %d
+            bl %s
             pop {{pc}}
-        ''' % target
+        ''' % hex(target)
         print(hex(origin))
         return self.compile_asm(jmp_str, base=origin, name_map=self.name_map,is_thumb=is_thumb)
 

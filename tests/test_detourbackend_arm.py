@@ -46,9 +46,9 @@ class Tests(unittest.TestCase):
             mov r7, 0x4
             mov r0, 0x1
             ldr r1, ={added_data}
-            mov r2, %d
+            mov r2, %s
             svc 0
-        ''' % (len(test_str))
+        ''' % hex(len(test_str))
         p1 = InsertCodePatch(0x103ec, added_code)
         p2 = AddRODataPatch(test_str, "added_data")
 
@@ -79,9 +79,9 @@ class Tests(unittest.TestCase):
             mov r7, 0x4
             mov r0, 0x1
             ldr r1, ={added_data}
-            mov r2, %d
+            mov r2, %s
             svc 0
-        ''' % tlen
+        ''' % hex(tlen)
         p2 = InsertCodePatch(0x103ec, added_code, "added_code")
 
         self.run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0x0)
@@ -92,7 +92,7 @@ class Tests(unittest.TestCase):
             mov r7, 0x4
             mov r0, 0x41
             mov r1, 0x0
-            mov r2, %d
+            mov r2, %s
             ldr r3, ={added_data_rw}
             _loop:
                 cmp r1, r2
@@ -104,7 +104,7 @@ class Tests(unittest.TestCase):
             mov r0, 0x1
             ldr r1, ={added_data_rw}
             svc 0
-        ''' % tlen
+        ''' % hex(tlen)
         p2 = InsertCodePatch(0x103ec, added_code, "modify_and_print")
 
         self.run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0)
@@ -115,9 +115,9 @@ class Tests(unittest.TestCase):
             mov r7, 0x4
             mov r0, 0x1
             ldr r1, ={added_data_rw}
-            mov r2, %d
+            mov r2, %s
             svc 0
-        ''' % tlen
+        ''' % hex(tlen)
         p2 = InsertCodePatch(0x103ec, added_code, "print")
 
         self.run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0)
@@ -172,10 +172,10 @@ class Tests(unittest.TestCase):
             mov r7, 0x4
             mov r0, 0x1
             ldr r1, ={added_data}
-            mov r2, %d
+            mov r2, %s
             svc 0
             bx lr
-        ''' % (len(test_str))
+        ''' % hex(len(test_str))
         patches.append(AddCodePatch(added_code, "added_function", is_thumb=True))
         patches.append(AddRODataPatch(test_str, "added_data"))
 
@@ -188,16 +188,16 @@ class Tests(unittest.TestCase):
             mov r7, 0x4
             mov r0, 0x1
             ldr r1, ={str1}
-            mov r2, %d
+            mov r2, %s
             svc 0
-        ''' % (len(test_str1))
+        ''' % hex(len(test_str1))
         added_code2 = '''
             mov r7, 0x4
             mov r0, 0x1
             ldr r1, ={str2}
-            mov r2, %d
+            mov r2, %s
             svc 0
-        ''' % (len(test_str2))
+        ''' % hex(len(test_str2))
 
         p1 = InsertCodePatch(0x103ec, added_code1, name="p1", priority=100)
         p2 = InsertCodePatch(0x103ec, added_code2, name="p2", priority=1)

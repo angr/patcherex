@@ -78,7 +78,7 @@ class TestCase(unittest.TestCase):
             added_code = '''
                 mov     eax, 1
                 mov     ebx, 0x32
-                int     80h
+                int     0x80
             '''
             p = AddCodePatch(added_code, "aaa")
             backend.apply_patches([p])
@@ -103,13 +103,13 @@ class TestCase(unittest.TestCase):
                 mov     eax, 2
                 mov     ebx, 0
                 mov     ecx, {added_data}
-                mov     edx, %d
+                mov     edx, %s
                 mov     esi, 0
-                int     80h
+                int     0x80
                 mov     eax, 1
                 mov     ebx, 0x33
-                int     80h
-            ''' % (len(test_str))
+                int     0x80
+            ''' % hex(len(test_str))
             p1 = AddCodePatch(added_code, "aaa")
             p2 = AddRODataPatch(test_str, "added_data")
             backend.apply_patches([p1,p2])
@@ -162,7 +162,7 @@ class TestCase(unittest.TestCase):
             added_code = '''
                 ; print eax as hex
                 pusha
-                mov ecx,32
+                mov ecx,0x20
                 mov ebx,eax
                 _print_reg_loop:
                     rol ebx,4
@@ -183,7 +183,7 @@ class TestCase(unittest.TestCase):
                 xor eax, eax
                 mov edx, {added_data_rw}
                 mov ecx, edx
-                add ecx, %d
+                add ecx, %s
                 _loop:
                     cmp edx,ecx
                     je _exit
@@ -195,7 +195,7 @@ class TestCase(unittest.TestCase):
                     jmp _loop
                 _exit
                 call {print_hex_eax}
-            ''' % tlen
+            ''' % hex(tlen)
             patches.append(AddEntryPointPatch(added_code,"sum"))
 
             with patcherex.utils.tempdir() as td:
@@ -250,7 +250,7 @@ class TestCase(unittest.TestCase):
             added_code = '''
                 ; print eax as hex
                 pusha
-                mov ecx,32
+                mov ecx,0x20
                 mov ebx,eax
                 _print_reg_loop:
                     rol ebx,4
@@ -271,7 +271,7 @@ class TestCase(unittest.TestCase):
                 xor eax, eax
                 mov edx, {added_data_rw}
                 mov ecx, edx
-                add ecx, %d
+                add ecx, %s
                 _loop:
                     cmp edx,ecx
                     je _exit
@@ -283,7 +283,7 @@ class TestCase(unittest.TestCase):
                     jmp _loop
                 _exit
                 call {print_hex_eax}
-            ''' % tlen
+            ''' % hex(tlen)
             patches.append(AddEntryPointPatch(added_code,"sum"))
 
             with patcherex.utils.tempdir() as td:
@@ -340,7 +340,7 @@ class TestCase(unittest.TestCase):
             added_code = '''
                 ; print eax as hex
                 pusha
-                mov ecx,32
+                mov ecx,0x20
                 mov ebx,eax
                 _print_reg_loop:
                     rol ebx,4
@@ -361,7 +361,7 @@ class TestCase(unittest.TestCase):
                 xor eax, eax
                 mov edx, {added_data_rwinit}
                 mov ecx, edx
-                add ecx, %d
+                add ecx, %s
                 _loop:
                     cmp edx,ecx
                     je _exit
@@ -373,7 +373,7 @@ class TestCase(unittest.TestCase):
                     jmp _loop
                 _exit
                 call {print_hex_eax}
-            ''' % tlen
+            ''' % hex(tlen)
             patches.append(AddEntryPointPatch(added_code,"sum"))
 
             with patcherex.utils.tempdir() as td:
@@ -422,31 +422,31 @@ class TestCase(unittest.TestCase):
         common_patches.append(AddCodePatch(added_code,"print"))
         added_code='''
             mov eax, {added_data_ro1}
-            mov ebx, 10
+            mov ebx, 0xa
             call {print}
             mov eax, {added_data_rw1}
-            mov ebx, 10
+            mov ebx, 0xa
             call {print}
             mov eax, {added_data_rwinit1}
-            mov ebx, 10
+            mov ebx, 0xa
             call {print}
             mov eax, {added_data_ro2}
-            mov ebx, 10
+            mov ebx, 0xa
             call {print}
             mov eax, {added_data_rw2}
-            mov ebx, 10
+            mov ebx, 0xa
             call {print}
             mov eax, {added_data_rwinit2}
-            mov ebx, 10
+            mov ebx, 0xa
             call {print}
             mov eax, {added_data_ro3}
-            mov ebx, 10
+            mov ebx, 0xa
             call {print}
             mov eax, {added_data_rw3}
-            mov ebx, 10
+            mov ebx, 0xa
             call {print}
             mov eax, {added_data_rwinit3}
-            mov ebx, 10
+            mov ebx, 0xa
             call {print}
             ret
         '''
@@ -532,13 +532,13 @@ class TestCase(unittest.TestCase):
                 mov     eax, 2
                 mov     ebx, 0
                 mov     ecx, {added_data}
-                mov     edx, %d
+                mov     edx, %s
                 mov     esi, 0
-                int     80h
+                int     0x80
                 mov     eax, 1
                 mov     ebx, 0x33
-                int     80h
-            ''' % (len(test_str))
+                int     0x80
+            ''' % hex(len(test_str))
             p1 = AddCodePatch(added_code, "aaa")
             p2 = AddRODataPatch(test_str, "added_data")
             backend.apply_patches([p1,p2])
@@ -564,10 +564,10 @@ class TestCase(unittest.TestCase):
                 mov     eax, 2
                 mov     ebx, 0
                 mov     ecx, {qq}
-                mov     edx, %d
+                mov     edx, %s
                 mov     esi, 0
-                int     80h
-            ''' % (len(test_str))
+                int     0x80
+            ''' % hex(len(test_str))
             p1 = InsertCodePatch(0x80480A6, added_code)
             p2 = AddRODataPatch(test_str, "qq")
             backend.apply_patches([p1,p2])
@@ -592,9 +592,9 @@ class TestCase(unittest.TestCase):
                 mov     eax, 2
                 mov     ebx, 0
                 mov     ecx, 0x08048786
-                mov     edx, 15
+                mov     edx, 0xf
                 mov     esi, 0
-                int     80h
+                int     0x80
             '''
             p = AddEntryPointPatch(added_code)
             backend.apply_patches([p])
@@ -619,16 +619,16 @@ class TestCase(unittest.TestCase):
                 mov     eax, 2
                 mov     ebx, 0
                 mov     ecx, 0x08048786
-                mov     edx, 15
+                mov     edx, 0xf
                 mov     esi, 0
-                int     80h
+                int     0x80
                 call    {added_function}
             '''
             patches.append(AddEntryPointPatch(added_code))
             added_code = '''
                 mov     eax, 1
                 mov     ebx, 0x34
-                int     80h
+                int     0x80
             '''
             patches.append(AddEntryPointPatch(added_code))
             test_str = b"testtesttest\n\x00"
@@ -636,11 +636,11 @@ class TestCase(unittest.TestCase):
                 mov     eax, 2
                 mov     ebx, 0
                 mov     ecx, {added_data}
-                mov     edx, %d
+                mov     edx, %s
                 mov     esi, 0
-                int     80h
+                int     0x80
                 ret
-            ''' % (len(test_str))
+            ''' % hex(len(test_str))
             patches.append(AddCodePatch(added_code, "added_function"))
             patches.append(AddRODataPatch(test_str, "added_data"))
             backend.apply_patches(patches)
@@ -665,21 +665,21 @@ class TestCase(unittest.TestCase):
                 mov     eax, 2
                 mov     ebx, 0
                 mov     ecx, {str1}
-                mov     edx, %d
+                mov     edx, %s
                 mov     esi, 0
-                int     80h
+                int     0x80
                 popa
-            ''' % (len(test_str1))
+            ''' % hex(len(test_str1))
             added_code2 = '''
                 pusha
                 mov     eax, 2
                 mov     ebx, 0
                 mov     ecx, {str2}
-                mov     edx, %d
+                mov     edx, %s
                 mov     esi, 0
-                int     80h
+                int     0x80
                 popa
-            ''' % (len(test_str2))
+            ''' % hex(len(test_str2))
 
             backend = DetourBackend(filepath,data_fallback=global_data_fallback,try_pdf_removal=global_try_pdf_removal)
             p1 = InsertCodePatch(0x080480A0, added_code1, name="p1", priority=100)
@@ -814,7 +814,7 @@ class TestCase(unittest.TestCase):
             added_code = '''
                 ; print eax as hex
                 pusha
-                mov ecx,32
+                mov ecx,0x20
                 mov ebx,eax
                 _print_reg_loop:
                     rol ebx,4
@@ -849,7 +849,7 @@ class TestCase(unittest.TestCase):
             added_code = '''
                 mov     ebx, eax
                 mov     eax, 0x1
-                int     80h
+                int     0x80
             '''
             patches.append(AddCodePatch(added_code,"exit_eax"))
 
@@ -982,7 +982,7 @@ class TestCase(unittest.TestCase):
             mov     ebx, 0
             mov     edx, 4
             mov     esi, 0
-            int     80h
+            int     0x80
             popa
             ret
         '''
@@ -1261,7 +1261,7 @@ class TestCase(unittest.TestCase):
         added_code = '''
             ; print eax as hex
             pusha
-            mov ecx,32
+            mov ecx,0x20
             mov ebx,eax
             _print_reg_loop:
                 rol ebx,4
@@ -1442,7 +1442,7 @@ class TestCase(unittest.TestCase):
             code_print_a = "mov eax, 2; \n" \
                            "mov ebx, 1; \n" \
                            "mov ecx, {the_first_string}; \n" \
-                           "mov edx, 13; \n" \
+                           "mov edx, 0xd; \n" \
                            "mov esi, 0; \n" \
                            "int 0x80;"
             code_print_b = "mov eax, 2; \n" \
@@ -1506,7 +1506,7 @@ Welcome to Palindrome Finder
                 added_code = '''
                     ; print eax as hex
                     pusha
-                    mov ecx,32
+                    mov ecx,0x20
                     mov ebx,eax
                     _print_reg_loop:
                         rol ebx,4

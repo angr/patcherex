@@ -34,8 +34,8 @@ class Tests(unittest.TestCase):
 
     def test_add_code_patch(self):
         added_code = '''
-            dli $v0, 5058
-            dli $a0, 50
+            dli $v0, 0x13c2
+            dli $a0, 0x32
             syscall
         '''
         self.run_test("printf_nopie", [AddCodePatch(added_code, "added_code")], set_oep="added_code", expected_returnCode=0x32)
@@ -43,12 +43,12 @@ class Tests(unittest.TestCase):
     def test_insert_code_patch(self):
         test_str = b"qwertyuiop\n\x00"
         added_code = '''
-            dli $v0, 5001
+            dli $v0, 0x1389
             dli $a0, 1
             dla $a1, {added_data}
-            dli $a2, %d
+            dli $a2, %s
             syscall
-        ''' % (len(test_str))
+        ''' % hex(len(test_str))
         p1 = InsertCodePatch(0x120000b20, added_code)
         p2 = AddRODataPatch(test_str, "added_data")
 
@@ -57,7 +57,7 @@ class Tests(unittest.TestCase):
     def test_add_label_patch(self):
         p1 = AddLabelPatch(0x120000cf9, "added_label")
         added_code = '''
-            dli $v0, 5001
+            dli $v0, 0x1389
             dli $a0, 1
             dla $a1, {added_label}
             dli $a2, 1
@@ -76,12 +76,12 @@ class Tests(unittest.TestCase):
     def test_add_ro_data_patch(self, tlen=5):
         p1 = AddRODataPatch(b"A"*tlen, "added_data")
         added_code = '''
-            dli $v0, 5001
+            dli $v0, 0x1389
             dli $a0, 1
             dla $a1, {added_data}
-            dli $a2, %d
+            dli $a2, %s
             syscall
-        ''' % tlen
+        ''' % hex(tlen)
         p2 = InsertCodePatch(0x120000b20, added_code, "added_code")
 
         self.run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0x0)
@@ -91,7 +91,7 @@ class Tests(unittest.TestCase):
         added_code = '''
             dli $a0, 0x41
             dli $a1, 0x0
-            dli $a2, %d
+            dli $a2, %s
             dla $a3, {added_data_rw}
             _loop:
                 beq $a1, $a2, _exit
@@ -100,11 +100,11 @@ class Tests(unittest.TestCase):
                 daddiu $a3, $a3, 1
                 b _loop
             _exit:
-            dli $v0, 5001
+            dli $v0, 0x1389
             dli $a0, 0x1
             dla $a1, {added_data_rw}
             syscall
-        ''' % tlen
+        ''' % hex(tlen)
         p2 = InsertCodePatch(0x120000b20, added_code, "modify_and_print")
 
         self.run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0)
@@ -112,19 +112,19 @@ class Tests(unittest.TestCase):
     def test_add_rw_init_data_patch(self, tlen=5):
         p1 = AddRWInitDataPatch(b"A"*tlen, "added_data_rw")
         added_code = '''
-            dli $v0, 5001
+            dli $v0, 0x1389
             dli $a0, 1
             dla $a1, {added_data_rw}
-            dli $a2, %d
+            dli $a2, %s
             syscall
-        ''' % tlen
+        ''' % hex(tlen)
         p2 = InsertCodePatch(0x120000b20, added_code, "print")
 
         self.run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0)
 
     def test_add_entry_point_patch(self):
         added_code = '''
-            dli $v0, 5001
+            dli $v0, 0x1389
             dli $a0, 1
             dla $a1, 0x120000cf8
             dli $a2, 2
@@ -137,7 +137,7 @@ class Tests(unittest.TestCase):
             dli $a0, 0
             %s
             move $a0, $v0
-            dli $v0, 5001
+            dli $v0, 0x1389
             dla $a1, 0x120000cf9
             dli $a2, 1
             syscall
@@ -155,13 +155,13 @@ class Tests(unittest.TestCase):
     def test_complex1(self):
         patches = []
         added_code = '''
-            dli $v0, 5001
+            dli $v0, 0x1389
             dli $a0, 1
             dla $a1, 0x120000cf8
             dli $a2, 2
             syscall
             jal {added_function}
-            dli $v0, 5058
+            dli $v0, 0x13c2
             dli $a0, 0x34
             syscall
         '''
@@ -169,13 +169,13 @@ class Tests(unittest.TestCase):
 
         test_str = b"testtesttest\n\x00"
         added_code = '''
-            dli $v0, 5001
+            dli $v0, 0x1389
             dli $a0, 1
             dla $a1, {added_data}
-            dli $a2, %d
+            dli $a2, %s
             syscall
             jr $ra
-        ''' % (len(test_str))
+        ''' % hex(len(test_str))
         patches.append(AddCodePatch(added_code, "added_function"))
         patches.append(AddRODataPatch(test_str, "added_data"))
 
@@ -185,19 +185,19 @@ class Tests(unittest.TestCase):
         test_str1 = b"1111111111\n\x00"
         test_str2 = b"2222222222\n\x00"
         added_code1 = '''
-            dli $v0, 5001
+            dli $v0, 0x1389
             dli $a0, 1
             dla $a1, {str1}
-            dli $a2, %d
+            dli $a2, %s
             syscall
-        ''' % (len(test_str1))
+        ''' % hex(len(test_str1))
         added_code2 = '''
-            dli $v0, 5001
+            dli $v0, 0x1389
             dli $a0, 1
             dla $a1, {str2}
-            dli $a2, %d
+            dli $a2, %s
             syscall
-        ''' % (len(test_str2))
+        ''' % hex(len(test_str2))
 
         p1 = InsertCodePatch(0x120000b20, added_code1, name="p1", priority=100)
         p2 = InsertCodePatch(0x120000b20, added_code2, name="p2", priority=1)

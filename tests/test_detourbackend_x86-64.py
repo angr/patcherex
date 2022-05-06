@@ -51,7 +51,7 @@ class Tests(unittest.TestCase):
         push r10
         push r8
         push r9
-        mov rdx, 10
+        mov rdx, 0xa
         push $
         call {transmit_function}
         '''
@@ -90,7 +90,7 @@ class Tests(unittest.TestCase):
         push r8
         push r9
         mov rsi, {transmitted_string}
-        mov rdx, 10
+        mov rdx, 0xa
         call {transmit_function}
         '''
         patches.append(InsertCodePatch(0x400502, injected_code, name="injected_code_after_receive"))
