@@ -27,10 +27,12 @@ class Tests(unittest.TestCase):
         self.qemu_location = shellphish_qemu.qemu_path('aarch64')
 
     def test_inline_patch(self):
-        self.run_test("printf_nopie", [InlinePatch(0x400570, "add x1,x0,#0x648")], expected_output=b"%s", expected_returnCode=0)
+        self.run_one("printf_nopie", [InlinePatch(0x400570, "add x1,x0,#0x648")], expected_output=b"%s",
+                     expected_returnCode=0)
 
     def test_remove_instruction_patch(self):
-        self.run_test("printf_nopie", [RemoveInstructionPatch(0x400574, 4), RemoveInstructionPatch(0x400641, 4)], expected_output=b"H\x1f\x20\x03\xd5", expected_returnCode=0)
+        self.run_one("printf_nopie", [RemoveInstructionPatch(0x400574, 4), RemoveInstructionPatch(0x400641, 4)],
+                     expected_output=b"H\x1f\x20\x03\xd5", expected_returnCode=0)
 
     def test_add_code_patch(self):
         added_code = '''
@@ -38,7 +40,8 @@ class Tests(unittest.TestCase):
             mov x0, 0x32
             svc 0
         '''
-        self.run_test("printf_nopie", [AddCodePatch(added_code, "added_code")], set_oep="added_code", expected_returnCode=0x32)
+        self.run_one("printf_nopie", [AddCodePatch(added_code, "added_code")], set_oep="added_code",
+                     expected_returnCode=0x32)
 
     def test_insert_code_patch(self):
         test_str = b"qwertyuiop\n\x00"
@@ -52,7 +55,7 @@ class Tests(unittest.TestCase):
         p1 = InsertCodePatch(0x400580, added_code)
         p2 = AddRODataPatch(test_str, "added_data")
 
-        self.run_test("printf_nopie", [p1, p2], expected_output=b"qwertyuiop\n\x00Hi", expected_returnCode=0)
+        self.run_one("printf_nopie", [p1, p2], expected_output=b"qwertyuiop\n\x00Hi", expected_returnCode=0)
 
     def test_add_label_patch(self):
         p1 = AddLabelPatch(0x400649, "added_label")
@@ -65,13 +68,13 @@ class Tests(unittest.TestCase):
         '''
         p2 = InsertCodePatch(0x400580, added_code)
 
-        self.run_test("printf_nopie", [p1, p2], expected_output=b"sHi", expected_returnCode=0)
+        self.run_one("printf_nopie", [p1, p2], expected_output=b"sHi", expected_returnCode=0)
 
     def test_raw_file_patch(self):
-        self.run_test("printf_nopie", [RawFilePatch(0x640, b"No")], expected_output=b"No", expected_returnCode=0)
+        self.run_one("printf_nopie", [RawFilePatch(0x640, b"No")], expected_output=b"No", expected_returnCode=0)
 
     def test_raw_mem_patch(self):
-        self.run_test("printf_nopie", [RawMemPatch(0x400640, b"No")], expected_output=b"No", expected_returnCode=0)
+        self.run_one("printf_nopie", [RawMemPatch(0x400640, b"No")], expected_output=b"No", expected_returnCode=0)
 
     def test_add_ro_data_patch(self, tlen=5):
         p1 = AddRODataPatch(b"A"*tlen, "added_data")
@@ -84,7 +87,7 @@ class Tests(unittest.TestCase):
         ''' % hex(tlen)
         p2 = InsertCodePatch(0x400580, added_code, "added_code")
 
-        self.run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0x0)
+        self.run_one("printf_nopie", [p1, p2], expected_output=b"A" * tlen + b"Hi", expected_returnCode=0x0)
 
     def test_add_rw_data_patch(self, tlen=5):
         p1 = AddRWDataPatch(tlen, "added_data_rw")
@@ -107,7 +110,7 @@ class Tests(unittest.TestCase):
         ''' % hex(tlen)
         p2 = InsertCodePatch(0x400580, added_code, "modify_and_print")
 
-        self.run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0)
+        self.run_one("printf_nopie", [p1, p2], expected_output=b"A" * tlen + b"Hi", expected_returnCode=0)
 
     def test_add_rw_init_data_patch(self, tlen=5):
         p1 = AddRWInitDataPatch(b"A"*tlen, "added_data_rw")
@@ -120,7 +123,7 @@ class Tests(unittest.TestCase):
         ''' % hex(tlen)
         p2 = InsertCodePatch(0x400580, added_code, "print")
 
-        self.run_test("printf_nopie", [p1, p2], expected_output=b"A"*tlen + b"Hi", expected_returnCode=0)
+        self.run_one("printf_nopie", [p1, p2], expected_output=b"A" * tlen + b"Hi", expected_returnCode=0)
 
     def test_add_entry_point_patch(self):
         added_code = '''
@@ -130,7 +133,7 @@ class Tests(unittest.TestCase):
             mov x2, 2
             svc 0
         '''
-        self.run_test("printf_nopie", [AddEntryPointPatch(added_code)], expected_output=b'%sHi', expected_returnCode=0)
+        self.run_one("printf_nopie", [AddEntryPointPatch(added_code)], expected_output=b'%sHi', expected_returnCode=0)
 
     def test_c_compilation(self):
         added_code = '''
@@ -143,7 +146,10 @@ class Tests(unittest.TestCase):
             
         ''' % DetourBackendAarch64.get_c_function_wrapper_code("c_function")
 
-        self.run_test("printf_nopie", [InsertCodePatch(0x400580, added_code, name="p1", priority=1), AddCodePatch("__attribute__((fastcall)) int func(int a){ return a + 1; }", "c_function", is_c=True, compiler_flags="")], expected_output=b"sHi", expected_returnCode=0x0)
+        self.run_one("printf_nopie", [InsertCodePatch(0x400580, added_code, name="p1", priority=1),
+                                      AddCodePatch("__attribute__((fastcall)) int func(int a){ return a + 1; }",
+                                                   "c_function", is_c=True, compiler_flags="")], expected_output=b"sHi",
+                     expected_returnCode=0x0)
 
     def test_add_data_patch_long(self):
         lengths = [0, 1, 5, 10, 100, 1000, 2000, 5000]
@@ -179,7 +185,7 @@ class Tests(unittest.TestCase):
         patches.append(AddCodePatch(added_code, "added_function"))
         patches.append(AddRODataPatch(test_str, "added_data"))
 
-        self.run_test("printf_nopie", patches, expected_output=b'%s' + test_str, expected_returnCode=0x34)
+        self.run_one("printf_nopie", patches, expected_output=b'%s' + test_str, expected_returnCode=0x34)
 
     def test_double_patch_collision(self):
         test_str1 = b"1111111111\n\x00"
@@ -203,13 +209,14 @@ class Tests(unittest.TestCase):
         p2 = InsertCodePatch(0x400580, added_code2, name="p2", priority=1)
         p3 = AddRODataPatch(test_str1, "str1")
         p4 = AddRODataPatch(test_str2, "str2")
-        self.run_test("printf_nopie", [p1, p2, p3, p4], expected_output=test_str1 + b"Hi", try_without_cfg=False)
+        self.run_one("printf_nopie", [p1, p2, p3, p4], expected_output=test_str1 + b"Hi", try_without_cfg=False)
 
         p1 = InsertCodePatch(0x400580, added_code1, name="p1", priority=1)
         p2 = InsertCodePatch(0x400580, added_code2, name="p2", priority=100)
         p3 = AddRODataPatch(test_str1, "str1")
         p4 = AddRODataPatch(test_str2, "str2")
-        backend = self.run_test("printf_nopie", [p1, p2, p3, p4], expected_output=test_str2 + b"Hi", try_without_cfg=False)
+        backend = self.run_one("printf_nopie", [p1, p2, p3, p4], expected_output=test_str2 + b"Hi",
+                               try_without_cfg=False)
         self.assertNotIn(p1, backend.added_patches)
         self.assertIn(p2, backend.added_patches)
 
@@ -217,7 +224,8 @@ class Tests(unittest.TestCase):
         p2 = InsertCodePatch(0x400580+0x4, added_code2, name="p2", priority=100)
         p3 = AddRODataPatch(test_str1, "str1")
         p4 = AddRODataPatch(test_str2, "str2")
-        backend = self.run_test("printf_nopie", [p1, p2, p3, p4], expected_output=test_str2 + b"Hi", try_without_cfg=False)
+        backend = self.run_one("printf_nopie", [p1, p2, p3, p4], expected_output=test_str2 + b"Hi",
+                               try_without_cfg=False)
         self.assertNotIn(p1, backend.added_patches)
         self.assertIn(p2, backend.added_patches)
 
@@ -253,7 +261,7 @@ class Tests(unittest.TestCase):
         code = '''
         int add(int a, int b){ for(;; b--, a+=2) if(b <= 0) return a; }
         '''
-        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x40074c, 68, code)], expected_output=b"70707070")
+        self.run_one("replace_function_patch", [ReplaceFunctionPatch(0x40074c, 68, code)], expected_output=b"70707070")
 
     def test_replace_function_patch_with_function_reference(self):
         code = '''
@@ -261,16 +269,19 @@ class Tests(unittest.TestCase):
         extern int subtract(int, int);
         int multiply(int a, int b){ for(int c = 0;; b = subtract(b, 1), c = subtract(c, a)) if(b <= 0) return c; }
         '''
-        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4007d4, 84, code, symbols={"add" : 0x40074c, "subtract" : 0x400790})], expected_output=b"-21-21")
+        self.run_one("replace_function_patch",
+                     [ReplaceFunctionPatch(0x4007d4, 84, code, symbols={"add": 0x40074c, "subtract": 0x400790})],
+                     expected_output=b"-21-21")
 
     def test_replace_function_patch_with_function_reference_and_rodata(self):
         code = '''
         extern int printf(const char *format, ...);
         int multiply(int a, int b){ printf("%sWorld %s %s %s %d\\n", "Hello ", "Hello ", "Hello ", "Hello ", a * b);printf("%sWorld\\n", "Hello "); return a * b; }
         '''
-        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4007d4, 84, code, symbols={"printf" : 0x400610})], expected_output=b"Hello World Hello  Hello  Hello  21\nHello World\n2121")
+        self.run_one("replace_function_patch", [ReplaceFunctionPatch(0x4007d4, 84, code, symbols={"printf": 0x400610})],
+                     expected_output=b"Hello World Hello  Hello  Hello  21\nHello World\n2121")
 
-    def run_test(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None, try_without_cfg=True):
+    def run_one(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None, try_without_cfg=True):
         filepath = os.path.join(self.bin_location, filename)
         pipe = subprocess.PIPE
 
