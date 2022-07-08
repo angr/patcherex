@@ -581,7 +581,7 @@ class DetourBackendArm(DetourBackendElf):
                 fp.write(linker_script)
 
             if stacklayout is None:
-                res = utils.exec_cmd("clang -target arm-linux-gnueabihf -o %s -c %s %s %s -I /usr/arm-linux-gnueabihf/include/" \
+                res = utils.exec_cmd("clang-6.0 -target arm-linux-gnueabihf -o %s -c %s %s %s -I /usr/arm-linux-gnueabihf/include/" \
                                 % (object_fname, c_fname, compiler_flags, "-mthumb" if is_thumb else "-mno-thumb"), shell=True)
                 if res[2] != 0:
                     raise CLangException("Clang error: " + str(res[0] + res[1], 'utf-8'))
