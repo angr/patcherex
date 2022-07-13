@@ -113,7 +113,7 @@ class Tests(unittest.TestCase):
         int multiply(int a, int b){ printf("%sWorld %s %s %s %d\\n", "Hello ", "Hello ", "Hello ", "Hello ", a * b);printf("%sWorld\\n", "Hello "); return a * b; }
         '''
         self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4006a2, 0x48, code, symbols={
-                      "add": 0x400660, "subtract": 0x400681})], expected_output=b"-21-21")
+                      "add": 0x400660, "subtract": 0x400681, "printf": 0x400520})], expected_output=b"Hello World Hello  Hello  Hello  21\nHello World\n2121")
 
     def run_test(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None):
         filepath = os.path.join(self.bin_location, filename)
