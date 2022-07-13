@@ -10,6 +10,7 @@ import shellphish_qemu
 
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
+from patcherex.backends.detourbackends.i386 import DetourBackendi386
 from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                AddRODataPatch, AddRWDataPatch,
                                AddRWInitDataPatch, InlinePatch,
@@ -33,8 +34,8 @@ class Tests(unittest.TestCase):
 
     def test_add_code_patch(self):
         added_code = '''
-            mov eax, 1      ;sys_exit
-            mov ebx, 0x32   ;return code
+            mov eax, 1      #sys_exit
+            mov ebx, 0x32   #return code
             int 0x80
         '''
         self.run_test("printf_nopie", [AddCodePatch(added_code, "added_code")], set_oep="added_code", expected_returnCode=0x32)
@@ -68,10 +69,10 @@ class Tests(unittest.TestCase):
     def test_add_ro_data_patch(self, tlen=5):
         p1 = AddRODataPatch(b"A"*tlen, "added_data")
         added_code = '''
-            mov eax, 4              ;sys_write
-            mov ebx, 1              ;fd = stdout
-            mov ecx, {added_data}   ;buf
-            mov edx, %s             ;len
+            mov eax, 4              #sys_write
+            mov ebx, 1              #fd = stdout
+            mov ecx, {added_data}   #buf
+            mov edx, %s             #len
             int 0x80
         ''' % hex(tlen)
         p2 = InsertCodePatch(0x8048457, added_code, "added_code")
@@ -88,10 +89,10 @@ class Tests(unittest.TestCase):
             _loop:
                 cmp ecx, edx
                 je _exit
-                mov BYTE [{added_data_rw}+ecx], 0x41
+                mov BYTE ptr [{added_data_rw}+ecx], 0x41
                 add ecx, 1
                 jmp _loop
-            _exit
+            _exit:
             mov ecx, {added_data_rw}
             int 0x80
         ''' % hex(tlen)
@@ -120,8 +121,8 @@ class Tests(unittest.TestCase):
             mov     edx, 2
             int     0x80
 
-            mov     eax, 1 ;sys_exit
-            mov     ebx, 0x1 ;return code
+            mov     eax, 1   #sys_exit
+            mov     ebx, 0x1 #return code
             int     0x80
         '''
         self.run_test("printf_nopie", [AddEntryPointPatch(added_code)], expected_output=b'%s', expected_returnCode=0x1)
@@ -134,7 +135,7 @@ class Tests(unittest.TestCase):
             lea ecx, [0x080484f4]
             mov edx, 1
             int 0x80
-        ''' % patcherex.utils.get_nasm_c_wrapper_code("c_function", get_return=True)
+        ''' % DetourBackendi386.get_c_function_wrapper_code("c_function")
 
         self.run_test("printf_nopie", [InsertCodePatch(0x8048457, added_code, name="p1", priority=1), AddCodePatch("__attribute__((fastcall)) int func(int a){ return a; }", "c_function", is_c=True)], expected_output=b"sHi", expected_returnCode=0x0)
 
@@ -154,10 +155,6 @@ class Tests(unittest.TestCase):
             mov     edx, 2
             int     0x80
             call    {added_function}
-        '''
-        patches.append(AddEntryPointPatch(added_code))
-
-        added_code = '''
             mov     eax, 1
             mov     ebx, 0x34
             int     0x80

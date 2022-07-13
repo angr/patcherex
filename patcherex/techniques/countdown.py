@@ -181,27 +181,27 @@ class Countdown(Technique):
             ''' % (reg_a, self.count_var_name)
 
         code = '''
-            ; update countdown
+            # update countdown
             push %s
             push %s
             push %s
-            ; get address of count_var
+            # get address of count_var
 %s
             mov %s, [%s]
-            ; check if we reached zero
+            # check if we reached zero
             test ebx, ebx
             jle _zero_case
-            ; decrement
+            # decrement
             sub ebx, 1
             mov [%s], %s
-            ; call extra logic and jump to dst_active
+            # call extra logic and jump to dst_active
             pop %s
             pop %s
             pop %s
             call {%s}
             jmp {%s}
             _zero_case:
-            ; call extra logic and jump to dst_zero
+            # call extra logic and jump to dst_zero
             pop %s
             pop %s
             pop %s

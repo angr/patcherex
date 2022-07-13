@@ -8,8 +8,6 @@ from patcherex.backends.detourbackends._elf import DetourBackendElf, l
 from patcherex.backends.detourbackends._utils import (
     DetourException, DoubleDetourException, DuplicateLabelsException,
     IncompatiblePatchesException, MissingBlockException)
-from patcherex.backends.misc import (ASM_ENTRY_POINT_PUSH_ENV,
-                                     ASM_ENTRY_POINT_RESTORE_ENV)
 from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                AddRODataPatch, AddRWDataPatch,
                                AddRWInitDataPatch, AddSegmentHeaderPatch,
@@ -50,7 +48,7 @@ class DetourBackendi386(DetourBackendElf):
                     patches.remove(sp)
 
         #deal with AddLabel patches
-        lpatches = [p for p in patches if (isinstance(p, AddLabelPatch))]
+        lpatches = [p for p in patches if isinstance(p, AddLabelPatch)]
         for p in lpatches:
             self.name_map[p.name] = p.addr
 
@@ -73,8 +71,6 @@ class DetourBackendi386(DetourBackendElf):
         # apply all add code patches
         self.added_code_file_start = len(self.ncontent)
         self.name_map.force_insert("ADDED_CODE_START",(len(self.ncontent) % 0x1000) + self.added_code_segment)
-
-        bits = self.structs.elfclass
 
         # 0) RawPatch:
         for patch in patches:
@@ -128,7 +124,7 @@ class DetourBackendi386(DetourBackendElf):
         if self.structs.elfclass == 64:
             pie_thunk = """
             _patcherex_begin_patch:
-            call $+5
+            call here
             here:
             pop rax
             sub rax, (here - _patcherex_begin_patch + {pie_thunk})
@@ -137,7 +133,7 @@ class DetourBackendi386(DetourBackendElf):
         else:
             pie_thunk = """
             _patcherex_begin_patch:
-            call $+5
+            call here
             here:
             pop eax
             sub eax, (here - _patcherex_begin_patch + {pie_thunk})
@@ -160,9 +156,7 @@ class DetourBackendi386(DetourBackendElf):
                                                    optimization=patch.optimization,
                                                    compiler_flags=patch.compiler_flags))
                 else:
-                    code_len = len(utils.compile_asm(patch.asm_code,
-                                                                 current_symbol_pos,
-                                                                 bits=bits))
+                    code_len = len(self.compile_asm(patch.asm_code, current_symbol_pos))
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
@@ -174,10 +168,9 @@ class DetourBackendi386(DetourBackendElf):
                                                optimization=patch.optimization,
                                                compiler_flags=patch.compiler_flags)
                 else:
-                    new_code = utils.compile_asm(patch.asm_code,
+                    new_code = self.compile_asm(patch.asm_code,
                                                  self.get_current_code_position(),
-                                                 self.name_map,
-                                                 bits=bits)
+                                                 self.name_map)
                 self.added_code += new_code
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
@@ -187,73 +180,29 @@ class DetourBackendi386(DetourBackendElf):
         # basically like AddCodePatch but we detour by changing oep
         # and we jump at the end of all of them
         # resolving symbols
-        if any(isinstance(p, AddEntryPointPatch) for p in patches):
-            pre_entrypoint_code_position = self.get_current_code_position()
-            current_symbol_pos = self.get_current_code_position()
-            entrypoint_patches = [p for p in patches if isinstance(p,AddEntryPointPatch)]
-            between_restore_entrypoint_patches = sorted([p for p in entrypoint_patches if not p.after_restore], \
-                key=lambda x:-1*x.priority)
-            after_restore_entrypoint_patches = sorted([p for p in entrypoint_patches if p.after_restore], \
-                key=lambda x:-1*x.priority)
-
-            current_symbol_pos += len(utils.compile_asm("pusha\n",
-                                                                    current_symbol_pos,
-                                                                    bits=bits))
-            for patch in between_restore_entrypoint_patches:
-                code_len = len(utils.compile_asm(patch.asm_code,
-                                                             current_symbol_pos,
-                                                             bits=bits))
-                if patch.name is not None:
-                    self.name_map[patch.name] = current_symbol_pos
-                current_symbol_pos += code_len
-            # now compile for real
-            new_code = utils.compile_asm(ASM_ENTRY_POINT_PUSH_ENV,
-                                         self.get_current_code_position(),
-                                         bits=bits)
-            self.added_code += new_code
-            self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
-            for patch in between_restore_entrypoint_patches:
-                new_code = utils.compile_asm(patch.asm_code,
+        for patch in patches:
+            if isinstance(patch, AddEntryPointPatch):
+                old_oep = self.get_oep()
+                new_oep = self.get_current_code_position()
+                # only edx/rdx need to be saved, ref: glibc/sysdeps/{ARCH}/start.S
+                if self.structs.elfclass == 32:
+                    instructions = "push edx"
+                    instructions += patch.asm_code
+                    instructions += "pop edx"
+                    instructions += "\njmp {}".format(hex(int(old_oep)))
+                else: # 64 bits
+                    instructions = "push rdx"
+                    instructions += patch.asm_code
+                    instructions += "pop rdx"
+                    instructions += "\njmp {}".format(hex(int(old_oep)))
+                new_code = self.compile_asm(instructions,
                                              self.get_current_code_position(),
-                                             self.name_map,
-                                             bits=bits)
+                                             self.name_map)
                 self.added_code += new_code
                 self.added_patches.append(patch)
-                l.info("Added patch: %s", str(patch))
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
-
-            restore_code = ASM_ENTRY_POINT_RESTORE_ENV
-            current_symbol_pos += len(utils.compile_asm(restore_code,
-                                                                    current_symbol_pos,
-                                                                    bits=bits))
-            for patch in after_restore_entrypoint_patches:
-                code_len = len(utils.compile_asm(patch.asm_code,
-                                                             current_symbol_pos,
-                                                             bits=bits))
-                if patch.name is not None:
-                    self.name_map[patch.name] = current_symbol_pos
-                current_symbol_pos += code_len
-            # now compile for real
-            new_code = utils.compile_asm(restore_code,
-                                         self.get_current_code_position(),
-                                         bits=bits)
-            self.added_code += new_code
-            self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
-            for patch in after_restore_entrypoint_patches:
-                new_code = utils.compile_asm(patch.asm_code,
-                                             self.get_current_code_position(),
-                                             self.name_map,
-                                             bits=bits)
-                self.added_code += new_code
-                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
-                self.added_patches.append(patch)
+                self.set_oep(new_oep)
                 l.info("Added patch: %s", str(patch))
-
-            oep = self.get_oep()
-            self.set_oep(pre_entrypoint_code_position)
-            new_code = utils.compile_jmp(self.get_current_code_position(),oep)
-            self.added_code += new_code
-            self.ncontent += new_code
 
         # 4) InlinePatch
         # we assume the patch never patches the added code
@@ -261,10 +210,9 @@ class DetourBackendi386(DetourBackendElf):
             if isinstance(patch, InlinePatch):
                 obj = self.project.loader.main_object
                 prog_origin = patch.instruction_addr if not obj.pic else obj.addr_to_offset(patch.instruction_addr)
-                new_code = utils.compile_asm(patch.new_asm,
+                new_code = self.compile_asm(patch.new_asm,
                                             prog_origin,
-                                            self.name_map,
-                                            bits=bits)
+                                            self.name_map)
                 # Limiting the inline patch to a single block is not necessary
                 # assert len(new_code) <= self.project.factory.block(patch.instruction_addr, num_inst=patch.num_instr, max_size=).size
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.instruction_addr)
@@ -318,7 +266,7 @@ class DetourBackendi386(DetourBackendElf):
                 new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=patch.addr, symbols=patch.symbols)
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, b"\x90" * patch.size, file_offset)
-                if(patch.size >= len(new_code)):
+                if patch.size >= len(new_code):
                     file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                 else:
@@ -329,7 +277,7 @@ class DetourBackendi386(DetourBackendElf):
                     self.added_code += new_code
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                     # compile jmp
-                    jmp_code = utils.compile_jmp(patch.addr, detour_pos + offset)
+                    jmp_code = self.compile_jmp(patch.addr, detour_pos + offset)
                     self.patch_bin(patch.addr, jmp_code)
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
@@ -393,16 +341,16 @@ class DetourBackendi386(DetourBackendElf):
     def compile_moved_injected_code(self, classified_instructions, patch_code, offset=0, is_thumb=False):
         # create injected_code (pre, injected, culprit, post, jmp_back)
         injected_code = "_patcherex_begin_patch:\n"
-        injected_code += "\n".join([utils.capstone_to_nasm(i)
+        injected_code += "\n".join([self.capstone_to_asm(i)
                                     for i in classified_instructions
                                     if i.overwritten == 'pre'])
         injected_code += "\n"
-        injected_code += "; --- custom code start\n" + patch_code + "\n" + "; --- custom code end\n" + "\n"
-        injected_code += "\n".join([utils.capstone_to_nasm(i)
+        injected_code += patch_code + "\n"
+        injected_code += "\n".join([self.capstone_to_asm(i)
                                     for i in classified_instructions
                                     if i.overwritten == 'culprit'])
         injected_code += "\n"
-        injected_code += "\n".join([utils.capstone_to_nasm(i)
+        injected_code += "\n".join([self.capstone_to_asm(i)
                                     for i in classified_instructions
                                     if i.overwritten == 'post'])
         injected_code += "\n"
@@ -417,10 +365,9 @@ class DetourBackendi386(DetourBackendElf):
         injected_code = "\n".join([line for line in injected_code.split("\n") if line != ""])
         l.debug("injected code:\n%s", injected_code)
 
-        compiled_code = utils.compile_asm(injected_code,
+        compiled_code = self.compile_asm(injected_code,
                                               base=self.get_current_code_position(),
-                                              name_map=self.name_map,
-                                              bits=self.structs.elfclass)
+                                              name_map=self.name_map)
         return compiled_code
 
     def insert_detour(self, patch):
@@ -470,7 +417,7 @@ class DetourBackendi386(DetourBackendElf):
 
         # insert the jump detour
         offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
-        detour_jmp_code = utils.compile_jmp(detour_pos, self.get_current_code_position() + offset)
+        detour_jmp_code = self.compile_jmp(detour_pos, self.get_current_code_position() + offset)
         self.patch_bin(detour_pos, detour_jmp_code)
         patched_bbcode = self.read_mem_from_file(block_addr, block.size)
         patched_bbinstructions = utils.disassemble(patched_bbcode, block_addr, bits=self.structs.elfclass)
@@ -480,6 +427,19 @@ class DetourBackendi386(DetourBackendElf):
         new_code = self.compile_moved_injected_code(movable_instructions, patch.code, offset=offset)
 
         return new_code
+
+    def compile_jmp(self, origin, target):
+        jmp_str = '''
+            jmp {target}
+        '''.format(**{'target': hex(int(target))})
+        return self.compile_asm(jmp_str, base=origin)
+
+    @staticmethod
+    def get_c_function_wrapper_code(function_symbol):
+        wcode = []
+        wcode.append("call {%s}" % function_symbol)
+
+        return "\n".join(wcode)
 
     @staticmethod
     def compile_function(code, compiler_flags="", bits=32, entry=0x0, symbols=None):

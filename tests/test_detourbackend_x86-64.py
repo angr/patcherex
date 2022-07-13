@@ -31,7 +31,7 @@ class Tests(unittest.TestCase):
         	mov rax, 1
         	mov rdi, 1
         	syscall
-        	mov rbx, (rsp)
+        	mov rbx, rsp
         	add rsp, 8
         	pop r9
             pop r8
@@ -40,7 +40,7 @@ class Tests(unittest.TestCase):
             pop rsi
             pop rdi
             pop rax
-            mov (rsp), rbx 
+            mov rsp, rbx 
         	ret
           '''
         injected_code = '''
@@ -67,7 +67,7 @@ class Tests(unittest.TestCase):
         	mov rax, 1
         	mov rdi, 1
         	syscall
-        	mov rbx, (rsp)
+        	mov rbx, rsp
         	add rsp, 8
         	pop r9
             pop r8
@@ -76,7 +76,7 @@ class Tests(unittest.TestCase):
             pop rsi
             pop rdi
             pop rax
-            mov (rsp), rbx 
+            mov rsp, rbx 
         	ret
           '''
         patches.append(AddCodePatch(transmit_code, name="transmit_function"))

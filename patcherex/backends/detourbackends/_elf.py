@@ -55,7 +55,7 @@ class DetourBackendElf(Backend):
         # where to put the segments in memory
         self.added_code_segment = int((self.find_first_available_address() + 0x10000 - 1) / 0x10000) * 0x10000
         self.added_data_segment = self.added_code_segment + 0x100000
-        
+
         current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
         self.single_segment_header_size = current_hdr["e_phentsize"]
         assert self.single_segment_header_size >= self.structs.Elf_Phdr.sizeof()
@@ -120,7 +120,7 @@ class DetourBackendElf(Backend):
                             "mem_size": next_sec['sh_addr'] - (prev_sec['sh_addr'] + prev_sec['sh_size']),
                             "perm": Perm.RW if segment['p_flags'] & P_FLAGS.PF_W else Perm.RE
                         })
-                
+
 
         # Find Space Between Segments
         for prev, next in zip(sorted_segments, sorted_segments[1:]):
