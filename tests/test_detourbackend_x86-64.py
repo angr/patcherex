@@ -22,12 +22,6 @@ class Tests(unittest.TestCase):
     def test_sample_pie(self):
         patches = []
         transmit_code = '''
-            pop rsi
-            pop rax
-            push rsi
-            sub rsi, rax
-            sub rsi, 0xa
-            add rsi, {transmitted_string}
         	mov rax, 1
         	mov rdi, 1
         	syscall
@@ -52,7 +46,7 @@ class Tests(unittest.TestCase):
         push r8
         push r9
         mov rdx, 0xa
-        push $
+        lea rsi, [{transmitted_string}]
         call {transmit_function}
         '''
         patches.append(AddCodePatch(transmit_code, name="transmit_function"))
