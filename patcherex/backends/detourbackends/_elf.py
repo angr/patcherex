@@ -53,8 +53,9 @@ class DetourBackendElf(Backend):
         self.name_map = RejectingDict()
 
         # where to put the segments in memory
-        self.added_code_segment = 0x0600000
-        self.added_data_segment = 0x0700000
+        self.added_code_segment = int((self.find_first_available_address() + 0x10000 - 1) / 0x10000) * 0x10000
+        self.added_data_segment = self.added_code_segment + 0x100000
+        
         current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
         self.single_segment_header_size = current_hdr["e_phentsize"]
         assert self.single_segment_header_size >= self.structs.Elf_Phdr.sizeof()
@@ -86,6 +87,13 @@ class DetourBackendElf(Backend):
         self.find_space()
 
         self.patch_info = {"regions": {"original": [], "patched": []}, "new_segments": [], "function_starts": {"original": [], "patched": []}}
+
+
+    def find_first_available_address(self):
+        load_segments = [segment for segment in self.elf.iter_segments() if segment["p_type"] == "PT_LOAD"]
+        sorted_segments = sorted(load_segments, key=lambda x: x['p_vaddr'] + x['p_memsz'])
+        return sorted_segments[-1]['p_vaddr'] + sorted_segments[-1]['p_memsz']
+
 
     def find_space(self):
         # FUTURE: we might want to split LOAD segment for finer granularity of permission control
