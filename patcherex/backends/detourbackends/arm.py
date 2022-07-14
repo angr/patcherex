@@ -319,7 +319,7 @@ class DetourBackendArm(DetourBackendElf):
             self.set_added_segment_headers()
             l.debug("final symbol table: %s", repr([(k,hex(v)) for k,v in self.name_map.items()]))
         else:
-            l.info("no patches, the binary will not be touched")
+            l.info("no header patches, the segment header will not be touched")
 
         self.patch_info["regions"]["patched"].append([self.name_map["ADDED_CODE_START"], self.name_map["ADDED_CODE_START"] + len(self.added_code)])
         # self.patch_info["regions"]["patched"].append([self.name_map["ADDED_DATA_START"], self.name_map["ADDED_DATA_START"] + len(self.added_data)])
