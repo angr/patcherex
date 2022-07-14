@@ -17,7 +17,10 @@ class Tests(unittest.TestCase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.l = logging.getLogger("patcherex.test.test_detourbackend")
-        self.bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)),  '../../binaries/tests/x86_64/patchrex/'))
+        self.bin_location = str(os.path.join(
+            os.path.dirname(os.path.realpath(__file__)),
+            "../../binaries/tests/x86_64/patchrex/",
+        ))
 
     def test_sample_pie(self):
         patches = []
@@ -113,7 +116,8 @@ class Tests(unittest.TestCase):
         int multiply(int a, int b){ printf("%sWorld %s %s %s %d\\n", "Hello ", "Hello ", "Hello ", "Hello ", a * b);printf("%sWorld\\n", "Hello "); return a * b; }
         '''
         self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4006a2, 0x48, code, symbols={
-                      "add": 0x400660, "subtract": 0x400681, "printf": 0x400520})], expected_output=b"Hello World Hello  Hello  Hello  21\nHello World\n2121")
+                      "add": 0x400660, "subtract": 0x400681, "printf": 0x400520})], expected_output=
+                      b"Hello World Hello  Hello  Hello  21\nHello World\n2121")
 
     def run_test(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None):
         filepath = os.path.join(self.bin_location, filename)
