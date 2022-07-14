@@ -452,10 +452,10 @@ class DetourBackendi386(DetourBackendElf):
             with open(c_fname, 'w') as fp:
                 fp.write(code)
 
-            linker_script = "SECTIONS { .text : { *(.text) "
+            linker_script = "SECTIONS { .text : SUBALIGN(0) { . = " + hex(entry) + "; *(.text) "
             if symbols is not None:
                 for i in symbols:
-                    linker_script += i + " = " + hex(symbols[i] - entry) + ";"
+                    linker_script += i + " = " + hex(symbols[i]) + ";"
             linker_script += "}}"
 
             with open(linker_script_fname, 'w') as fp:
@@ -470,5 +470,5 @@ class DetourBackendi386(DetourBackendElf):
                 raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
 
             ld = cle.Loader(object2_fname, main_opts={"base_addr": 0x0})
-            compiled = ld.memory.load(ld.all_objects[0].entry, 0xFFFFFFFFFFFFFFFF)
+            compiled = ld.memory.load(ld.all_objects[0].entry + entry, ld.memory.max_addr)
         return compiled
