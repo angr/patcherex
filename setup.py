@@ -23,5 +23,6 @@ setup(
         'python-magic',
         'termcolor',
         'tracer',
+        'requests',
    ],
 )
