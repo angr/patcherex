@@ -103,9 +103,12 @@ class DetourBackendAarch64(DetourBackendElf):
                 l.info("Added patch: %s", str(patch))
 
         # 5.5) ReplaceFunctionPatch (preprocessing data)
+        default_symbols = self._default_symbols(patches)
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
-                patches += self.compile_function(patch.asm_code, entry=patch.addr, symbols=patch.symbols, data_only=True, prefix="_RFP" + str(patches.index(patch)))
+                symbols = default_symbols.copy()
+                symbols.update(patch.symbols)
+                patches += self.compile_function(patch.asm_code, entry=patch.addr, symbols=symbols, data_only=True, prefix="_RFP" + str(patches.index(patch)))
 
         # 1) Add{RO/RW/RWInit}DataPatch
         self.added_data_file_start = len(self.ncontent)

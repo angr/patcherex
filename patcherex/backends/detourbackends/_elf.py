@@ -88,6 +88,10 @@ class DetourBackendElf(Backend):
 
         self.patch_info = {"regions": {"original": [], "patched": []}, "new_segments": [], "function_starts": {"original": [], "patched": []}}
 
+    def _default_symbols(self, patches=None):
+        syms = super()._default_symbols(patches)
+        syms.update(self.name_map)
+        return syms
 
     def find_first_available_address(self):
         load_segments = [segment for segment in self.elf.iter_segments() if segment["p_type"] == "PT_LOAD"]

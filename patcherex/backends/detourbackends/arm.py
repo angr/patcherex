@@ -263,14 +263,20 @@ class DetourBackendArm(DetourBackendElf):
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
 
         # 5.5) ReplaceFunctionPatch
+        default_symbols = self._default_symbols(patches)
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
-                for name, addr in self.name_map.items():
-                    if patch.symbols is not None and name not in patch.symbols.keys():
-                        patch.symbols[name] = addr
+                symbols = default_symbols.copy()
+                symbols.update(patch.symbols or {})
                 is_thumb = self.check_if_thumb(patch.addr)
                 patch.addr = patch.addr - (patch.addr % 2)
-                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=patch.addr, symbols=patch.symbols)
+                new_code = self.compile_function(
+                    patch.asm_code,
+                    compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
+                    is_thumb=is_thumb,
+                    entry=patch.addr,
+                    symbols=symbols
+                )
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, (b"\x00\xBF" * (patch.size // 2)) if is_thumb else (b"\x00\xF0\x20\xE3" * (patch.size // 4)), file_offset)
                 if patch.size >= len(new_code):

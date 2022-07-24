@@ -2,6 +2,7 @@
 import logging
 
 import angr
+import cle
 
 l = logging.getLogger('patcherex.backend')
 
@@ -100,6 +101,33 @@ class Backend(object):
         l.info("... CFG end")
 
         return cfg
+
+    def _default_symbols(self, patches=None):
+        """
+        Get the default symbols for this binary.
+
+        :return: A list of default symbols
+        :rtype: list
+        """
+
+        default_syms = {}
+
+        loader: cle.loader.Loader = self.project.loader
+        obj = loader.main_object
+        if not isinstance(obj, cle.backends.ELF):
+            l.warning("Default symbols are only available for ELF binaries, disabling...")
+            return {}
+
+        for sym in obj.symbols:
+            if sym.is_import or sym.type == cle.SymbolType.TYPE_NONE:
+                continue
+            assert sym.relative_addr != 0, f"Symbol {sym.name} has relative address 0"
+            default_syms[sym.name] = sym.relative_addr
+
+        for name, addr in obj.plt.items():
+            default_syms[name] = addr
+
+        return default_syms
 
     def _get_ordered_nodes(self, cfg):
         prev_addr = None

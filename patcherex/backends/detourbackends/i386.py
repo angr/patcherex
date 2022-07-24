@@ -261,12 +261,22 @@ class DetourBackendi386(DetourBackendElf):
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
 
         # 5.5) ReplaceFunctionPatch
+        default_symbols = self._default_symbols(patches)
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
-                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=patch.addr, symbols=patch.symbols)
+                symbols = default_symbols.copy()
+                symbols.update(patch.symbols or {})
+                new_code = self.compile_function(
+                    patch.asm_code,
+                    compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
+                    bits=self.structs.elfclass,
+                    entry=patch.addr,
+                    symbols=symbols
+                )
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, b"\x90" * patch.size, file_offset)
                 if patch.size >= len(new_code):
+                    self.project.loader: cle.Loader
                     file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code, file_offset)
                 else:
