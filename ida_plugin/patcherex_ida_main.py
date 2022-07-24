@@ -18,7 +18,9 @@ PATCH_TYPES = {"InsertCodePatch": {"desc": "Insert Assembly", "handler_widget": 
                "AddLabelPatch": {"desc": "Add a Label", "handler_widget": AddLabelPatchWidget},
                "RemoveInstructionPatch": {"desc": "Remove an instruction", "handler_widget": RemoveInstructionPatchWidget},
                "AddRWDataPatch": {"desc": "Add Space for Read/Write Data", "handler_widget": AddRWDataPatchWidget},
-               "AddCodePatch": {"desc": "Add assembly or C code into the binary", "handler_widget": AddCodePatchWidget}}
+               "AddCodePatch": {"desc": "Add assembly or C code into the binary", "handler_widget": AddCodePatchWidget},
+               "ReplaceFunctionPatch": {"desc": "Replace a function with your own C implementation", "handler_widget": ReplaceFunctionPatchWidget}
+               }
 
 class ItemManager(object):
     def __init__(self, get_items, set_items):

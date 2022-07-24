@@ -305,6 +305,56 @@ Edit Code Addition Patch
             new_data = new_data + " . . ."
         return list(map(str, [new_patch_type, new_address, new_name, new_data]))
 
+class ReplaceFunctionPatchWidget(GenericPatchWidget):
+
+    form_code = r"""STARTITEM 0
+Edit Replace Function Patch
+<Name:{patch_name}>
+<Address:{address}>
+<Size:{size}>
+<cCode:{patch_code}>
+"""
+    patch_type = "ReplaceFunctionPatch"
+
+    def __init__(self, address=None, size=None, name="ReplaceFunctionPatch", data={"code": ""}):
+        address = address if address else idc.get_screen_ea()
+        func = idaapi.get_func(address)
+        assert func is not None, f"Function not found at address {hex(address)}"
+        assert func.start_ea == address, f"Function start address {hex(func.start_ea)} does not match {hex(address)}"
+        if size is None:
+            size = func.end_ea - func.start_ea
+        super(ReplaceFunctionPatchWidget, self).__init__(self.form_code, {
+            "patch_name": idaapi.Form.StringInput(value=str(name)),
+            "address": idaapi.Form.NumericInput(tp=idaapi.Form.FT_ADDR, value=address),
+            "size": idaapi.Form.NumericInput(value=size, tp=idaapi.Form.FT_HEX),
+            "patch_code": idaapi.Form.MultiLineTextControl(text=str(data["code"]),
+                                                           flags=idaapi.Form.MultiLineTextControl.TXTF_FIXEDFONT),
+        })
+
+    def get_patch_address(self):
+        return self.address.value
+
+    def get_patch_name(self):
+        return self.patch_name.value
+
+    def get_patch_data(self):
+        data = {}
+        data['addr'] = self.address.value
+        data['size'] = self.size.value
+        data['code'] = self.patch_code.value
+        data['name'] = self.get_patch_name()
+        return data
+
+    @classmethod
+    def get_gui_format_of(cls, patch_type, address, name, data):
+        if patch_type != cls.patch_type:
+            print("Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type))
+        new_patch_type = "Replace Function"
+        new_address = f"{hex(address)}"
+        new_name = name
+        new_data = data["code"].replace('\n', '\\n')
+        return list(map(str, [new_patch_type, new_address, new_name, new_data]))
+
 
 class RemoveInstructionPatchWidget(GenericPatchWidget):
     form_code = r"""STARTITEM 0
