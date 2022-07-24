@@ -12,23 +12,30 @@ class RejectingDict(dict):
 class PatchingException(Exception):
     pass
 
+
 class MissingBlockException(PatchingException):
     pass
+
 
 class DetourException(PatchingException):
     pass
 
+
 class DoubleDetourException(PatchingException):
     pass
+
 
 class InvalidVAddrException(PatchingException):
     pass
 
+
 class IncompatiblePatchesException(PatchingException):
     pass
 
+
 class DuplicateLabelsException(PatchingException):
     pass
+
 
 class AttrDict(dict):
     def __init__(self, *args, **kwargs):
