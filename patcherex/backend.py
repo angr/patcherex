@@ -15,6 +15,18 @@ FIND_FUNCS = (
     'snprintf',
 )
 
+def better_symbol_repr(sym: cle.Symbol):
+    attrs = []
+    if sym.is_static: attrs.append('static')
+    if sym.is_common: attrs.append('common')
+    if sym.is_import: attrs.append('import')
+    if sym.is_export: attrs.append('export')
+    if sym.is_local: attrs.append('local')
+    if sym.is_weak: attrs.append('weak')
+    if sym.is_extern: attrs.append('extern')
+    if sym.is_forward: attrs.append('forward')
+
+    return f"{sym.name=:<40} {sym.type=:<20} {sym.relative_addr=:<16} {sym.size=:<10} {attrs=}"
 
 class Backend(object):
     """
@@ -119,9 +131,11 @@ class Backend(object):
             return {}
 
         for sym in obj.symbols:
-            if sym.is_import or sym.type == cle.SymbolType.TYPE_NONE:
+            if sym.is_import or sym.type not in {cle.SymbolType.TYPE_FUNCTION, cle.SymbolType.TYPE_OBJECT}:
                 continue
-            assert sym.relative_addr != 0, f"Symbol {sym.name} has relative address 0"
+            if sym.relative_addr == 0:
+                r = better_symbol_repr(sym)
+                assert False, f"Symbol {sym!r} has relative address 0: {r}"
             default_syms[sym.name] = sym.relative_addr
 
         for name, addr in obj.plt.items():
