@@ -268,6 +268,7 @@ class Tests(unittest.TestCase):
         '''
         self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x400536, 36, code)], expected_output=b"70707070")
 
+    @unittest.skip("Not Implemented")
     def test_replace_function_patch_with_function_reference(self):
         code = '''
         extern int add(int, int);
