@@ -58,7 +58,7 @@ def process_file(program, backend, techniques, output_loc):
     outfile = open(output_loc, "wb")
     outfile.write(result["final_content"])
     outfile.close()
-    os.chmod(output_loc, 0755)
+    os.chmod(output_loc, 0o755)
 
 
 if __name__ == "__main__":
@@ -145,5 +145,5 @@ if __name__ == "__main__":
         programs = [os.path.abspath(os.path.join(input_path, f)) for f in os.listdir(input_path) if os.path.isfile(os.path.join(input_path, f))]
         output_files = [os.path.join(output_path, os.path.split(program)[1]) for program in programs]
         for program, output_file in zip(programs, output_files):
-            print program, output_file
+            print(program, output_file)
             process_file(program, backend, techniques, output_file)

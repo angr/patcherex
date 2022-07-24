@@ -1,6 +1,7 @@
 #pylint: disable=import-error,wildcard-import,unused-wildcard-import,no-self-use,unused-argument
+import base64
 import idaapi
-from idaapi import Choose2
+from idaapi import Choose
 import json
 import re
 import subprocess
@@ -12,12 +13,12 @@ from patcherex_ida.forms import *
 from collections import namedtuple
 
 
-PATCH_TYPES = {"InsertCodePatch": {"desc": "Insert Assembly", "handler_form": InsertCodePatchForm},
-               "AddRODataPatch": {"desc": "Insert Read Only Data", "handler_form": AddRODataPatchForm},
-               "AddLabelPatch": {"desc": "Add a Label", "handler_form": AddLabelPatchForm},
-               "RemoveInstructionPatch": {"desc": "Remove an instruction", "handler_form": RemoveInstructionPatchForm},
-               "AddRWDataPatch": {"desc": "Add Space for Read/Write Data", "handler_form": AddRWDataPatchForm},
-               "AddCodePatch": {"desc": "Add assembly or C code into the binary", "handler_form": AddCodePatchForm}}
+PATCH_TYPES = {"InsertCodePatch": {"desc": "Insert Assembly", "handler_widget": InsertCodePatchWidget},
+               "AddRODataPatch": {"desc": "Insert Read Only Data", "handler_widget": AddRODataPatchWidget},
+               "AddLabelPatch": {"desc": "Add a Label", "handler_widget": AddLabelPatchWidget},
+               "RemoveInstructionPatch": {"desc": "Remove an instruction", "handler_widget": RemoveInstructionPatchWidget},
+               "AddRWDataPatch": {"desc": "Add Space for Read/Write Data", "handler_widget": AddRWDataPatchWidget},
+               "AddCodePatch": {"desc": "Add assembly or C code into the binary", "handler_widget": AddCodePatchWidget}}
 
 class ItemManager(object):
     def __init__(self, get_items, set_items):
@@ -109,7 +110,7 @@ class ItemManager(object):
         del self.internal_items[index]
 
     def _get_handler_for_item(self, n):
-        return PATCH_TYPES[self._get_item(n)["patch_type"]]["handler_form"]
+        return PATCH_TYPES[self._get_item(n)["patch_type"]]["handler_widget"]
 
     def _get_serialized(self):
         return json.dumps(self.internal_items)
@@ -118,6 +119,7 @@ class ItemManager(object):
         if self.internal_items is not None:
             self._uninitialize_patches()
         self.internal_items = []
+
         stuff = json.loads(contents) if contents else None
         if stuff is not None:
             for item in stuff:
@@ -139,22 +141,35 @@ class ItemManager(object):
         while len(self.internal_items) != 0:
             self._delete_item(0)
 
-class PatcherexWindow(Choose2):
+class PatcherexWindow(Choose):
     def __init__(self):
-        Choose2.__init__(
+        Choose.__init__(
             self,
             "Patcherex",
             [
-                ["Type", 10 | Choose2.CHCOL_PLAIN],
-                ["Address", 10 | Choose2.CHCOL_HEX],
-                ["Name", 30 | Choose2.CHCOL_PLAIN],
-                ["Data", 30 | Choose2.CHCOL_FORMAT]
+                ["Type", 10 | Choose.CHCOL_PLAIN],
+                ["Address", 10 | Choose.CHCOL_HEX],
+                ["Name", 30 | Choose.CHCOL_PLAIN],
+                ["Data", 30 | Choose.CHCOL_FORMAT]
             ])
         self.node = idaapi.netnode()
         self.node.create("$ patcherex")
-        self.items = ItemManager(lambda: self.node.getblob(0, "I"),
-                                 lambda x: self.node.setblob(x, 0, "I"))
+        self.items = ItemManager(self._get_items, self._set_items)
         self.popup_names = ["Add Patch", "Remove Patch", "Edit Patch", "Refresh"]
+
+    def _get_items(self):
+        val = self.node.getblob(0, "I")
+        if val is None:
+            return val
+        val_dec = base64.b64decode(val).decode("utf-8")
+        print(f"Got: [{val_dec!r}] {val!r}")
+        return val_dec
+
+    def _set_items(self, val: str):
+        assert isinstance(val, str)
+        val_enc = base64.b64encode(val.encode('utf-8'))
+        print(f"Set: [{val!r}] {val_enc!r}")
+        self.node.setblob(val_enc, 0, "I")
 
     def load_saved_patches(self):
         SaveLoadHook.loading()
@@ -166,32 +181,32 @@ class PatcherexWindow(Choose2):
         params = dict(self.items.get_item(n))
         patch_type = params["patch_type"]
         del params["patch_type"]
-        form = PATCH_TYPES[patch_type]["handler_form"](**params)
-        form.Compile()
-        if form.Execute():
+        widget = PATCH_TYPES[patch_type]["handler_widget"](**params)
+        widget.Compile()
+        if widget.Execute():
             updates = {}
-            updates["address"] = form.get_patch_address()
-            updates["name"] = form.get_patch_name()
-            updates["data"] = form.get_patch_data()
+            updates["address"] = widget.get_patch_address()
+            updates["name"] = widget.get_patch_name()
+            updates["data"] = widget.get_patch_data()
             self.items.set_item(n, updates)
-        form.Free()
+        widget.Free()
         self.Refresh()
 
     def OnInsertLine(self):
-        form = PatchTypeForm(PATCH_TYPES)
-        form.Compile()
-        if form.Execute():
-            option = form.get_chosen_patch_type()
-            patch_form = PATCH_TYPES[option]["handler_form"]()
-            patch_form.Compile()
-            if patch_form.Execute():
+        widget = PatchTypeWidget(PATCH_TYPES)
+        widget.Compile()
+        if widget.Execute():
+            option = widget.get_chosen_patch_type()
+            patch_widget = PATCH_TYPES[option]["handler_widget"]()
+            patch_widget.Compile()
+            if patch_widget.Execute():
                 params = {}
                 params["patch_type"] = option
-                params["name"] = patch_form.get_patch_name()
-                params["address"] = patch_form.get_patch_address()
-                params["data"] = patch_form.get_patch_data()
+                params["name"] = patch_widget.get_patch_name()
+                params["address"] = patch_widget.get_patch_address()
+                params["data"] = patch_widget.get_patch_data()
                 self.items.add_item(**params)
-        form.Free()
+        widget.Free()
         self.Refresh()
 
     def OnSelectLine(self, n):
@@ -233,12 +248,12 @@ class UnsupportedArchitectureException(Exception):
 
 class SaveHandler(idaapi.action_handler_t):
     def activate(self, ctx):
-        form = SaveForm()
-        form.Compile()
-        if form.Execute():
-            file_name = form.get_file_name()
+        widget = SaveWidget()
+        widget.Compile()
+        if widget.Execute():
+            file_name = widget.get_file_name()
             self.do_save(file_name)
-        form.Free()
+        widget.Free()
 
     @classmethod
     def do_save(cls, file_name):
@@ -252,19 +267,19 @@ class SaveHandler(idaapi.action_handler_t):
                 with out_file:
                     out_file.write(contents)
         else:
-            patcherex_window.node.setblob(contents, 0, "I")
+            patcherex_window._set_items(contents)
 
     def update(self, ctx):
-        return idaapi.AST_ENABLE_FOR_FORM if ctx.widget_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
+        return idaapi.AST_ENABLE_FOR_WIDGET if ctx.widget_title == "Patcherex" else idaapi.AST_DISABLE_FOR_WIDGET
 
 class LoadHandler(idaapi.action_handler_t):
     def activate(self, ctx):
-        form = LoadForm()
-        form.Compile()
-        if form.Execute():
-            file_name = form.get_file_name()
+        widget = LoadWidget()
+        widget.Compile()
+        if widget.Execute():
+            file_name = widget.get_file_name()
             self.do_load(file_name)
-        form.Free()
+        widget.Free()
 
     @classmethod
     def do_load(cls, file_name):
@@ -277,13 +292,13 @@ class LoadHandler(idaapi.action_handler_t):
                 with out_file:
                     contents = out_file.read()
         else:
-            contents = patcherex_window.node.getblob(0, "I")
+            contents = patcherex_window._get_items()
             if contents is None:
                 return
         patcherex_window.load_serialized_items(contents)
 
     def update(self, ctx):
-        return idaapi.AST_ENABLE_FOR_FORM if ctx.widget_title == "Patcherex" else idaapi.AST_DISABLE_FOR_FORM
+        return idaapi.AST_ENABLE_FOR_WIDGET if ctx.widget_title == "Patcherex" else idaapi.AST_DISABLE_FOR_WIDGET
 
 class RunPatcherexHandler(idaapi.action_handler_t):
     config = """{"techniques": {"manualpatcher": {"options": {"patch_file": null}}}, "backend": {"name": "detourbackend", "options": {"base_address": 0}}}"""
@@ -291,37 +306,39 @@ class RunPatcherexHandler(idaapi.action_handler_t):
         RunPatcherexHandler.menu_activate(None)
 
     def update(self, ctx):
-        return idaapi.AST_ENABLE_FOR_FORM
+        return idaapi.AST_ENABLE_FOR_WIDGET
 
     @staticmethod
     def patcherex_finish(proc):
         if proc.returncode != 0:
             out_str = "Patcherex failed. See attached terminal."
             idaapi.warning(out_str)
-            print out_str
+            print(out_str)
         else:
             out_str = "Patcherex completed successfully."
             idaapi.info(out_str)
-            print out_str
+            print(out_str)
 
     @staticmethod
     def menu_activate(arg):
-        form = RunPatcherexForm()
-        form.Compile()
-        if form.Execute():
-            file_name = form.get_file_name()
-            patch_output_file = tempfile.NamedTemporaryFile(delete=False)
+        widget = RunPatcherexWidget()
+        widget.Compile()
+        if widget.Execute():
+            file_name = widget.get_file_name()
+            patch_output_file = tempfile.NamedTemporaryFile(delete=False, mode="w+")
             patch_output_file.write(patcherex_window.get_serialized_items())
             patch_output_file.close()
-            config_file = tempfile.NamedTemporaryFile(delete=False)
+            config_file = tempfile.NamedTemporaryFile(delete=False, mode="w+")
             p_config = json.loads(RunPatcherexHandler.config)
             p_config["techniques"]["manualpatcher"]["options"]["patch_file"] = patch_output_file.name
             p_config["backend"]["options"]["base_address"] = idaapi.get_imagebase()
             config_file.write(json.dumps(p_config))
             config_file.close()
-            print "Calling patcherex . . ."
+
+            args = ["patcherex", "-c", config_file.name, "--json", "single", idaapi.get_input_file_path(), file_name]
+            print(f"Calling patcherex with {repr(args)} . . .")
             popen_and_call(RunPatcherexHandler.patcherex_finish,
-                           {"args": ["patcherex", "-c", config_file.name, "--json", "single", idaapi.get_input_file_path(), file_name]})
+                           {"args": args })
 
 
 class AddPatchHandler(idaapi.action_handler_t):
@@ -329,7 +346,7 @@ class AddPatchHandler(idaapi.action_handler_t):
         AddPatchHandler.menu_activate(None)
 
     def update(self, ctx):
-        return idaapi.AST_ENABLE_FOR_FORM
+        return idaapi.AST_ENABLE_FOR_WIDGET
 
     @staticmethod
     def menu_activate(arg):
@@ -340,10 +357,10 @@ class PopHook(idaapi.UI_Hooks):
         idaapi.UI_Hooks.__init__(self)
         self.acts = actname_list
 
-    def finish_populating_tform_popup(self, form, popup):
-        if idaapi.get_tform_title(form) == "Patcherex":
+    def finish_populating_widget_popup(self, widget, popup):
+        if idaapi.get_widget_title(widget) == "Patcherex":
             for act in self.acts:
-                idaapi.attach_action_to_popup(form, popup, "patcherex:" + act, None)
+                idaapi.attach_action_to_popup(widget, popup, "patcherex:" + act, None)
 
 class SaveLoadHook(idaapi.UI_Hooks):
     def saving(self):
@@ -431,8 +448,8 @@ class PatcherexPlugin(idaapi.plugin_t):
     def init(self):
         global patcherex_window
         global patcherex_hooks
-        if idaapi.get_inf_structure().procName != "metapc":
-            print "Only x86 metapc is supported by Patcherex"
+        if idaapi.get_inf_structure().procname != "metapc":
+            print("Only x86 metapc is supported by Patcherex")
             return idaapi.PLUGIN_SKIP
         for command in commands:
             name = "patcherex:" + command.name
@@ -448,7 +465,7 @@ class PatcherexPlugin(idaapi.plugin_t):
             for hook in patcherex_hooks:
                 hook.hook()
         if patcherex_window is None:
-            print "Patcherex starting"
+            print("Patcherex starting")
             self.patcherex_window = PatcherexWindow()
             patcherex_window = self.patcherex_window
         else:

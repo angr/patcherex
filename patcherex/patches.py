@@ -27,6 +27,8 @@ class InlinePatch(Patch):
 class AddRODataPatch(Patch):
     def __init__(self, data, name=None):
         super(AddRODataPatch, self).__init__(name)
+        if isinstance(data, list):
+            data = bytes(data)
         if not isinstance(data, bytes):
             raise TypeError("Data must be a bytestring.")
         self.data = data

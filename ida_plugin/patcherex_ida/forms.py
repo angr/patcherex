@@ -3,7 +3,7 @@ import idaapi
 import idc
 import string
 
-class GenericPatchForm(idaapi.Form):
+class GenericPatchWidget(idaapi.Form):
 
     def get_patch_address(self):
         return 0
@@ -32,9 +32,9 @@ class GenericPatchForm(idaapi.Form):
 
     @classmethod
     def get_gui_format_of(cls, patch_type, address, name, data):
-        return map(str, [patch_type, address, name, data])
+        return list(map(str, [patch_type, address, name, data]))
 
-class AddLabelPatchForm(GenericPatchForm):
+class AddLabelPatchWidget(GenericPatchWidget):
     form_code = r"""STARTITEM 0
 Edit Label Patch
 <Address:{patch_address}>
@@ -44,8 +44,8 @@ Edit Label Patch
     comment_format = "Add label '%s' at %#x"
 
     def __init__(self, address=None, name="AddRODataPatch", data=None):
-        address = address if address else idc.ScreenEA()
-        super(AddLabelPatchForm, self).__init__(self.form_code, {
+        address = address if address else idc.get_screen_ea()
+        super(AddLabelPatchWidget, self).__init__(self.form_code, {
             "patch_address": idaapi.Form.NumericInput(tp=idaapi.Form.FT_ADDR, value=address),
             "patch_name": idaapi.Form.StringInput(value=str(name)),
         })
@@ -61,20 +61,21 @@ Edit Label Patch
 
     @classmethod
     def on_perform_post_operations(cls, patch_type, name, address, data):
-        original = idc.RptCmt(address)
+        original = idc.get_cmt(address, 1)
         if original is not None:
             prefix = original + "\n"
         else:
             prefix = ""
-        idc.MakeRptCmt(address,
-                       str(prefix + cls.comment_format % (name, address)))
+        idc.set_cmt(address,
+                    str(prefix + cls.comment_format % (name, address)),
+                    1)
 
     @classmethod
     def on_pre_update(cls, patch_type, name, address, data):
         added_comment = str(cls.comment_format % (name, address))
-        if idc.RptCmt(address) is not None and added_comment in idc.RptCmt(address):
-            comment = idc.RptCmt(address).replace("\n" + added_comment, "").replace(added_comment, "")
-            idc.MakeRptCmt(address, comment)
+        if idc.get_cmt(address, 1) is not None and added_comment in idc.get_cmt(address, 1):
+            comment = idc.get_cmt(address, 1).replace("\n" + added_comment, "").replace(added_comment, "")
+            idc.set_cmt(address, comment, 1)
 
     @classmethod
     def on_post_update(cls, patch_type, name, address, data):
@@ -87,14 +88,14 @@ Edit Label Patch
     @classmethod
     def get_gui_format_of(cls, patch_type, name, address, data):
         if patch_type != cls.patch_type:
-            print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
+            print("Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type))
         new_patch_type = "Add Label"
         new_address = "%#x" % address
         new_name = name
         new_data = ""
-        return map(str, [new_patch_type, new_address, new_name, new_data])
+        return list(map(str, [new_patch_type, new_address, new_name, new_data]))
 
-class AddRODataPatchForm(GenericPatchForm):
+class AddRODataPatchWidget(GenericPatchWidget):
     form_code = r"""STARTITEM 0
 Edit Read Only Data Insertion Patch
 <Name:{patch_name}>
@@ -104,19 +105,27 @@ Edit Read Only Data Insertion Patch
 """
     patch_type = "AddRODataPatch"
 
-    def __init__(self, address=0, name="AddRODataPatch", data={"data": u""}):
-        init_bytes = str(data["data"].encode("latin1"))
+    def __init__(self, address=0, name="AddRODataPatch", data={"data": []}):
+        assert type(data['data']) is list and (not data['data'] or type(data['data'][0]) is int)
+        init_bytes = bytes(data["data"])
         formatted = (self.format_byte_string(init_bytes) if address == 0 else init_bytes)
-        super(AddRODataPatchForm, self).__init__(self.form_code, {
+        super(AddRODataPatchWidget, self).__init__(self.form_code, {
             "patch_name": idaapi.Form.StringInput(value=str(name)),
             "type_group": idaapi.Form.RadGroupControl(("rHex", "rRaw"), value=address),
-            "ro_data": idaapi.Form.MultiLineTextControl(text=str(formatted),
+            "ro_data": idaapi.Form.MultiLineTextControl(text=formatted,
                                                         flags=idaapi.Form.MultiLineTextControl.TXTF_FIXEDFONT)
             })
 
     @staticmethod
     def format_byte_string(byte_string):
-        return ' '.join(byte.encode("hex") for byte in byte_string)
+        if type(byte_string) is not bytes:
+            print(repr(byte_string))
+            print(repr(byte_string))
+            print(repr(byte_string))
+            print(repr(byte_string))
+            print(repr(byte_string))
+            # import ipdb; ipdb.set_trace()
+        return ' '.join(f'{byte:02x}' for byte in byte_string)
 
     def get_patch_address(self): # Use the address to store whether or not it's raw
         return self.type_group.value
@@ -125,25 +134,30 @@ Edit Read Only Data Insertion Patch
         return self.patch_name.value
 
     def get_patch_data(self):
+        assert type(self.ro_data.value) is str
+        v = self.ro_data.value.encode()
+
         if self.rHex.selected:
-            stripped = ''.join(char for char in self.ro_data.value if char in string.hexdigits)
-            final = stripped.decode("hex").decode("latin1")
+            stripped = ''.join(chr(b) for b in v if chr(b) in string.hexdigits)
+            final = bytes.fromhex(stripped)
         else:
-            final = self.ro_data.value
-        return {"data": final, "name": self.get_patch_name()}
+            final = v
+        return {"data": list(final), "name": self.get_patch_name()}
 
     @classmethod
     def get_gui_format_of(cls, patch_type, name, address, data):
+        print(repr(data))
         if patch_type != cls.patch_type:
-            print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
+            print("Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type))
         new_patch_type = "Insert RO Data"
         new_address = ""
         new_name = name
-        new_data = (cls.format_byte_string(str(data["data"].encode("latin1"))) if address == 0
-                    else str(data["data"].encode("latin1")))
-        return map(str, [new_patch_type, new_address, new_name, new_data])
 
-class AddRWDataPatchForm(GenericPatchForm):
+        new_data = (cls.format_byte_string(bytes(data["data"])) if address == 0
+                    else bytes(data["data"]))
+        return list(map(str, [new_patch_type, new_address, new_name, new_data]))
+
+class AddRWDataPatchWidget(GenericPatchWidget):
     form_code = r"""STARTITEM 0
 Edit Read/Write Data Addition Patch
 <Name:{patch_name}>
@@ -153,7 +167,7 @@ Edit Read/Write Data Addition Patch
 
     def __init__(self, address=None, name="AddRWDataPatch", data={"tlen": 0}):
         init_len = data["tlen"]
-        super(AddRWDataPatchForm, self).__init__(self.form_code, {
+        super(AddRWDataPatchWidget, self).__init__(self.form_code, {
             "patch_name": idaapi.Form.StringInput(value=str(name)),
             "patch_size": idaapi.Form.NumericInput(value=init_len, tp=idaapi.Form.FT_HEX),
             })
@@ -173,14 +187,14 @@ Edit Read/Write Data Addition Patch
     @classmethod
     def get_gui_format_of(cls, patch_type, name, address, data):
         if patch_type != cls.patch_type:
-            print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
+            print("Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type))
         new_patch_type = "Insert RW Data"
         new_address = ""
         new_name = name
         new_data = "Length: %#x" % data["tlen"]
-        return map(str, [new_patch_type, new_address, new_name, new_data])
+        return list(map(str, [new_patch_type, new_address, new_name, new_data]))
 
-class InsertCodePatchForm(GenericPatchForm):
+class InsertCodePatchWidget(GenericPatchWidget):
 
     form_code = r"""STARTITEM 0
 Edit Code Insertion Patch
@@ -192,8 +206,8 @@ Edit Code Insertion Patch
     comment_format = "'%s': Insert code at %#x:\n%s"
 
     def __init__(self, address=None, name="InsertCodePatch", data={"code": ""}):
-        address = address if address else idc.ScreenEA()
-        super(InsertCodePatchForm, self).__init__(self.form_code, {
+        address = address if address else idc.get_screen_ea()
+        super(InsertCodePatchWidget, self).__init__(self.form_code, {
             "patch_address": idaapi.Form.NumericInput(tp=idaapi.Form.FT_ADDR, value=address),
             "patch_name": idaapi.Form.StringInput(value=str(name)),
             "patch_code": idaapi.Form.MultiLineTextControl(text=str(data["code"]),
@@ -211,20 +225,21 @@ Edit Code Insertion Patch
 
     @classmethod
     def on_perform_post_operations(cls, patch_type, name, address, data):
-        original = idc.RptCmt(address)
+        original = idc.get_cmt(address, 1)
         if original is not None:
             prefix = original + "\n"
         else:
             prefix = ""
-        idc.MakeRptCmt(address,
-                       str(prefix + cls.comment_format % (name, address, data["code"])))
+        idc.set_cmt(address,
+                    str(prefix + cls.comment_format % (name, address, data["code"])),
+                    1)
 
     @classmethod
     def on_pre_update(cls, patch_type, name, address, data):
         added_comment = str(cls.comment_format % (name, address, data["code"]))
-        if idc.RptCmt(address) is not None and added_comment in idc.RptCmt(address):
-            comment = idc.RptCmt(address).replace("\n" + added_comment, "").replace(added_comment, "")
-            idc.MakeRptCmt(address, comment)
+        if idc.get_cmt(address, 1) is not None and added_comment in idc.get_cmt(address, 1):
+            comment = idc.get_cmt(address, 1).replace("\n" + added_comment, "").replace(added_comment, "")
+            idc.set_cmt(address, comment, 1)
 
     @classmethod
     def on_post_update(cls, patch_type, name, address, data):
@@ -237,17 +252,17 @@ Edit Code Insertion Patch
     @classmethod
     def get_gui_format_of(cls, patch_type, address, name, data):
         if patch_type != cls.patch_type:
-            print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
+            print("Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type))
         new_patch_type = "Insert Code"
         new_address = "%#x" % address
         new_name = name
         new_data = data["code"].split("\n")[0]
         if len(data["code"].split("\n")) > 1:
             new_data = new_data + " . . ."
-        return map(str, [new_patch_type, new_address, new_name, new_data])
+        return list(map(str, [new_patch_type, new_address, new_name, new_data]))
 
 
-class AddCodePatchForm(GenericPatchForm):
+class AddCodePatchWidget(GenericPatchWidget):
 
     form_code = r"""STARTITEM 0
 Edit Code Addition Patch
@@ -259,7 +274,7 @@ Edit Code Addition Patch
     patch_type = "AddCodePatch"
 
     def __init__(self, address=None, name="AddCodePatch", data={"asm_code": "", "is_c": False}):
-        super(AddCodePatchForm, self).__init__(self.form_code, {
+        super(AddCodePatchWidget, self).__init__(self.form_code, {
             "patch_name": idaapi.Form.StringInput(value=str(name)),
             "type_group": idaapi.Form.RadGroupControl(("rASMCode", "rCCode"), value=(1 if data["is_c"] else 0)),
             "patch_code": idaapi.Form.MultiLineTextControl(text=str(data["asm_code"]),
@@ -276,22 +291,22 @@ Edit Code Addition Patch
         info = idaapi.get_inf_structure()
         flags = "-m64" if info.is_64bit() else "-m32"
         return {"asm_code": self.patch_code.value, "is_c": self.rCCode.selected,
-                "name": self.get_patch_name(), "compiler_flags": (flags,)}
+                "name": self.get_patch_name(), "compiler_flags": flags}
 
     @classmethod
     def get_gui_format_of(cls, patch_type, address, name, data):
         if patch_type != cls.patch_type:
-            print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
+            print("Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type))
         new_patch_type = "Add Code"
         new_address = ""
         new_name = name
         new_data = data["asm_code"].split("\n")[0]
         if len(data["asm_code"].split("\n")) > 1:
             new_data = new_data + " . . ."
-        return map(str, [new_patch_type, new_address, new_name, new_data])
+        return list(map(str, [new_patch_type, new_address, new_name, new_data]))
 
 
-class RemoveInstructionPatchForm(GenericPatchForm):
+class RemoveInstructionPatchWidget(GenericPatchWidget):
     form_code = r"""STARTITEM 0
 Edit Remove Instruction Patch
 <Address:{patch_address}>
@@ -301,8 +316,8 @@ Edit Remove Instruction Patch
     comment_format = "'%s': Remove instruction at %#x"
 
     def __init__(self, address=None, name="RemoveInstructionPatch", data=None):
-        address = address if address else idc.ScreenEA()
-        super(RemoveInstructionPatchForm, self).__init__(self.form_code, {
+        address = address if address else idc.get_screen_ea()
+        super(RemoveInstructionPatchWidget, self).__init__(self.form_code, {
             "patch_address": idaapi.Form.NumericInput(tp=idaapi.Form.FT_ADDR, value=address),
             "patch_name": idaapi.Form.StringInput(value=str(name)),
         })
@@ -318,20 +333,21 @@ Edit Remove Instruction Patch
 
     @classmethod
     def on_perform_post_operations(cls, patch_type, name, address, data):
-        original = idc.RptCmt(address)
+        original = idc.get_cmt(address, 1)
         if original is not None:
             prefix = original + "\n"
         else:
             prefix = ""
-        idc.MakeRptCmt(address,
-                       str(prefix + cls.comment_format % (name, address)))
+        idc.set_cmt(address,
+                    str(prefix + cls.comment_format % (name, address)),
+                    1)
 
     @classmethod
     def on_pre_update(cls, patch_type, name, address, data):
         added_comment = str(cls.comment_format % (name, address))
-        if idc.RptCmt(address) is not None and added_comment in idc.RptCmt(address):
-            comment = idc.RptCmt(address).replace("\n" + added_comment, "").replace(added_comment, "")
-            idc.MakeRptCmt(address, comment)
+        if idc.get_cmt(address, 1) is not None and added_comment in idc.get_cmt(address, 1):
+            comment = idc.get_cmt(address, 1).replace("\n" + added_comment, "").replace(added_comment, "")
+            idc.set_cmt(address, comment, 1)
 
     @classmethod
     def on_post_update(cls, patch_type, name, address, data):
@@ -344,16 +360,16 @@ Edit Remove Instruction Patch
     @classmethod
     def get_gui_format_of(cls, patch_type, name, address, data):
         if patch_type != cls.patch_type:
-            print "Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type)
+            print("Got patch type %s, but expected \"%s\"" % (patch_type, cls.patch_type))
         new_patch_type = "Remove Instruction"
         new_address = "%#x" % address
         new_name = name
         new_data = ""
-        return map(str, [new_patch_type, new_address, new_name, new_data])
+        return list(map(str, [new_patch_type, new_address, new_name, new_data]))
 
 
 
-class SaveForm(idaapi.Form):
+class SaveWidget(idaapi.Form):
 
     form_code = r"""STARTITEM 0
 Save Patch List
@@ -362,7 +378,7 @@ Save Patch List
 
     def __init__(self):
         self.inc = 0
-        super(SaveForm, self).__init__(self.form_code, {
+        super(SaveWidget, self).__init__(self.form_code, {
             "file_opener": idaapi.Form.FileInput(open=True),
         })
 
@@ -370,7 +386,7 @@ Save Patch List
         return self.file_opener.value
 
 
-class LoadForm(idaapi.Form):
+class LoadWidget(idaapi.Form):
 
     form_code = r"""STARTITEM 0
 Load Patch List
@@ -379,7 +395,7 @@ Load Patch List
 
     def __init__(self):
         self.inc = 0
-        super(LoadForm, self).__init__(self.form_code, {
+        super(LoadWidget, self).__init__(self.form_code, {
             "file_opener": idaapi.Form.FileInput(open=True),
         })
 
@@ -387,7 +403,7 @@ Load Patch List
         return self.file_opener.value
 
 
-class RunPatcherexForm(idaapi.Form):
+class RunPatcherexWidget(idaapi.Form):
 
     form_code = r"""STARTITEM 0
 Patcherex Output Options
@@ -396,7 +412,7 @@ Patcherex Output Options
 
     def __init__(self):
         self.inc = 0
-        super(RunPatcherexForm, self).__init__(self.form_code, {
+        super(RunPatcherexWidget, self).__init__(self.form_code, {
             "file_opener": idaapi.Form.FileInput(open=True),
         })
 
@@ -404,7 +420,7 @@ Patcherex Output Options
         return self.file_opener.value
 
 
-class PatchTypeForm(idaapi.Form):
+class PatchTypeWidget(idaapi.Form):
 
     form_code = r"""STARTITEM 0
 Select Patch Type
@@ -417,13 +433,13 @@ Select Patch Type
         for patch_type in types:
             filler.append(self.line_template % (types[patch_type]["desc"], patch_type))
         filled_form_code = self.form_code % '\n'.join(filler)
-        self.type_keys = types.keys()
-        super(PatchTypeForm, self).__init__(filled_form_code, {
+        self.type_keys = list(types.keys())
+        super(PatchTypeWidget, self).__init__(filled_form_code, {
             "radio": idaapi.Form.RadGroupControl(tuple(types.keys()))
         })
 
     def Compile(self):
-        ret = super(PatchTypeForm, self).Compile()
+        ret = super(PatchTypeWidget, self).Compile()
         getattr(self, self.type_keys[0]).selected = True
         return ret
 
