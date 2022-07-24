@@ -119,7 +119,7 @@ class DetourBackendAarch64(DetourBackendElf):
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
                 symbols = default_symbols.copy()
-                symbols.update(patch.symbols)
+                symbols.update(patch.symbols or {})
                 patches += self.compile_function(patch.asm_code, entry=patch.addr, symbols=symbols,
                                                  data_only=True, prefix="_RFP" + str(patches.index(patch)))
 

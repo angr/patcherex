@@ -252,7 +252,7 @@ class DetourBackendArmStm32(DetourBackendArm):
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
                 symbols = default_symbols.copy()
-                symbols.update(patch.symbols)
+                symbols.update(patch.symbols or {})
                 l.warning(
                     "ReplaceFunctionPatch: ARM/Thumb interworking is not yet supported.")
                 is_thumb = self.check_if_thumb(patch.addr)
