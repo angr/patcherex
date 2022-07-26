@@ -13,7 +13,7 @@ from patcherex.backends.detourbackend import DetourBackend
 from patcherex.backends.detourbackends.i386 import DetourBackendi386
 from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                AddRODataPatch, AddRWDataPatch,
-                               AddRWInitDataPatch, InlinePatch,
+                               AddRWInitDataPatch, InlinePatch, FunctionWrapperPatch,
                                InsertCodePatch, RawFilePatch, RawMemPatch,
                                RemoveInstructionPatch, ReplaceFunctionPatch)
 
@@ -261,6 +261,20 @@ class Tests(unittest.TestCase):
         except ValueError:
             exc = True
         self.assertTrue(exc)
+
+    @unittest.skip("Not Implemented")
+    def test_function_wrapper_patch(self):
+        code = '''
+        int printf(const char *format, ...);
+        int __original_function(int, int);
+
+        int func(int a, int b) {
+            printf("multiply\\n");
+            return __original_function(a, b);
+        }
+        '''
+        self.run_test("replace_function_patch", [FunctionWrapperPatch(
+            0x40057e, code, "multiply_wrapper", {"printf": 0x400520})], expected_output=b"multiply\n2121")
 
     def test_replace_function_patch(self):
         code = '''

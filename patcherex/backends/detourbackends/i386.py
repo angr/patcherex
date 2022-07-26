@@ -8,13 +8,13 @@ from patcherex.backends.detourbackends._elf import DetourBackendElf, l
 from patcherex.backends.detourbackends._utils import (
     DetourException, DoubleDetourException, DuplicateLabelsException,
     IncompatiblePatchesException, MissingBlockException)
-from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
-                               AddRODataPatch, AddRWDataPatch,
-                               AddRWInitDataPatch, AddSegmentHeaderPatch,
+from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddFunctionPatch,
+                               AddLabelPatch, AddRODataPatch, AddRWDataPatch,
+                               AddRWInitDataPatch, AddSegmentHeaderPatch, FunctionWrapperPatch,
                                InlinePatch, InsertCodePatch, RawFilePatch,
                                RawMemPatch, RemoveInstructionPatch,
                                ReplaceFunctionPatch, SegmentHeaderPatch)
-from patcherex.utils import CLangException
+from patcherex.utils import CLangException, instruction_to_str
 
 l = logging.getLogger("patcherex.backends.DetourBackend")
 
@@ -51,6 +51,8 @@ class DetourBackendi386(DetourBackendElf):
                 if highest_priority_at_addr != sp:
                     highest_priority_at_addr.asm_code += "\n"+sp.asm_code+"\n"
                     patches.remove(sp)
+
+        default_symbols = self._default_symbols(patches)
 
         # deal with AddLabel patches
         lpatches = [p for p in patches if isinstance(p, AddLabelPatch)]
@@ -160,7 +162,7 @@ class DetourBackendi386(DetourBackendElf):
         self.added_code += new_code
         self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
 
-        # 2) AddCodePatch
+        # 2) AddCodePatch / AddFunctionPatch
         # resolving symbols
         current_symbol_pos = self.get_current_code_position()
         for patch in patches:
@@ -172,6 +174,12 @@ class DetourBackendi386(DetourBackendElf):
                 else:
                     code_len = len(self.compile_asm(
                         patch.asm_code, current_symbol_pos))
+                if patch.name is not None:
+                    self.name_map[patch.name] = current_symbol_pos
+                current_symbol_pos += code_len
+            elif isinstance(patch, AddFunctionPatch):
+                code_len = len(self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
+                                                     bits=self.structs.elfclass, entry=current_symbol_pos))
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
@@ -188,6 +196,93 @@ class DetourBackendi386(DetourBackendElf):
                                                 self.name_map)
                 self.added_code += new_code
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                self.added_patches.append(patch)
+                l.info("Added patch: %s", str(patch))
+            elif isinstance(patch, AddFunctionPatch):
+                symbols = default_symbols.copy()
+                symbols.update(patch.symbols or {})
+                obj = self.project.loader.main_object
+                entry = self.get_current_code_position(
+                ) if not obj.pic else self.get_current_code_position() + obj.min_addr
+                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
+                                                 bits=self.structs.elfclass, entry=entry, symbols=symbols)
+                self.added_code += new_code
+                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                self.added_patches.append(patch)
+                l.info("Added patch: %s", str(patch))
+
+        # ?) FunctionWrapperPatch
+        for patch in patches:
+            if isinstance(patch, FunctionWrapperPatch):
+                offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+                mem = self.read_mem_from_file(
+                    patch.addr, self.project.factory.block(patch.addr).size)
+                block = self.project.factory.block(patch.addr, byte_string=mem)
+
+                movable_instructions = self.get_movable_instructions(block)
+                if len(movable_instructions) == 0:
+                    raise DetourException("No movable instructions found")
+                movable_start = movable_instructions[0].address
+                movable_end = movable_instructions[-1].address + \
+                    movable_instructions[-1].size
+                movable_size = movable_end - movable_start
+
+                detour_size = len(self.compile_asm(
+                    f"jmp {hex(self.get_current_code_position() + offset)}", patch.addr))
+
+                movable_size = 0
+                idx = -1
+                for i, instr in enumerate(movable_instructions):
+                    movable_size += instr.size
+                    if movable_size >= detour_size:
+                        idx = i
+                        break
+                else:
+                    raise DetourException("Detour is too big")
+
+                moved_size = sum(
+                    [movable_instructions[i].size for i in range(idx + 1)])
+                nop_size = moved_size - detour_size
+
+                # compile function for size
+                symbols = default_symbols.copy()
+                symbols.update(patch.symbols or {})
+                symbols["__original_function"] = patch.addr
+                wrapper_size = len(self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
+                                                         bits=self.structs.elfclass, entry=self.get_current_code_position() + offset, symbols=symbols))
+                jmp_to_wrapper_size = len(self.compile_asm(
+                    f"jmp {hex(self.get_current_code_position() + offset)}", self.get_current_code_position() + wrapper_size + offset))
+
+                # add detour
+                jmp_code = f"jmp {hex(self.get_current_code_position() + offset + wrapper_size)}\n"
+                jmp_code += "nop\n" * nop_size
+                jmp_bytes = self.compile_asm(jmp_code, patch.addr)
+                file_offset = self.project.loader.main_object.addr_to_offset(
+                    patch.addr)
+                self.ncontent = utils.bytes_overwrite(
+                    self.ncontent, jmp_bytes, file_offset)
+
+                # compile function
+                symbols["__original_function"] = self.get_current_code_position(
+                ) + wrapper_size + offset + jmp_to_wrapper_size
+                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
+                                                 bits=self.structs.elfclass, entry=self.get_current_code_position() + offset, symbols=symbols)
+                self.added_code += new_code
+                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+
+                # add detour block
+                #   jump to the wrapper function
+                detour_code = f"jmp {hex(self.get_current_code_position() + offset - wrapper_size)}\n"
+                #   copy movable instructions
+                detour_code += "\n".join([self.capstone_to_asm(movable_instructions[i])
+                                         for i in range(idx + 1)]) + "\n"
+                #   jump to the original function
+                detour_code += f"jmp {hex(patch.addr + moved_size)}\n"
+                new_code = self.compile_asm(
+                    detour_code, base=self.get_current_code_position() + offset)
+                self.added_code += new_code
+                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
 
@@ -284,10 +379,9 @@ class DetourBackendi386(DetourBackendElf):
                 # TODO symbol name, for now no name_map for InsertCode patches
 
         header_patches = [InsertCodePatch, InlinePatch, AddEntryPointPatch, AddCodePatch,
-                          AddRWDataPatch, AddRODataPatch, AddRWInitDataPatch]
+                          AddRWDataPatch, AddRODataPatch, AddRWInitDataPatch, AddFunctionPatch, FunctionWrapperPatch]
 
         # 5.5) ReplaceFunctionPatch
-        default_symbols = self._default_symbols(patches)
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
                 if isinstance(patch.addr, str):

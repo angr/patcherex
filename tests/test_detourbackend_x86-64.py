@@ -9,7 +9,7 @@ import requests
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.patches import (AddCodePatch, AddRODataPatch, InsertCodePatch,
-                               ReplaceFunctionPatch)
+                               ReplaceFunctionPatch, FunctionWrapperPatch)
 
 
 class Tests(unittest.TestCase):
@@ -93,6 +93,19 @@ class Tests(unittest.TestCase):
         patches.append(InsertCodePatch(0x400502, injected_code, name="injected_code_after_receive"))
         self.run_test("sample_x86-64_no_pie", patches,
                       expected_output=b'---HI---\x00\x00Purdue')
+
+    def test_function_wrapper_patch(self):
+        code = '''
+        int printf(const char *format, ...);
+        int __original_function(int, int);
+
+        int func(int a, int b) {
+            printf("multiply\\n");
+            return __original_function(a, b);
+        }
+        '''
+        self.run_test("replace_function_patch", [FunctionWrapperPatch(
+            0x4006a2, code, "multiply_wrapper", {"printf": 0x400520})], expected_output=b"multiply\n2121")
 
     def test_replace_function_patch(self):
         code = '''

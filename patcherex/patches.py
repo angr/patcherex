@@ -133,6 +133,25 @@ class AddCodePatch(CodePatch):
         return "AddCodePatch [%s] (%d) %s %s" % (self.name,len(self.asm_code),self.is_c,self.optimization)
 
 
+class AddFunctionPatch(CodePatch):
+    def __init__(self, code, name=None, symbols=None):
+        super(AddCodePatch, self).__init__(name, asm_code=code)
+        self.symbols = symbols
+    
+    def __repr__(self):
+        return "AddFunctionPatch [%s] (%d)" % (self.name,len(self.asm_code))
+
+
+class FunctionWrapperPatch(CodePatch):
+    def __init__(self, addr, code, name=None, symbols=None):
+        super(FunctionWrapperPatch, self).__init__(name, asm_code=code)
+        self.addr = addr
+        self.symbols = symbols
+    
+    def __repr__(self):
+        return "FunctionWrapperPatch [%s] (%d)" % (self.name,len(self.asm_code))
+
+
 class AddEntryPointPatch(CodePatch):
     def __init__(self, asm_code, name=None, is_att=False, priority=1, after_restore=False, is_thumb=True):
         super(AddEntryPointPatch, self).__init__(name, asm_code, is_att=is_att, is_thumb=is_thumb)
