@@ -15,7 +15,7 @@ class Patch:
 
 class InlinePatch(Patch):
     def __init__(self, instruction_addr, new_asm, name=None, num_instr=1):
-        super(InlinePatch, self).__init__(name)
+        super().__init__(name)
         self.instruction_addr = instruction_addr
         self.num_instr = num_instr
         self.new_asm = new_asm
@@ -26,7 +26,7 @@ class InlinePatch(Patch):
 
 class AddRODataPatch(Patch):
     def __init__(self, data, name=None):
-        super(AddRODataPatch, self).__init__(name)
+        super().__init__(name)
         if isinstance(data, list):
             data = bytes(data)
         if not isinstance(data, bytes):
@@ -39,7 +39,7 @@ class AddRODataPatch(Patch):
 
 class AddRWDataPatch(Patch):
     def __init__(self, tlen, name=None):
-        super(AddRWDataPatch, self).__init__(name)
+        super().__init__(name)
         assert type(tlen) == int
         self.len = tlen
 
@@ -49,7 +49,7 @@ class AddRWDataPatch(Patch):
 
 class AddRWInitDataPatch(Patch):
     def __init__(self, data, name=None):
-        super(AddRWInitDataPatch, self).__init__(name)
+        super().__init__(name)
         self.data = data
         if not isinstance(data, bytes):
             raise TypeError("Data must be a bytestring.")
@@ -60,7 +60,7 @@ class AddRWInitDataPatch(Patch):
 
 class AddLabelPatch(Patch):
     def __init__(self, addr, name=None, is_global=True):
-        super(AddLabelPatch, self).__init__(name)
+        super().__init__(name)
         self.addr = addr
         self.is_global = is_global
 
@@ -73,7 +73,7 @@ class CodePatch(Patch):
     Base class for all code patches
     """
     def __init__(self, name, asm_code, is_c=False, is_att=False, optimization="-Oz", compiler_flags="-m32", is_thumb=False):
-        super(CodePatch, self).__init__(name)
+        super().__init__(name)
 
         self.asm_code = asm_code
         self.is_c = is_c
@@ -126,7 +126,7 @@ class CodePatch(Patch):
 
 class AddCodePatch(CodePatch):
     def __init__(self, asm_code, name=None, is_c=False, is_att=False, optimization="-Oz", compiler_flags="-m32", is_thumb=False):
-        super(AddCodePatch, self).__init__(name, asm_code, is_c=is_c, is_att=is_att,
+        super().__init__(name, asm_code, is_c=is_c, is_att=is_att,
                                            optimization=optimization, compiler_flags=compiler_flags, is_thumb=is_thumb)
 
     def __repr__(self):
@@ -135,7 +135,7 @@ class AddCodePatch(CodePatch):
 
 class AddFunctionPatch(CodePatch):
     def __init__(self, code, name=None, symbols=None):
-        super(AddCodePatch, self).__init__(name, asm_code=code)
+        super().__init__(name, asm_code=code)
         self.symbols = symbols
     
     def __repr__(self):
@@ -144,7 +144,7 @@ class AddFunctionPatch(CodePatch):
 
 class FunctionWrapperPatch(CodePatch):
     def __init__(self, addr, code, name=None, symbols=None):
-        super(FunctionWrapperPatch, self).__init__(name, asm_code=code)
+        super().__init__(name, asm_code=code)
         self.addr = addr
         self.symbols = symbols
     
@@ -154,7 +154,7 @@ class FunctionWrapperPatch(CodePatch):
 
 class AddEntryPointPatch(CodePatch):
     def __init__(self, asm_code, name=None, is_att=False, priority=1, after_restore=False, is_thumb=True):
-        super(AddEntryPointPatch, self).__init__(name, asm_code, is_att=is_att, is_thumb=is_thumb)
+        super().__init__(name, asm_code, is_att=is_att, is_thumb=is_thumb)
         self.priority = priority
         self.after_restore = after_restore
 
@@ -165,7 +165,7 @@ class AddEntryPointPatch(CodePatch):
 
 class InsertCodePatch(CodePatch):
     def __init__(self, addr, code, name=None, is_att=False, priority=1, stackable=False):
-        super(InsertCodePatch, self).__init__(name, asm_code=code, is_att=is_att)
+        super().__init__(name, asm_code=code, is_att=is_att)
         self.addr = addr
         self.priority = priority
         self.stackable = stackable
@@ -179,7 +179,7 @@ class InsertCodePatch(CodePatch):
 
 class ReplaceFunctionPatch(CodePatch):
     def __init__(self, addr, size, code, name=None, is_att=False, priority=1, symbols=None):
-        super(ReplaceFunctionPatch, self).__init__(name, asm_code=code, is_att=is_att)
+        super().__init__(name, asm_code=code, is_att=is_att)
         self.addr = addr
         self.size = size
         self.symbols = symbols
@@ -192,7 +192,7 @@ class ReplaceFunctionPatch(CodePatch):
 class RawFilePatch(Patch):
 
     def __init__(self, file_addr, data, name=None):
-        super(RawFilePatch, self).__init__(name)
+        super().__init__(name)
         self.file_addr = file_addr
         self.data = data
 
@@ -202,7 +202,7 @@ class RawFilePatch(Patch):
 
 class RawMemPatch(Patch):
     def __init__(self, addr, data, name=None):
-        super(RawMemPatch, self).__init__(name)
+        super().__init__(name)
         self.addr = addr
         if not isinstance(data, bytes):
             raise TypeError("Data must be a bytestring.")
@@ -214,7 +214,7 @@ class RawMemPatch(Patch):
 
 class SegmentHeaderPatch(Patch):
     def __init__(self, segment_headers, name=None):
-        super(SegmentHeaderPatch, self).__init__(name)
+        super().__init__(name)
         self.segment_headers = segment_headers
 
     def __repr__(self):
@@ -223,7 +223,7 @@ class SegmentHeaderPatch(Patch):
 
 class AddSegmentHeaderPatch(Patch):
     def __init__(self, new_segment, name=None):
-        super(AddSegmentHeaderPatch, self).__init__(name)
+        super().__init__(name)
         self.new_segment = new_segment
 
     def __str__(self):
@@ -232,7 +232,7 @@ class AddSegmentHeaderPatch(Patch):
 
 class PointerArrayPatch(Patch):
     def __init__(self, addr, pointers, name=None):
-        super(PointerArrayPatch, self).__init__(name)
+        super().__init__(name)
         self.addr = addr
         self.pointers = pointers
         self.data = b"".join([ struct.pack("<I", p) for p in self.pointers ])
@@ -243,7 +243,7 @@ class PointerArrayPatch(Patch):
 
 class RemoveInstructionPatch(Patch):
     def __init__(self, ins_addr, ins_size, name=None):
-        super(RemoveInstructionPatch, self).__init__(name)
+        super().__init__(name)
 
         self.ins_addr = ins_addr
         self.ins_size = ins_size

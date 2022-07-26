@@ -240,18 +240,22 @@ class DetourBackendi386(DetourBackendElf):
                 else:
                     raise DetourException("Detour is too big")
 
-                moved_size = sum(
-                    [movable_instructions[i].size for i in range(idx + 1)])
+                moved_size = sum(movable_instructions[i].size for i in range(idx + 1))
                 nop_size = moved_size - detour_size
 
                 # compile function for size
                 symbols = default_symbols.copy()
                 symbols.update(patch.symbols or {})
                 symbols["__original_function"] = patch.addr
-                wrapper_size = len(self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
-                                                         bits=self.structs.elfclass, entry=self.get_current_code_position() + offset, symbols=symbols))
+                wrapper_size = len(self.compile_function(
+                    patch.asm_code,
+                    compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
+                    bits=self.structs.elfclass,
+                    entry=self.get_current_code_position() + offset,
+                    symbols=symbols))
                 jmp_to_wrapper_size = len(self.compile_asm(
-                    f"jmp {hex(self.get_current_code_position() + offset)}", self.get_current_code_position() + wrapper_size + offset))
+                    f"jmp {hex(self.get_current_code_position() + offset)}",
+                    self.get_current_code_position() + wrapper_size + offset))
 
                 # add detour
                 jmp_code = f"jmp {hex(self.get_current_code_position() + offset + wrapper_size)}\n"
@@ -265,8 +269,11 @@ class DetourBackendi386(DetourBackendElf):
                 # compile function
                 symbols["__original_function"] = self.get_current_code_position(
                 ) + wrapper_size + offset + jmp_to_wrapper_size
-                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
-                                                 bits=self.structs.elfclass, entry=self.get_current_code_position() + offset, symbols=symbols)
+                new_code = self.compile_function(patch.asm_code,
+                                                 compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
+                                                 bits=self.structs.elfclass,
+                                                 entry=self.get_current_code_position() + offset,
+                                                 symbols=symbols)
                 self.added_code += new_code
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
 
