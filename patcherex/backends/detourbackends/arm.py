@@ -298,6 +298,14 @@ class DetourBackendArm(DetourBackendElf):
         default_symbols = self._default_symbols(patches)
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
+                if isinstance(patch.addr, str):
+                    if patch.addr in self.name_map:
+                        patch.addr = self.name_map[patch.addr]
+                    elif patch.addr in self.project.kb.functions:
+                        patch.addr = self.project.kb.functions[patch.addr].addr
+                    else:
+                        raise Exception(
+                            "Could not resolve address for %s" % patch.addr)
                 symbols = default_symbols.copy()
                 symbols.update(patch.symbols or {})
                 is_thumb = self.check_if_thumb(patch.addr)

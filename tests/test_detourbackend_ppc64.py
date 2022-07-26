@@ -267,6 +267,7 @@ class Tests(unittest.TestCase):
         int add(int a, int b){ for(;; b--, a+=2) if(b <= 0) return a; }
         '''
         self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x10000508, 0x58, code)], expected_output=b"70707070")
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch("add", 0x58, code)], expected_output=b"70707070")
 
     @unittest.skip("Not Implemented")
     def test_replace_function_patch_with_function_reference(self):

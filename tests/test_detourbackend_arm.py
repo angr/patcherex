@@ -254,6 +254,7 @@ class Tests(unittest.TestCase):
         int add(int a, int b){ for(;; b--, a+=2) if(b <= 0) return a; }
         '''
         self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x40052c, 46, code)], expected_output=b"70707070")
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch("add", 46, code)], expected_output=b"70707070")
 
     def test_replace_function_patch_with_function_reference(self):
         code = '''

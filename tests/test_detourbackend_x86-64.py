@@ -100,6 +100,8 @@ class Tests(unittest.TestCase):
         '''
         self.run_test("replace_function_patch", [ReplaceFunctionPatch(
             0x400660, 0x21, code)], expected_output=b"70707070")
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(
+            "add", 0x21, code)], expected_output=b"70707070")
 
     def test_replace_function_patch_with_function_reference(self):
         code = '''
