@@ -37,7 +37,7 @@ class Tests(unittest.TestCase):
             pop rsi
             pop rdi
             pop rax
-            mov rsp, rbx 
+            mov rsp, rbx
         	ret
           '''
         injected_code = '''
@@ -73,7 +73,7 @@ class Tests(unittest.TestCase):
             pop rsi
             pop rdi
             pop rax
-            mov rsp, rbx 
+            mov rsp, rbx
         	ret
           '''
         patches.append(AddCodePatch(transmit_code, name="transmit_function"))
