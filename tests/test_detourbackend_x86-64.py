@@ -105,7 +105,12 @@ class Tests(unittest.TestCase):
         }
         '''
         self.run_test("replace_function_patch", [FunctionWrapperPatch(
-            0x4006a2, code, "multiply_wrapper", {"printf": 0x400520})], expected_output=b"multiply\n2121")
+            0x4006a2, code,
+            name="multiply_wrapper",
+            # Not strictly necessary, since symbols are added by default, but here for demonstration
+            symbols={"printf": 0x400520}
+            )
+            ], expected_output=b"multiply\n2121")
 
     def test_replace_function_patch(self):
         code = '''
