@@ -97,11 +97,11 @@ class Tests(unittest.TestCase):
     def test_function_wrapper_patch(self):
         code = '''
         int printf(const char *format, ...);
-        int __original_function(int, int);
+        int __ORIGINAL_multiply_wrapper(int, int);
 
         int func(int a, int b) {
             printf("multiply\\n");
-            return __original_function(a, b);
+            return __ORIGINAL_multiply_wrapper(a, b);
         }
         '''
         self.run_test("replace_function_patch", [FunctionWrapperPatch(

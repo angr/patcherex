@@ -246,7 +246,7 @@ class DetourBackendi386(DetourBackendElf):
                 # compile function for size
                 symbols = default_symbols.copy()
                 symbols.update(patch.symbols or {})
-                symbols["__original_function"] = patch.addr
+                symbols[f"__ORIGINAL_{patch.name}"] = patch.addr
                 wrapper_size = len(self.compile_function(
                     patch.asm_code,
                     compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
@@ -267,7 +267,7 @@ class DetourBackendi386(DetourBackendElf):
                     self.ncontent, jmp_bytes, file_offset)
 
                 # compile function
-                symbols["__original_function"] = self.get_current_code_position(
+                symbols[f"__ORIGINAL_{patch.name}"] = self.get_current_code_position(
                 ) + wrapper_size + offset + jmp_to_wrapper_size
                 new_code = self.compile_function(patch.asm_code,
                                                  compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
