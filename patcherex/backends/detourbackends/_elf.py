@@ -649,7 +649,8 @@ class DetourBackendElf(Backend):
         # if name_map != None: print {k: hex(v) for k,v in name_map.iteritems()}
         try:
             if name_map is not None:
-                name_map = {k: hex(v) for (k, v) in name_map.items()}
+                offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+                name_map = {k: hex(v + offset) for (k, v) in name_map.items()}
                 code = code.format(**name_map)  # compile_asm
             else:
                 code = re.subn(r'{.*?}', "0x41414141",
