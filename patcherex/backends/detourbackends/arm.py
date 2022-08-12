@@ -10,7 +10,7 @@ from patcherex.backends.detourbackends._utils import (
     DetourException, DoubleDetourException, DuplicateLabelsException,
     IncompatiblePatchesException, MissingBlockException)
 from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
-                               AddRODataPatch, AddRWDataPatch,
+                               AddRODataPatch, AddRWDataPatch, AddFunctionPatch,
                                AddRWInitDataPatch, AddSegmentHeaderPatch,
                                InlinePatch, InsertCodePatch, RawFilePatch,
                                RawMemPatch, RemoveInstructionPatch,
@@ -58,6 +58,10 @@ class DetourBackendArm(DetourBackendElf):
     def apply_patches(self, patches):
         # deal with stackable patches
         # add stackable patches to the one with highest priority
+
+        
+        default_symbols = self._default_symbols(patches)
+
         insert_code_patches = [
             p for p in patches if isinstance(p, InsertCodePatch)]
         insert_code_patches_dict = defaultdict(list)
@@ -184,6 +188,14 @@ class DetourBackendArm(DetourBackendElf):
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
+            elif isinstance(patch, AddFunctionPatch):
+                code_len = len(self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
+                                                     is_thumb=patch.is_thumb, symbols=patch.symbols, entry=current_symbol_pos))
+                if patch.name is not None:
+                    self.name_map[patch.name] = current_symbol_pos
+                current_symbol_pos += code_len
+
+
         # now compile for real
         for patch in patches:
             if isinstance(patch, AddCodePatch):
@@ -201,6 +213,18 @@ class DetourBackendArm(DetourBackendElf):
                 if not self.try_reuse_unused_space:
                     self.ncontent = utils.bytes_overwrite(
                         self.ncontent, new_code)
+                self.added_patches.append(patch)
+                l.info("Added patch: %s", str(patch))
+            elif isinstance(patch, AddFunctionPatch):
+                symbols = default_symbols.copy()
+                symbols.update(patch.symbols or {})
+                obj = self.project.loader.main_object
+                entry = self.get_current_code_position(
+                ) if not obj.pic else self.get_current_code_position() + obj.min_addr
+                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
+                                                 is_thumb=patch.is_thumb, entry=entry, symbols=symbols)
+                self.added_code += new_code
+                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
 
@@ -292,10 +316,9 @@ class DetourBackendArm(DetourBackendElf):
                 # TODO symbol name, for now no name_map for InsertCode patches
 
         header_patches = [InsertCodePatch, InlinePatch, AddEntryPointPatch, AddCodePatch,
-                          AddRWDataPatch, AddRODataPatch, AddRWInitDataPatch]
+                          AddRWDataPatch, AddRODataPatch, AddRWInitDataPatch, AddFunctionPatch]
 
         # 5.5) ReplaceFunctionPatch
-        default_symbols = self._default_symbols(patches)
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
                 if isinstance(patch.addr, str):

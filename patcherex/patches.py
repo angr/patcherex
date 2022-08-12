@@ -134,10 +134,10 @@ class AddCodePatch(CodePatch):
 
 
 class AddFunctionPatch(CodePatch):
-    def __init__(self, code, name=None, symbols=None):
-        super().__init__(name, asm_code=code)
+    def __init__(self, code, name=None, symbols=None, is_thumb=False):
+        super().__init__(name, asm_code=code, is_thumb=is_thumb)
         self.symbols = symbols
-    
+
     def __repr__(self):
         return "AddFunctionPatch [%s] (%d)" % (self.name,len(self.asm_code))
 
