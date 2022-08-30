@@ -1,4 +1,3 @@
-
 import logging
 
 import angr
@@ -32,7 +31,7 @@ class Backend(object):
         # file info
         self.filename = filename
         self.try_pdf_removal = try_pdf_removal
-        self.pdf_removed = False # has the pdf actually been removed?
+        self.pdf_removed = False  # has the pdf actually been removed?
         self.project = angr.Project(filename, load_options={"auto_load_libs": False}, **project_options)
         self._identifer = None
         self.cfg = cfg_preset
@@ -79,7 +78,6 @@ class Backend(object):
             self._identifer = self.project.analyses.Identifier(self.cfg, require_predecessors=False)
             list(self._identifer.run(only_find=FIND_FUNCS))
         return self._identifer
-
 
     #
     # Private methods
