@@ -4,7 +4,6 @@ import sys
 import os
 import logging
 import traceback
-import timeout_decorator
 import itertools
 import psutil
 import multiprocessing
@@ -57,10 +56,9 @@ from .networkrules import NetworkRules
 
 def test_bin_with_qemu(original,patched_blob,bitflip=False):
     import shellphish_qemu
-    import subprocess32
 
     def try_bin_with_input(path,tinput,seed=123):
-        pipe = subprocess32.PIPE
+        pipe = subprocess.PIPE
         qemu_location = shellphish_qemu.qemu_path('cgc-nxtracer')
         main_args = [qemu_location,"-seed",str(seed)]
         if bitflip:
@@ -70,7 +68,7 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
 
         final_args = used_args + [os.path.realpath(path)]
         print(" ".join(final_args))
-        p = subprocess32.Popen(final_args, stdin=pipe, stdout=pipe, stderr=pipe, preexec_fn=process_killer)
+        p = subprocess.Popen(final_args, stdin=pipe, stdout=pipe, stderr=pipe, preexec_fn=process_killer)
         status = "ok"
         try:
             try:
@@ -93,7 +91,7 @@ def test_bin_with_qemu(original,patched_blob,bitflip=False):
             # execution attempt of not executable memory
             if p.returncode < 0 or p.returncode == 46:
                 status = "crash"
-        except subprocess32.TimeoutExpired:
+        except subprocess.TimeoutExpired:
             print("Timeout")
             status = "halt"
             p.terminate()
