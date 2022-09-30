@@ -688,10 +688,10 @@ class DetourBackendArm(DetourBackendElf):
                 asm += f"{arg_list[i]}\n"
             asm += f"mov r{i}, r0\n"
         
-            if "b _end" in arg_list[0]:
-                asm += f"{arg_list[0][:arg_list[0].index('b _end')]}\n"
-            else:
-                asm += f"{arg_list[0]}\n"
+        if "b _end" in arg_list[0]:
+            asm += f"{arg_list[0][:arg_list[0].index('b _end')]}\n"
+        else:
+            asm += f"{arg_list[0]}\n"
 
         if const_pool:
             const_pool_list = const_pool.splitlines()
