@@ -577,6 +577,14 @@ class DetourBackendArm(DetourBackendElf):
             with open(c_fname, 'w') as fp:
                 fp.write(code)
 
+            if symbols is None:
+                symbols = {}
+
+            if symbols:
+                for k, v in self.name_map.items():
+                    if k not in symbols:
+                        symbols[k] = v
+
             linker_script = "SECTIONS { .text : SUBALIGN(0) { . = " + hex(entry) + "; *(.text) "
             if symbols:
                 for i in symbols:
@@ -671,6 +679,8 @@ class DetourBackendArm(DetourBackendElf):
     
     @staticmethod
     def generate_asm_for_arguments(arg_list):
+        if len(arg_list) == 0:
+            return ""
         if len(arg_list) > 4:
             raise Exception("Currently Patcherex Only Supports Up to 4 Arguments")
         asm = ""
@@ -687,7 +697,7 @@ class DetourBackendArm(DetourBackendElf):
             else:
                 asm += f"{arg_list[i]}\n"
             asm += f"mov r{i}, r0\n"
-        
+
         if "b _end" in arg_list[0]:
             asm += f"{arg_list[0][:arg_list[0].index('b _end')]}\n"
         else:

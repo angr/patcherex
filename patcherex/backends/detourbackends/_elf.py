@@ -177,7 +177,7 @@ class DetourBackendElf(Backend):
                     raise Exception("Not enough RE space to reuse")
             if len(self.added_data) > 0:
                 if len(self.added_data) < self.reuse_data["file_size"]:
-                    self.added_data_file_start = self.reuse_data["start"]
+                    self.added_data_file_start = self.reuse_data["file_start"]
                     self.reuse_data["file_start"] += len(self.added_data)
                     self.reuse_data["file_size"] -= len(self.added_data)
                     l.info("Reusing space for data: 0x%x", self.added_data_file_start)
