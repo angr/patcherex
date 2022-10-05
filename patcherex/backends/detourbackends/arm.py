@@ -179,6 +179,8 @@ class DetourBackendArm(DetourBackendElf):
                                                  self.get_current_code_position(),
                                                  self.name_map,
                                                  is_thumb=patch.is_thumb)
+                if self.added_code == b"":
+                    self.patch_info["patcherex_added_functions"].append(hex(self.name_map["ADDED_CODE_START"] + (1 if patch.is_thumb else 0)))
                 self.added_code += new_code
                 if not self.try_reuse_unused_space:
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
@@ -202,6 +204,8 @@ class DetourBackendArm(DetourBackendElf):
                                              self.get_current_code_position(),
                                              self.name_map,
                                              is_thumb=patch.is_thumb)
+                if self.added_code == b"":
+                    self.patch_info["patcherex_added_functions"].append(hex(self.name_map["ADDED_CODE_START"] + (1 if patch.is_thumb else 0)))
                 self.added_code += new_code
                 self.added_patches.append(patch)
                 if not self.try_reuse_unused_space:
@@ -241,6 +245,8 @@ class DetourBackendArm(DetourBackendElf):
                     if patch.name is not None:
                         self.name_map[patch.name] = self.get_current_code_position()
                     new_code = self.insert_detour(patch)
+                    if self.added_code == b"":
+                        self.patch_info["patcherex_added_functions"].append(hex(self.name_map["ADDED_CODE_START"] + (1 if self.check_if_thumb(patch.addr) else 0)))
                     self.added_code += new_code
                     if not self.try_reuse_unused_space:
                         self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
@@ -285,6 +291,8 @@ class DetourBackendArm(DetourBackendElf):
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
                     new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=detour_pos + offset, symbols=patch.symbols, stacklayout=patch.stacklayout)
+                    if self.added_code == b"":
+                        self.patch_info["patcherex_added_functions"].append(hex(self.name_map["ADDED_CODE_START"] + (1 if is_thumb else 0)))
                     self.added_code += new_code
                     if not self.try_reuse_unused_space:
                         self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
