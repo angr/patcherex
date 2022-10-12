@@ -88,7 +88,7 @@ class DetourBackendElf(Backend):
         # regions: addtional regions created by patcherex
         # function_starts: ReplaceFunctionPatch's start address + InsertFunctionPatch's function's start address
         # patcherex_added_functions: InsertFunctionPatch's function's start address
-        self.patch_info = {"cfgfast_options": {"original":{"regions": [], "function_starts": []}, "patched":{"regions": [], "function_starts": []}}, "patcherex_added_functions": []}
+        self.patch_info = {"exit_edges": {"original": {}, "patched": {}}, "cfgfast_options": {"original":{"regions": [], "function_starts": []}, "patched":{"regions": [], "function_starts": []}}, "patcherex_added_functions": []}
 
     def find_space(self):
         # FUTURE: we might want to split LOAD segment for finer granularity of permission control

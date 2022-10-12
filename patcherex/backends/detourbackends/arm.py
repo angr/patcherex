@@ -472,6 +472,21 @@ class DetourBackendArm(DetourBackendElf):
         post_code_compiled = self.compile_asm(post_code,
                                               base=self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled),
                                               name_map=self.name_map, is_thumb=is_thumb)
+        jmp_table_addr = self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled)
+        jmp_table_instrs = self.disassemble(post_code_compiled, jmp_table_addr, is_thumb=is_thumb)
+        exit_edges = []
+        for idx in range(len(jmp_table_instrs)):
+            instr = jmp_table_instrs[idx]
+            if instr.mnemonic.startswith("pop"):
+                break
+            if instr.mnemonic == "cmp":
+                if idx < len(jmp_table_instrs) - 1 and jmp_table_instrs[idx + 1].mnemonic.startswith("b"):
+                    next_instr = jmp_table_instrs[idx + 1]
+                    ret_val = instr.operands[1].imm
+                    if ret_val != 0:
+                        exit_edges.append([hex(next_instr.address), hex(next_instr.operands[0].imm)])
+        self.patch_info["exit_edges"]["patched"][hex(self.project.kb.functions.floor_func(patch.addr).addr)] = exit_edges
+
         if (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4 != 0:
             post_code_compiled += b"\x00"*(4 - (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4)
 
