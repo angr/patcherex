@@ -654,19 +654,22 @@ class DetourBackendArm(DetourBackendElf):
             compiled = ld.memory.load(ld.all_objects[0].entry + entry, ld.memory.max_addr)
 
             disasm = self.disassemble(compiled, entry, is_thumb=is_thumb)
-            disasm_str = ""
+            reassembled = b""
             for instr in disasm:
                 if is_thumb and instr.mnemonic == "bl" and instr.operands[0].imm in symbols.values():
-                    disasm_str += self.capstone_to_asm(instr).replace("bl", "blx") + "\n"
+                    disasm_str = self.capstone_to_asm(instr).replace("bl", "blx") + "\n"
+                    reassembled += self.compile_asm(disasm_str, base=instr.address, name_map={}, is_thumb=is_thumb)
                 elif is_thumb and instr.mnemonic == "blx" and (instr.operands[0].imm + 1) in symbols.values():
-                    disasm_str += self.capstone_to_asm(instr).replace("blx", "bl") + "\n"
+                    disasm_str = self.capstone_to_asm(instr).replace("blx", "bl") + "\n"
+                    reassembled += self.compile_asm(disasm_str, base=instr.address, name_map={}, is_thumb=is_thumb)
                 elif not is_thumb and instr.mnemonic == "bl" and (instr.operands[0].imm + 1) in symbols.values():
-                    disasm_str += self.capstone_to_asm(instr).replace("bl", "blx") + "\n"
+                    disasm_str = self.capstone_to_asm(instr).replace("bl", "blx") + "\n"
+                    reassembled += self.compile_asm(disasm_str, base=instr.address, name_map={}, is_thumb=is_thumb)
                 elif not is_thumb and instr.mnemonic == "blx" and instr.operands[0].imm in symbols.values():
-                    disasm_str += self.capstone_to_asm(instr).replace("blx", "bl") + "\n"
+                    disasm_str = self.capstone_to_asm(instr).replace("blx", "bl") + "\n"
+                    reassembled += self.compile_asm(disasm_str, base=instr.address, name_map={}, is_thumb=is_thumb)
                 else:
-                    disasm_str += self.capstone_to_asm(instr) + "\n"
-            reassembled = self.compile_asm(disasm_str, base=entry, name_map={}, is_thumb=is_thumb)
+                    reassembled += compiled[instr.address - entry:instr.address - entry + instr.size]
             compiled = reassembled + compiled[len(reassembled):]
         return compiled
 
