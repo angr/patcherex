@@ -597,7 +597,7 @@ class DetourBackendArm(DetourBackendElf):
             if symbols:
                 for i in symbols:
                     linker_script += i + " = " + hex(symbols[i]) + ";"
-            linker_script += "}}"
+            linker_script += "} /DISCARD/ : { *(.ARM.exidx) } }"
 
             with open(linker_script_fname, 'w') as fp:
                 fp.write(linker_script)
