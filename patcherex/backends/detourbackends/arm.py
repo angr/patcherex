@@ -472,6 +472,21 @@ class DetourBackendArm(DetourBackendElf):
         post_code_compiled = self.compile_asm(post_code,
                                               base=self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled),
                                               name_map=self.name_map, is_thumb=is_thumb)
+        jmp_table_addr = self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled)
+        jmp_table_instrs = self.disassemble(post_code_compiled, jmp_table_addr, is_thumb=is_thumb)
+        exit_edges = []
+        for idx in range(len(jmp_table_instrs)):
+            instr = jmp_table_instrs[idx]
+            if instr.mnemonic.startswith("pop"):
+                break
+            if instr.mnemonic == "cmp":
+                if idx < len(jmp_table_instrs) - 1 and jmp_table_instrs[idx + 1].mnemonic.startswith("b"):
+                    next_instr = jmp_table_instrs[idx + 1]
+                    ret_val = instr.operands[1].imm
+                    if ret_val != 0:
+                        exit_edges.append([hex(next_instr.address), hex(next_instr.operands[0].imm)])
+        self.patch_info["exit_edges"]["patched"][hex(self.project.kb.functions.floor_func(patch.addr).addr)] = exit_edges
+
         if (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4 != 0:
             post_code_compiled += b"\x00"*(4 - (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4)
 
@@ -597,13 +612,13 @@ class DetourBackendArm(DetourBackendElf):
             if symbols:
                 for i in symbols:
                     linker_script += i + " = " + hex(symbols[i]) + ";"
-            linker_script += "}}"
+            linker_script += "} /DISCARD/ : { *(.ARM.exidx) } }"
 
             with open(linker_script_fname, 'w') as fp:
                 fp.write(linker_script)
 
             if stacklayout is None:
-                res = utils.exec_cmd("clang-6.0 -target arm-linux-gnueabihf -mcpu=cortex-a8 -o %s -c %s %s %s -I /usr/arm-linux-gnueabihf/include/" \
+                res = utils.exec_cmd("clang-10 -target arm-linux-gnueabihf -o %s -c %s %s %s -I /usr/arm-linux-gnueabihf/include/" \
                                 % (object_fname, c_fname, compiler_flags, "-mthumb" if is_thumb else "-mno-thumb"), shell=True)
                 if res[2] != 0:
                     raise CLangException("Clang error: " + str(res[0] + res[1], 'utf-8'))
@@ -654,19 +669,22 @@ class DetourBackendArm(DetourBackendElf):
             compiled = ld.memory.load(ld.all_objects[0].entry + entry, ld.memory.max_addr)
 
             disasm = self.disassemble(compiled, entry, is_thumb=is_thumb)
-            disasm_str = ""
+            reassembled = b""
             for instr in disasm:
                 if is_thumb and instr.mnemonic == "bl" and instr.operands[0].imm in symbols.values():
-                    disasm_str += self.capstone_to_asm(instr).replace("bl", "blx") + "\n"
+                    disasm_str = self.capstone_to_asm(instr).replace("bl", "blx") + "\n"
+                    reassembled += self.compile_asm(disasm_str, base=instr.address, name_map={}, is_thumb=is_thumb)
                 elif is_thumb and instr.mnemonic == "blx" and (instr.operands[0].imm + 1) in symbols.values():
-                    disasm_str += self.capstone_to_asm(instr).replace("blx", "bl") + "\n"
+                    disasm_str = self.capstone_to_asm(instr).replace("blx", "bl") + "\n"
+                    reassembled += self.compile_asm(disasm_str, base=instr.address, name_map={}, is_thumb=is_thumb)
                 elif not is_thumb and instr.mnemonic == "bl" and (instr.operands[0].imm + 1) in symbols.values():
-                    disasm_str += self.capstone_to_asm(instr).replace("bl", "blx") + "\n"
+                    disasm_str = self.capstone_to_asm(instr).replace("bl", "blx") + "\n"
+                    reassembled += self.compile_asm(disasm_str, base=instr.address, name_map={}, is_thumb=is_thumb)
                 elif not is_thumb and instr.mnemonic == "blx" and instr.operands[0].imm in symbols.values():
-                    disasm_str += self.capstone_to_asm(instr).replace("blx", "bl") + "\n"
+                    disasm_str = self.capstone_to_asm(instr).replace("blx", "bl") + "\n"
+                    reassembled += self.compile_asm(disasm_str, base=instr.address, name_map={}, is_thumb=is_thumb)
                 else:
-                    disasm_str += self.capstone_to_asm(instr) + "\n"
-            reassembled = self.compile_asm(disasm_str, base=entry, name_map={}, is_thumb=is_thumb)
+                    reassembled += compiled[instr.address - entry:instr.address - entry + instr.size]
             compiled = reassembled + compiled[len(reassembled):]
         return compiled
 
