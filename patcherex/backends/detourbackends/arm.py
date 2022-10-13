@@ -481,10 +481,11 @@ class DetourBackendArm(DetourBackendElf):
                 break
             if instr.mnemonic == "cmp":
                 if idx < len(jmp_table_instrs) - 1 and jmp_table_instrs[idx + 1].mnemonic.startswith("b"):
+                    target_is_thumb = not is_thumb if ("x" in jmp_table_instrs[idx + 1].mnemonic) else is_thumb
                     next_instr = jmp_table_instrs[idx + 1]
                     ret_val = instr.operands[1].imm
                     if ret_val != 0:
-                        exit_edges.append([hex(next_instr.address), hex(next_instr.operands[0].imm)])
+                        exit_edges.append([hex(jmp_table_addr + (1 if is_thumb else 0)), hex(next_instr.operands[0].imm + (1 if target_is_thumb else 0))])
         self.patch_info["exit_edges"]["patched"][hex(self.project.kb.functions.floor_func(patch.addr).addr)] = exit_edges
 
         if (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4 != 0:
