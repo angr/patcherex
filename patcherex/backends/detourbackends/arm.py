@@ -586,6 +586,12 @@ class DetourBackendArm(DetourBackendElf):
 
         return "\n".join(wcode)
 
+    def compile_asm(self, code, base=None, name_map=None, is_thumb=False):
+        result = super().compile_asm(code, base=base, name_map=name_map, is_thumb=is_thumb)
+        if len(result) % 2 != 0:
+            result += b"\x00"
+        return result
+
     def compile_c(self, code, optimization='-Oz', compiler_flags="", is_thumb=False): # pylint: disable=arguments-differ
         return super().compile_c(code, optimization=optimization, compiler_flags=("-mthumb " if is_thumb else "-mno-thumb ") + compiler_flags)
 
@@ -687,6 +693,8 @@ class DetourBackendArm(DetourBackendElf):
                 else:
                     reassembled += compiled[instr.address - entry:instr.address - entry + instr.size]
             compiled = reassembled + compiled[len(reassembled):]
+        if len(compiled) % 2 != 0:
+            compiled += b"\x00"
         return compiled
 
     @staticmethod
