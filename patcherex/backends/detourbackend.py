@@ -1,6 +1,6 @@
 import importlib
 
-def DetourBackend(filename, data_fallback=None, base_address=None, try_pdf_removal=True, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False, variant=None):
+def DetourBackend(filename, data_fallback=None, base_address=None, try_pdf_removal=True, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False, variant=None, use_pickle=False):
     with open(filename, "rb") as f:
         start_bytes = f.read(0x14)
         if start_bytes.startswith(b"\x7fCGC"):

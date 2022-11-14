@@ -21,10 +21,10 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendMips(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False):
+    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False, use_pickle=False):
         if try_reuse_unused_space:
             raise NotImplementedError()
-        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg)
+        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg, use_pickle=use_pickle)
         if self.structs.elfclass == 64:
             self.added_code_segment = 0x120600000
             self.added_data_segment = 0x120700000

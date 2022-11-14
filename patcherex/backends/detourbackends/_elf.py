@@ -32,8 +32,8 @@ class Perm(IntFlag):
 
 class DetourBackendElf(Backend):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False):
-        super().__init__(filename, project_options={"main_opts": {"base_addr": base_address}})
+    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False, use_pickle=False):
+        super().__init__(filename, project_options={"main_opts": {"base_addr": base_address}}, use_pickle=use_pickle)
 
         self.elf = ELFFile(open(filename, "rb"))
         self.modded_segments = self.dump_segments() # dump_segments also set self.structs

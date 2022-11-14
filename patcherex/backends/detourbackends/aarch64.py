@@ -22,10 +22,10 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendAarch64(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False):
+    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False, use_pickle=False):
         if try_reuse_unused_space:
             raise NotImplementedError()
-        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg)
+        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg, use_pickle=use_pickle)
 
     def get_block_containing_inst(self, inst_addr):
         index = bisect.bisect_right(self.ordered_nodes, inst_addr) - 1

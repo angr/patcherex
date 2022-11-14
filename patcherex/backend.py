@@ -1,6 +1,6 @@
 
 import logging
-
+import os, pickle
 import angr
 
 l = logging.getLogger('patcherex.backend')
@@ -20,7 +20,7 @@ class Backend(object):
     Patcher backend.
     """
 
-    def __init__(self, filename, try_pdf_removal=True, project_options=None):
+    def __init__(self, filename, try_pdf_removal=True, project_options=None, use_pickle=False):
         """
         Constructor
 
@@ -33,7 +33,11 @@ class Backend(object):
         self.filename = filename
         self.try_pdf_removal = try_pdf_removal
         self.pdf_removed = False # has the pdf actually been removed?
-        self.project = angr.Project(filename, load_options={"auto_load_libs": False}, **project_options)
+        if use_pickle and os.path.exists(f"{filename}.pickle"):
+            with open(f"{filename}.pickle", "rb") as f:
+                self.project, self.cfg = pickle.load(f)
+        else:
+            self.project = angr.Project(filename, load_options={"auto_load_libs": False}, **project_options)
         self._identifer = None
         with open(filename, "rb") as f:
             self.ocontent = f.read()
@@ -95,6 +99,8 @@ class Backend(object):
         # TODO
         # 1) ida-like cfg
         # 2) with some strategies we don't need the cfg, we should be able to apply those strategies even if the cfg fails
+        if self.cfg:
+            return self.cfg
         l.info("CFG start...")
         cfg = self.project.analyses.CFGFast(normalize=True, data_references=True)
         l.info("... CFG end")

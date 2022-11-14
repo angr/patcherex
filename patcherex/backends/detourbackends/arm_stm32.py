@@ -23,12 +23,12 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 class DetourBackendArmStm32(DetourBackendArm):
     # =========== WIP =============
     # Not yet tested, designed for Nucleo-32 board
-    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False):
+    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False, use_pickle=False):
         if try_reuse_unused_space:
             raise NotImplementedError()
         if try_without_cfg:
             raise NotImplementedError()
-        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg)
+        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg, use_pickle=use_pickle)
         self.name_map.force_insert("ADDED_DATA_START", self.modded_segments[1]['p_paddr'] + self.modded_segments[1]['p_filesz'])
         self.added_data_file_start = self.modded_segments[1]['p_offset'] + self.modded_segments[1]['p_filesz']
         self.sections = self.dump_sections()
