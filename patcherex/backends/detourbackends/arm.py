@@ -379,6 +379,8 @@ class DetourBackendArm(DetourBackendElf):
         l.debug("movable_bb_size: %d", movable_bb_size)
         l.debug("movable bb instructions:\n%s", "\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
 
+        detour_starts = []
+
         # find a spot for the detour
         for detour_start in range(movable_bb_start, movable_bb_start + movable_bb_size - detour_size + 1, 2):
             if detour_start in possible_detour_starts and (detour_start + detour_size - 1) in possible_detour_ends:
@@ -387,10 +389,17 @@ class DetourBackendArm(DetourBackendElf):
                         break
                 else:
                     l.debug("detour fits at %s", hex(detour_start))
-                    return detour_start
-
-        raise DetourException("No space in bb", hex(block.addr), hex(block.size),
+                    detour_starts.append(detour_start)
+        
+        if len(detour_starts) == 0:
+            raise DetourException("No space in bb", hex(block.addr), hex(block.size),
                                   hex(movable_bb_start), hex(movable_bb_size))
+        
+        # find the best spot for the detour
+        # the best spot is the one that is closest to the patch_addr
+        best_detour_start = min(detour_starts, key=lambda x: abs(x - patch_addr))
+        l.debug("best detour fits at: %s", hex(best_detour_start))
+        return best_detour_start
 
     def compile_moved_injected_code(self, classified_instructions, patch_code, offset=0, is_thumb=False):
         # create injected_code (pre, injected, culprit, post, jmp_back)
@@ -695,6 +704,7 @@ class DetourBackendArm(DetourBackendElf):
             compiled = reassembled + compiled[len(reassembled):]
         if len(compiled) % 2 != 0:
             compiled += b"\x00"
+        print(" ".join([hex(x) for x in compiled]))
         return compiled
 
     @staticmethod
