@@ -14,8 +14,8 @@ from patcherex.backends.detourbackends._utils import (
 from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                AddRODataPatch, AddRWDataPatch,
                                AddRWInitDataPatch, AddSegmentHeaderPatch,
-                               InlinePatch, InsertCodePatch, RawFilePatch,
-                               RawMemPatch, RemoveInstructionPatch,
+                               InlinePatch, InsertCodePatch, InsertFunctionPatch,
+                               RawFilePatch, RawMemPatch, RemoveInstructionPatch,
                                ReplaceFunctionPatch, SegmentHeaderPatch)
 from patcherex.utils import CLangException, ObjcopyException
 
@@ -219,7 +219,7 @@ class DetourBackendPpc(DetourBackendElf):
         # these patches specify an address in some basic block, In general we will move the basic block
         # and fix relative offsets
         # With this backend heer we can fail applying a patch, in case, resolve dependencies
-        insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
+        insert_code_patches = [p for p in patches if isinstance(p, (InsertCodePatch, InsertFunctionPatch))]
         insert_code_patches = sorted(insert_code_patches, key=lambda x:-1*x.priority)
         applied_patches = []
         while True:
@@ -234,7 +234,8 @@ class DetourBackendPpc(DetourBackendElf):
                         self.name_map[patch.name] = self.get_current_code_position()
                     new_code = self.insert_detour(patch)
                     self.added_code += new_code
-                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                    if not self.try_reuse_unused_space:
+                        self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                     applied_patches.append(patch)
                     self.added_patches.append(patch)
                     l.info("Added patch: %s", str(patch))
@@ -252,7 +253,7 @@ class DetourBackendPpc(DetourBackendElf):
                 break #at this point we applied everything in current insert_code_patches
                 # TODO symbol name, for now no name_map for InsertCode patches
 
-        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
+        header_patches = [InsertCodePatch,InsertFunctionPatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
 
         # 5.5) ReplaceFunctionPatch
@@ -390,6 +391,92 @@ class DetourBackendPpc(DetourBackendElf):
                                               name_map=self.name_map)
         return compiled_code
 
+    def compile_moved_injected_code_for_insertfunctionpatch(self, classified_instructions, patch, offset=0, is_thumb=False):
+        # Prepare pre_code with dummy function address
+        pre_code = "\n".join([self.capstone_to_asm(i)
+                                    for i in classified_instructions
+                                    if i.overwritten == 'pre'])
+        pre_code += "\n"
+        # store all general purpose registers on the stack
+        pre_code += "stwu r1, -0x80(r1)\n"
+        pre_code += "stmw r3, 0x8(r1)\n"
+
+        pre_code += patch.prefunc + "\n"
+        pre_code = "\n".join([line for line in pre_code.split("\n") if line != ""])
+
+        # compile pre_code
+        pre_code_compiled = self.compile_asm(pre_code,
+                                              base=self.get_current_code_position(),
+                                              name_map=self.name_map)
+
+        # compile function_call to get the size of it
+        fake_function_call = f"bl {hex(self.get_current_code_position() + 0x40)}\n"
+        fake_function_call_compiled = self.compile_asm(fake_function_call,
+                                              base=self.get_current_code_position() + len(pre_code_compiled),
+                                              name_map=self.name_map)
+
+        # prepare post code
+        post_code = "lmw r3, 0x8(r1)\n"
+        post_code += "addi r1, r1, 0x80\n"
+        post_code += "\n".join([self.capstone_to_asm(i)
+                                    for i in classified_instructions
+                                    if i.overwritten == 'culprit'])
+        post_code += "\n"
+        post_code += "\n".join([self.capstone_to_asm(i)
+                                    for i in classified_instructions
+                                    if i.overwritten == 'post'])
+        post_code += "\n"
+        if "RESTORE_CONTEXT" in patch.postfunc:
+            post_code = patch.postfunc.replace("RESTORE_CONTEXT", post_code)
+        else:
+            post_code = patch.postfunc + "\n" + post_code
+        jmp_back_target = None
+        for i in reversed(classified_instructions):  # jmp back to the one after the last byte of the last non-out
+            if i.overwritten != "out":
+                jmp_back_target = i.address+len(i.bytes)
+                break
+        assert jmp_back_target is not None
+        post_code += "b %s" % hex(int(jmp_back_target) - offset) + "\n"
+        post_code = "\n".join([line for line in post_code.split("\n") if line != ""])
+
+        # compile post_code
+        post_code_compiled = self.compile_asm(post_code,
+                                              base=self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled),
+                                              name_map=self.name_map)
+        jmp_table_addr = self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled)
+        jmp_table_instrs = self.disassemble(post_code_compiled, jmp_table_addr)
+        exit_edges = []
+        for idx in range(len(jmp_table_instrs)):
+            instr = jmp_table_instrs[idx]
+            if instr.mnemonic.startswith("lmw"):
+                break
+            if instr.mnemonic == "cmpwi":
+                if idx < len(jmp_table_instrs) - 1 and jmp_table_instrs[idx + 1].mnemonic.startswith("b"):
+                    next_instr = jmp_table_instrs[idx + 1]
+                    ret_val = instr.operands[1].imm
+                    if ret_val != 0:
+                        exit_edges.append([hex(jmp_table_addr), hex(next_instr.operands[0].imm)])
+        self.patch_info["exit_edges"]["patched"][hex(self.project.kb.functions.floor_func(patch.addr).addr)] = exit_edges
+
+        if (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4 != 0:
+            post_code_compiled += b"\x00"*(4 - (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4)
+
+        # recompile function call with the correct function address
+        function_call = f"bl {hex(self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled))}\n"
+        function_call_compiled = self.compile_asm(function_call,
+                                              base=self.get_current_code_position() + len(pre_code_compiled),
+                                              name_map=self.name_map)
+
+        # compile the function itslef
+        patch_info_addr = self.get_current_code_position() + len(pre_code_compiled) + len(function_call_compiled) + len(post_code_compiled)
+        self.patch_info["cfgfast_options"]["patched"]["function_starts"].append(hex(patch_info_addr))
+        self.patch_info["patcherex_added_functions"].append(hex(patch_info_addr))
+        func_code_compiled = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", entry=self.get_current_code_position() + len(pre_code_compiled) + len(function_call_compiled) + len(post_code_compiled), symbols=patch.symbols)
+        if len(func_code_compiled) % 4 != 0:
+            func_code_compiled += b"\x00"*(4 - len(func_code_compiled) % 4)
+
+        return pre_code_compiled + function_call_compiled + post_code_compiled + func_code_compiled
+
     def insert_detour(self, patch):
         detour_size = 4
         ppc_nop = b"\x60\x00\x00\x00"
@@ -454,7 +541,10 @@ class DetourBackendPpc(DetourBackendElf):
         l.debug("patched bb instructions:\n %s",
                 "\n".join([utils.instruction_to_str(i) for i in patched_bbinstructions]))
 
-        new_code = self.compile_moved_injected_code(movable_instructions, patch.code, offset=offset)
+        if isinstance(patch, InsertFunctionPatch):
+            new_code = self.compile_moved_injected_code_for_insertfunctionpatch(movable_instructions, patch, offset=offset)
+        else:
+            new_code = self.compile_moved_injected_code(movable_instructions, patch.code, offset=offset)
 
         return new_code
 
@@ -586,3 +676,52 @@ class DetourBackendPpc(DetourBackendElf):
             else:
                 compiled = ld.memory.load(ld.all_objects[0].entry, text_section_size)
                 return compiled
+
+    @staticmethod
+    def generate_asm_jump_on_return_val(mapping):
+        asm = ""
+        for ret_val, jmp_addr in mapping.items():
+            asm += f"cmpwi r0, {ret_val}\n"
+            asm += f"beq _label_{ret_val}\n"
+        asm += f"RESTORE_CONTEXT\n"
+        asm += f"b _end\n"
+        for ret_val, jmp_addr in mapping.items():
+            asm += f"_label_{ret_val}:\n"
+            asm += f"RESTORE_CONTEXT\n"
+            asm += f"b {hex(jmp_addr)}\n"
+        asm += f"_end:\n"
+        return asm
+    
+    @staticmethod
+    def generate_asm_for_arguments(arg_list):
+        if len(arg_list) == 0:
+            return ""
+        if len(arg_list) > 4:
+            raise Exception("Currently Patcherex Only Supports Up to 4 Arguments")
+        asm = ""
+        const_pool = ""
+        for arg in arg_list:
+            _const_pool = re.search(r"b _end\n(.*)_end:", arg, re.DOTALL)
+            if _const_pool:
+                const_pool += f"{_const_pool.group(1)}\n"
+
+
+        for i in range(1, len(arg_list)):
+            if "b _end" in arg_list[i]:
+                asm += f"{arg_list[i][:arg_list[i].index('b _end')]}\n"
+            else:
+                asm += f"{arg_list[i]}\n"
+            asm += f"mr r{i+3}, r3\n"
+
+        if "b _end" in arg_list[0]:
+            asm += f"{arg_list[0][:arg_list[0].index('b _end')]}\n"
+        else:
+            asm += f"{arg_list[0]}\n"
+
+        if const_pool:
+            const_pool_list = const_pool.splitlines()
+            const_pool = "\n".join(sorted(set(const_pool_list), key=const_pool_list.index))
+            asm += "b _end\n"
+            asm += const_pool
+            asm += "_end:\n"
+        return asm
