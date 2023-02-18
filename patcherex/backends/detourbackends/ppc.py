@@ -23,10 +23,10 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendPpc(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False, use_pickle=False):
+    def __init__(self, filename, base_address=None, try_reuse_unused_space=False, replace_note_segment=False, try_without_cfg=False, use_pickle=False, skip_super_init=False):
         if try_reuse_unused_space:
             raise NotImplementedError()
-        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg, use_pickle=use_pickle)
+        super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg, use_pickle=use_pickle, skip_super_init=skip_super_init)
         self.added_code_segment = 0x10600000
         self.added_data_segment = 0x10700000
         self.name_map.update(ADDED_DATA_START = (len(self.ncontent) % 0x1000) + self.added_data_segment)
@@ -347,17 +347,18 @@ class DetourBackendPpc(DetourBackendElf):
         l.debug("movable bb instructions:\n%s", "\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
 
         # find a spot for the detour
-        detour_pos = None
-        for detour_start in range(movable_bb_start, movable_bb_start + movable_bb_size - detour_size, 4):
+        detour_pos = []
+        for detour_start in range(movable_bb_start, movable_bb_start + movable_bb_size - detour_size + 1, 4):
             if detour_start in [i.address for i in movable_instructions]:
-                detour_pos = detour_start
-                break
-        if detour_pos is None:
+                detour_pos.append(detour_start)
+                l.debug("detour fits at %s", hex(detour_start))
+        if len(detour_pos) == 0:
             raise DetourException("No space in bb", hex(block.addr), hex(block.size),
                                   hex(movable_bb_start), hex(movable_bb_size))
-        l.debug("detour fits at %s", hex(detour_pos))
 
-        return detour_pos
+        best_detour_pos = min(detour_pos, key=lambda x: abs(x - patch_addr))
+        l.debug("best detour fits at: %s", hex(best_detour_pos))
+        return best_detour_pos
 
     def compile_moved_injected_code(self, classified_instructions, patch_code, offset=0, is_thumb=False):
         # create injected_code (pre, injected, culprit, post, jmp_back)
@@ -681,7 +682,7 @@ class DetourBackendPpc(DetourBackendElf):
     def generate_asm_jump_on_return_val(mapping):
         asm = ""
         for ret_val, jmp_addr in mapping.items():
-            asm += f"cmpwi r0, {ret_val}\n"
+            asm += f"cmpwi r3, {ret_val}\n"
             asm += f"beq _label_{ret_val}\n"
         asm += f"RESTORE_CONTEXT\n"
         asm += f"b _end\n"
