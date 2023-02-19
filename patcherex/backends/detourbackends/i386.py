@@ -511,11 +511,11 @@ class DetourBackendi386(DetourBackendElf):
                 if res[2] != 0:
                     raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
             else:
-                clang_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'prebuilt', 'clang'))
-                lld_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'prebuilt', 'ld.lld'))
-                opt_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'prebuilt', 'opt'))
-                llc_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'prebuilt', 'llc'))
-                LLVMAMP_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'prebuilt', 'LLVMAMP.so'))
+                clang_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_denpendencies', 'clang', 'clang'))
+                lld_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_denpendencies', 'clang', 'ld.lld'))
+                opt_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_denpendencies', 'clang', 'opt'))
+                llc_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_denpendencies', 'clang', 'llc'))
+                LLVMAMP_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_denpendencies', 'clang', 'LLVMAMP.so'))
                 # c -> ll
                 res = utils.exec_cmd(f"{clang_path} -Wno-incompatible-library-redeclaration -S -w -emit-llvm -g -o {ll_fname} {'-m32' if bits == 32 else '-m64'} {c_fname} {compiler_flags} -I /usr/lib/clang/10/include", shell=True)
                 if res[2] != 0:

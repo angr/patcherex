@@ -40,6 +40,7 @@ class DetourBackendPpcVle(DetourBackendPpc):
         self.added_code_segment = 0x840000
         self.added_data_segment = 0x850000
         self.name_map.update(ADDED_DATA_START = (len(self.ncontent) % 0x1000) + self.added_data_segment)
+        self.vle_binutils_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_denpendencies', 'powerpc-eabivle'))
 
 
     def dump_sections(self):
@@ -213,10 +214,10 @@ class DetourBackendPpcVle(DetourBackendPpc):
         with utils.tempdir() as td:
             with open(os.path.join(td, "code.s"), "w") as f:
                 f.write(code)
-            res = utils.exec_cmd("/home/han/misc/powerpc-eabivle-4_9/bin/powerpc-eabivle-as -mvle -o %s.o %s" % (os.path.join(td, "code"), os.path.join(td, "code.s")), shell=True)
+            res = utils.exec_cmd(f"{os.path.join(self.vle_binutils_path, 'powerpc-eabivle-as')} -mvle -o {os.path.join(td, 'code')}.o {os.path.join(td, 'code')}", shell=True)
             if res[2] != 0:
                 raise Exception(f"powerpc-eabivle-as:\n{str(res[0] + res[1], 'utf-8')}")
-            res = utils.exec_cmd("/home/han/misc/powerpc-eabivle-4_9/bin/powerpc-eabivle-objcopy -O binary -j .text %s.o %s.bin" % (os.path.join(td, "code"), os.path.join(td, "code")), shell=True)
+            res = utils.exec_cmd(f"{os.path.join(self.vle_binutils_path, 'powerpc-eabivle-objcopy')} -O binary -j .text {os.path.join(td, 'code')}.o {os.path.join(td, 'code')}.bin", shell=True)
             if res[2] != 0:
                 raise Exception(f"powerpc-eabivle-objcopy:\n{str(res[0] + res[1], 'utf-8')}")
             with open(os.path.join(td, "code.bin"), "rb") as f:
@@ -243,7 +244,7 @@ class DetourBackendPpcVle(DetourBackendPpc):
             with open(os.path.join(td, "code.bin"), "wb") as f:
                 f.write(code)
 
-            res = utils.exec_cmd("/home/han/misc/powerpc-eabivle-4_9/bin/powerpc-eabivle-objdump -D -b binary --adjust-vma=%s -m powerpc:vle -EB %s.bin | tail +8" % (hex(offset), os.path.join(td, "code")), shell=True)
+            res = utils.exec_cmd(f"{os.path.join(self.vle_binutils_path, 'powerpc-eabivle-objdump')} -D -b binary --adjust-vma={hex(offset)} -m powerpc:vle -EB {os.path.join(td, 'code')}.bin | tail +8", shell=True)
             if res[2] != 0:
                 raise Exception(f"powerpc-eabivle-objdump:\n{str(res[0] + res[1], 'utf-8')}")
             str_result = res[0].decode("utf-8")
@@ -279,7 +280,8 @@ class DetourBackendPpcVle(DetourBackendPpc):
             # C -> Object File
             with open(c_fname, 'w') as fp:
                 fp.write(code)
-            res = utils.exec_cmd("/home/han/misc/powerpc-eabivle-4_9/bin/powerpc-eabivle-gcc -o %s -c %s %s" % (object_fname, c_fname, compiler_flags), shell=True)
+                
+            res = utils.exec_cmd(f"{os.path.join(self.vle_binutils_path, 'powerpc-eabivle-gcc')} -o {object_fname} -c {c_fname} {compiler_flags}", shell=True)
             if res[2] != 0:
                 raise Exception("GCC error: " + str(res[0] + res[1], 'utf-8'))
 
@@ -296,7 +298,7 @@ class DetourBackendPpcVle(DetourBackendPpc):
                 fp.write(linker_script)
 
             # Object File --LinkerScript--> Object File
-            res = utils.exec_cmd("/home/han/misc/powerpc-eabivle-4_9/bin/powerpc-eabivle-ld -relocatable %s -T %s -o %s" % (object_fname, linker_script_fname, object2_fname), shell=True)
+            res = utils.exec_cmd(f"{os.path.join(self.vle_binutils_path, 'powerpc-eabivle-ld')} -relocatable {object_fname} -T {linker_script_fname} -o {object2_fname}", shell=True)
             if res[2] != 0:
                 raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
 
@@ -365,7 +367,7 @@ class DetourBackendPpcVle(DetourBackendPpc):
                 patches = []
                 for section in ld.all_objects[0].sections:
                     if section.name == ".rodata":
-                        res = utils.exec_cmd("/home/han/misc/powerpc-eabivle-4_9/bin/powerpc-eabivle-objcopy -O binary -j %s %s %s" % (section.name, object2_fname, data_fname), shell=True)
+                        res = utils.exec_cmd(f"{os.path.join(self.vle_binutils_path, 'powerpc-eabivle-objcopy')} -O binary -j {section.name} {object2_fname} {data_fname}", shell=True)
                         if res[2] != 0:
                             raise ObjcopyException("Objcopy Error: " + str(res[0] + res[1], 'utf-8'))
                         with open(data_fname, "rb") as fp:
