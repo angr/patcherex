@@ -3,4 +3,4 @@
 *.egg-info
 .idea
 deps
-patcherex/prebuilt/*
+patcherex/binary_dependencies/*
