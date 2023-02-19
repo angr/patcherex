@@ -147,18 +147,51 @@ class DetourBackendElf(Backend):
             "mem_size": -1,
             "perm": Perm.UNDEF
         })
+
+        # Is is possible to extend the existing segment?
+        for prev, next in zip(sorted_segments, sorted_segments[1:]):
+            # mem
+            mem_prev_end = prev['p_vaddr'] + prev['p_memsz']
+            mem_prev_end_rounded = mem_prev_end + (prev['p_align'] - (mem_prev_end % prev['p_align'])) % prev['p_align']
+            mem_next_start = next['p_vaddr']
+            mem_max_extend_size = mem_prev_end_rounded - mem_prev_end
+            if (mem_next_start - mem_prev_end_rounded) // prev['p_align'] > 0:
+                mem_max_extend_size += (mem_next_start - mem_prev_end_rounded) // prev['p_align'] * prev['p_align']
+            
+            # file
+            file_prev_end = prev['p_offset'] + prev['p_filesz']
+            file_next_start = next['p_offset']
+            max_extend_size = min(mem_max_extend_size, file_next_start - file_prev_end)
+
+            if prev['p_flags'] & P_FLAGS.PF_R and prev['p_flags'] & P_FLAGS.PF_X:
+                self.free_space.append({
+                    "type": "extend",
+                    "segment": prev,
+                    "file_start": file_prev_end,
+                    "file_size": max_extend_size,
+                    "mem_start": mem_prev_end,
+                    "mem_size": max_extend_size,
+                    "perm": Perm.RE
+                })
+
+
         self.loaded_free_space = sorted([space for space in self.free_space if space['type'] == "loaded"], key=lambda x: -x['file_size'])
-        l.debug("List of all avilable spaces: %s", self.loaded_free_space)
+        self.extend_free_space = sorted([space for space in self.free_space if space['type'] == "extend"], key=lambda x: -x['file_size'])
+        self.useable_free_space = sorted([space for space in self.free_space if space['type'] == "loaded" or space['type'] == "extend"], key=lambda x: -x['file_size'])
+        l.debug("List of all avilable extend spaces: %s", self.extend_free_space)
+        l.debug("List of all avilable loaded spaces: %s", self.loaded_free_space)
+        l.debug("List of all avilable file spaces: %s", [space for space in self.free_space if space['type'] == "file"])
+        l.debug("List of all avilable memory spaces: %s", [space for space in self.free_space if space['type'] == "memory"])
 
         if self.try_reuse_unused_space:
-            for space in self.loaded_free_space:
+            for space in self.useable_free_space:
                 if space['perm'] == Perm.RW:
                     self.reuse_data = space
                     l.info("Found RW space to reuse: %s", self.reuse_data)
                     break
             else:
                 raise Exception("No RW space to reuse")
-            for space in self.loaded_free_space:
+            for space in self.useable_free_space:
                 if space['perm'] == Perm.RE:
                     self.reuse_code = space
                     l.info("Found RE space to reuse: %s", self.reuse_code)
@@ -170,10 +203,25 @@ class DetourBackendElf(Backend):
         if self.try_reuse_unused_space:
             if len(self.added_code) > 0:
                 if len(self.added_code) < self.reuse_code["file_size"]:
-                    self.added_code_file_start = self.reuse_code["file_start"]
-                    self.reuse_code["file_start"] += len(self.added_code)
-                    self.reuse_code["file_size"] -= len(self.added_code)
-                    l.info("Reusing space for code: 0x%x", self.added_code_file_start)
+                    if self.reuse_code in self.loaded_free_space:
+                        self.added_code_file_start = self.reuse_code["file_start"]
+                        self.reuse_code["file_start"] += len(self.added_code)
+                        self.reuse_code["file_size"] -= len(self.added_code)
+                        l.info("Reusing space for code: 0x%x", self.added_code_file_start)
+                    elif self.reuse_code in self.extend_free_space:
+                        l.info("Extending LOAD RE Segment")
+                        current_hdr = self.structs.Elf_Ehdr.parse(self.ncontent)
+
+                        for idx, segment in enumerate(segments):
+                            if self.reuse_code["segment"]["p_offset"] == segment["p_offset"]:
+                                segment = Container(**{ "p_type":   segment["p_type"],                            "p_offset": segment["p_offset"],
+                                                        "p_vaddr":  segment["p_vaddr"],                           "p_paddr":  segment["p_paddr"],
+                                                        "p_filesz": segment["p_filesz"] + self.reuse_code["file_size"],
+                                                        "p_memsz":  segment["p_memsz"] + self.reuse_code["mem_size"],
+                                                        "p_flags":  segment["p_flags"],                           "p_align":  segment["p_align"]})
+                                self.ncontent = utils.bytes_overwrite(self.ncontent, self.structs.Elf_Phdr.build(segment), current_hdr["e_phoff"] + current_hdr["e_phentsize"] * idx)
+                                break
+                        self.added_code_file_start = self.reuse_code["file_start"]
                 else:
                     raise Exception("Not enough RE space to reuse")
             if len(self.added_data) > 0:

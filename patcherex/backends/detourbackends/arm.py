@@ -704,7 +704,6 @@ class DetourBackendArm(DetourBackendElf):
             compiled = reassembled + compiled[len(reassembled):]
         if len(compiled) % 2 != 0:
             compiled += b"\x00"
-        print(" ".join([hex(x) for x in compiled]))
         return compiled
 
     @staticmethod
