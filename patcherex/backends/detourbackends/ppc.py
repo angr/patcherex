@@ -455,8 +455,10 @@ class DetourBackendPpc(DetourBackendElf):
                 if idx < len(jmp_table_instrs) - 1 and jmp_table_instrs[idx + 1].mnemonic.startswith("b"):
                     next_instr = jmp_table_instrs[idx + 1]
                     ret_val = instr.operands[1].imm
-                    if ret_val != 0:
-                        exit_edges.append([hex(jmp_table_addr), hex(next_instr.operands[0].imm)])
+                    if ret_val > 0x7fff:
+                        ret_val -= 0x10000
+                    if ret_val < 0:
+                        exit_edges.append([hex(next_instr.address), hex(next_instr.operands[0].imm)])
         self.patch_info["exit_edges"]["patched"][hex(self.project.kb.functions.floor_func(patch.addr).addr)] = exit_edges
 
         if (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4 != 0:
@@ -683,11 +685,11 @@ class DetourBackendPpc(DetourBackendElf):
         asm = ""
         for ret_val, jmp_addr in mapping.items():
             asm += f"cmpwi r3, {ret_val}\n"
-            asm += f"beq _label_{ret_val}\n"
+            asm += f"beq _label_{str(ret_val).replace('-', '_')}\n"
         asm += f"RESTORE_CONTEXT\n"
         asm += f"b _end\n"
         for ret_val, jmp_addr in mapping.items():
-            asm += f"_label_{ret_val}:\n"
+            asm += f"_label_{str(ret_val).replace('-', '_')}:\n"
             asm += f"RESTORE_CONTEXT\n"
             asm += f"b {hex(jmp_addr)}\n"
         asm += f"_end:\n"

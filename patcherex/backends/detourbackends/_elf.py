@@ -641,7 +641,6 @@ class DetourBackendElf(Backend):
                 code = re.subn(r'{.*?}', "0x41414141", code)[0]  # solve symbols
         except KeyError as e:
             raise UndefinedSymbolException(str(e)) from e
-
         try:
             ks = self.project.arch.keystone_thumb if is_thumb else self.project.arch.keystone
             encoding, _ = ks.asm(code, base)
