@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import re
+from cle.address_translator import AT
 from collections import OrderedDict
 from enum import IntFlag
 
@@ -721,3 +722,6 @@ class DetourBackendElf(Backend):
             if meta["class"] == "DILocalVariable" and not meta['patched']:
                 print("MISSING")
                 print(meta['name'])
+
+    def lva_to_mva(self, addr):
+        return AT.from_lva(addr, self.project.loader.main_object).to_mva()

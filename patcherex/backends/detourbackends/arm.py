@@ -186,7 +186,7 @@ class DetourBackendArm(DetourBackendElf):
                                                  self.name_map,
                                                  is_thumb=patch.is_thumb)
                 if self.added_code == b"":
-                    self.patch_info["patcherex_added_functions"].append(hex(self.name_map["ADDED_CODE_START"] + (1 if patch.is_thumb else 0)))
+                    self.patch_info["patcherex_added_functions"].append(hex(self.lva_to_mva(self.name_map["ADDED_CODE_START"] + (1 if patch.is_thumb else 0))))
                 self.added_code += new_code
                 if not self.try_reuse_unused_space:
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
@@ -221,7 +221,7 @@ class DetourBackendArm(DetourBackendElf):
                                              self.name_map,
                                              is_thumb=patch.is_thumb)
                 if self.added_code == b"":
-                    self.patch_info["patcherex_added_functions"].append(hex(self.name_map["ADDED_CODE_START"] + (1 if patch.is_thumb else 0)))
+                    self.patch_info["patcherex_added_functions"].append(hex(self.lva_to_mva(self.name_map["ADDED_CODE_START"] + (1 if patch.is_thumb else 0))))
                 self.added_code += new_code
                 self.added_patches.append(patch)
                 if not self.try_reuse_unused_space:
@@ -262,7 +262,7 @@ class DetourBackendArm(DetourBackendElf):
                         self.name_map[patch.name] = self.get_current_code_position()
                     new_code = self.insert_detour(patch)
                     if self.added_code == b"":
-                        self.patch_info["patcherex_added_functions"].append(hex(self.name_map["ADDED_CODE_START"] + (1 if self.check_if_thumb(patch.addr) else 0)))
+                        self.patch_info["patcherex_added_functions"].append(hex(self.lva_to_mva(self.name_map["ADDED_CODE_START"] + (1 if self.check_if_thumb(patch.addr) else 0))))
                     self.added_code += new_code
                     if not self.try_reuse_unused_space:
                         self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
@@ -308,7 +308,7 @@ class DetourBackendArm(DetourBackendElf):
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
                     new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=detour_pos + offset, symbols=patch.symbols, stacklayout=patch.stacklayout)
                     if self.added_code == b"":
-                        self.patch_info["patcherex_added_functions"].append(hex(self.name_map["ADDED_CODE_START"] + (1 if is_thumb else 0)))
+                        self.patch_info["patcherex_added_functions"].append(hex(self.lva_to_mva(self.name_map["ADDED_CODE_START"] + (1 if is_thumb else 0))))
                     self.added_code += new_code
                     if not self.try_reuse_unused_space:
                         self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
@@ -345,7 +345,7 @@ class DetourBackendArm(DetourBackendElf):
         else:
             l.info("no patches, the binary will not be touched")
 
-        self.patch_info["cfgfast_options"]["patched"]["regions"].append([hex(self.name_map["ADDED_CODE_START"]), hex(self.name_map["ADDED_CODE_START"] + len(self.added_code))])
+        self.patch_info["cfgfast_options"]["patched"]["regions"].append([hex(self.lva_to_mva(self.name_map["ADDED_CODE_START"])), hex(self.lva_to_mva(self.name_map["ADDED_CODE_START"] + len(self.added_code)))])
         # self.patch_info["cfgfast_options"]["patched"]["regions"].append([self.name_map["ADDED_DATA_START"], self.name_map["ADDED_DATA_START"] + len(self.added_data)])
 
     def check_if_movable(self, instruction, is_thumb=False):
@@ -510,7 +510,7 @@ class DetourBackendArm(DetourBackendElf):
                     next_instr = jmp_table_instrs[idx + 1]
                     ret_val = instr.operands[1].imm
                     if ret_val < 1:
-                        exit_edges.append([hex(next_instr.address + (1 if is_thumb else 0)), hex(next_instr.operands[0].imm + (1 if target_is_thumb else 0))])
+                        exit_edges.append([hex(self.lva_to_mva(next_instr.address + (1 if is_thumb else 0))), hex(self.lva_to_mva(next_instr.operands[0].imm + (1 if target_is_thumb else 0)))])
         self.patch_info["exit_edges"]["patched"][hex(self.project.kb.functions.floor_func(patch.addr).addr)] = exit_edges
 
         if (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4 != 0:
@@ -524,8 +524,8 @@ class DetourBackendArm(DetourBackendElf):
 
         # compile the function itslef
         patch_info_addr = self.get_current_code_position() + len(pre_code_compiled) + len(function_call_compiled) + len(post_code_compiled) + 1 if is_thumb else 0
-        self.patch_info["cfgfast_options"]["patched"]["function_starts"].append(hex(patch_info_addr))
-        self.patch_info["patcherex_added_functions"].append(hex(patch_info_addr))
+        self.patch_info["cfgfast_options"]["patched"]["function_starts"].append(hex(self.lva_to_mva(patch_info_addr)))
+        self.patch_info["patcherex_added_functions"].append(hex(self.lva_to_mva(patch_info_addr)))
         func_code_compiled = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=self.get_current_code_position() + len(pre_code_compiled) + len(function_call_compiled) + len(post_code_compiled), symbols=patch.symbols)
         if len(func_code_compiled) % 4 != 0:
             func_code_compiled += b"\x00"*(4 - len(func_code_compiled) % 4)
