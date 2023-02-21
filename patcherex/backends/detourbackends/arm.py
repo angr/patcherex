@@ -11,7 +11,7 @@ from patcherex.backends.detourbackends._utils import (
     DetourException, DoubleDetourException, DuplicateLabelsException,
     IncompatiblePatchesException, MissingBlockException)
 from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
-                               AddRODataPatch, AddRWDataPatch,
+                               AddRODataPatch, AddRWDataPatch, AddFunctionPatch,
                                AddRWInitDataPatch, AddSegmentHeaderPatch,
                                InlinePatch, InsertCodePatch, InsertFunctionPatch,
                                RawFilePatch, RawMemPatch, RemoveInstructionPatch,
@@ -166,6 +166,12 @@ class DetourBackendArm(DetourBackendElf):
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
+            if isinstance(patch, AddFunctionPatch):
+                code_len = len(self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
+                                                     is_thumb=patch.is_thumb, symbols=patch.symbols, entry=current_symbol_pos))
+                if patch.name is not None:
+                    self.name_map[patch.name] = current_symbol_pos + (1 if patch.is_thumb else 0)
+                current_symbol_pos += code_len
         # now compile for real
         for patch in patches:
             if isinstance(patch, AddCodePatch):
@@ -181,6 +187,16 @@ class DetourBackendArm(DetourBackendElf):
                                                  is_thumb=patch.is_thumb)
                 if self.added_code == b"":
                     self.patch_info["patcherex_added_functions"].append(hex(self.name_map["ADDED_CODE_START"] + (1 if patch.is_thumb else 0)))
+                self.added_code += new_code
+                if not self.try_reuse_unused_space:
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                self.added_patches.append(patch)
+                l.info("Added patch: %s", str(patch))
+            if isinstance(patch, AddFunctionPatch):
+                obj = self.project.loader.main_object
+                entry = self.get_current_code_position() if not obj.pic else self.get_current_code_position() + obj.min_addr
+                new_code = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
+                                                 is_thumb=patch.is_thumb, entry=entry, symbols=patch.symbols)
                 self.added_code += new_code
                 if not self.try_reuse_unused_space:
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
@@ -268,7 +284,7 @@ class DetourBackendArm(DetourBackendElf):
                 # TODO symbol name, for now no name_map for InsertCode patches
 
         header_patches = [InsertCodePatch,InsertFunctionPatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
-                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
+                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch,AddFunctionPatch]
 
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
@@ -621,7 +637,7 @@ class DetourBackendArm(DetourBackendElf):
 
             if symbols:
                 for k, v in self.name_map.items():
-                    if k not in symbols:
+                    if k not in symbols and k != "ADDED_DATA_START" and k != "ADDED_CODE_START":
                         symbols[k] = v
 
             linker_script = "SECTIONS { .text : SUBALIGN(0) { . = " + hex(entry) + "; *(.text) "
