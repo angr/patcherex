@@ -167,8 +167,9 @@ class DetourBackendArm(DetourBackendElf):
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
             if isinstance(patch, AddFunctionPatch):
-                code_len = len(self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
-                                                     is_thumb=patch.is_thumb, symbols=patch.symbols, entry=current_symbol_pos))
+                if current_symbol_pos % 4 != 0:
+                    current_symbol_pos += 4 - current_symbol_pos % 4
+                code_len = len(self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=patch.is_thumb, symbols=patch.symbols, entry=current_symbol_pos))
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos + (1 if patch.is_thumb else 0)
                 current_symbol_pos += code_len
@@ -193,10 +194,12 @@ class DetourBackendArm(DetourBackendElf):
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
             if isinstance(patch, AddFunctionPatch):
-                obj = self.project.loader.main_object
-                entry = self.get_current_code_position() if not obj.pic else self.get_current_code_position() + obj.min_addr
-                new_code = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "",
-                                                 is_thumb=patch.is_thumb, entry=entry, symbols=patch.symbols)
+                if self.get_current_code_position() % 4 != 0:
+                    new_code = b"\x00" * (4 - self.get_current_code_position() % 4)
+                    self.added_code += new_code
+                    if not self.try_reuse_unused_space:
+                        self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                new_code = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=patch.is_thumb, entry=self.get_current_code_position(), symbols=patch.symbols)
                 self.added_code += new_code
                 if not self.try_reuse_unused_space:
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
