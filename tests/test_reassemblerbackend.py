@@ -9,7 +9,7 @@ import queue as Queue
 from multiprocessing import Pool, Manager
 from functools import partial
 
-import progressbar
+from rich import progress
 
 from patcherex.backends import ReassemblerBackend
 from patcherex.patches import *
@@ -109,25 +109,20 @@ def manual_run_functionality_all(threads=8, optimize=False):
 
         pool = Pool(threads, maxtasksperchild=40)
 
-        progress = progressbar.ProgressBar(widgets=[
-                                                    progressbar.Bar(marker=progressbar.RotatingMarker()),
-                                                    ' ',
-                                                    progressbar.Percentage(),
-                                                    ' ',
-                                                    progressbar.Timer(),
-                                                    ' ',
-                                                    progressbar.ETA(),
-                                                    ],
-                                           maxval=len(binaries)
-                                           )
-        progress.start()
+        progressbar = progress.Progress(progress.SpinnerColumn(), 
+                                        progress.TaskProgressColumn(),
+                                        progress.TimeElapsedColumn(),
+                                        progress.TimeRemainingColumn())
+
+        task = progress.add_task(total=len(binaries))
+        progressbar.start()
 
         pool.map_async(partial(manual_run_functionality_core, optimize=optimize, queue=queue), binaries, chunksize=1)
         pool.close()
 
         while len(results) != len(binaries):
             time.sleep(0.5)
-            progress.update(len(results))
+            progressbar.update(task, completed=len(results))
 
             # read result from queue
             try:
@@ -137,7 +132,7 @@ def manual_run_functionality_all(threads=8, optimize=False):
 
             results.append(data)
 
-        progress.finish()
+        progressbar.stop()
 
         # statistics
         for b, r, exc in results:
