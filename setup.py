@@ -18,6 +18,7 @@ setup(
         'pyyaml',
         'pyelftools',
         'python-magic',
+        'rich',
         'termcolor',
         'tracer',
    ],
