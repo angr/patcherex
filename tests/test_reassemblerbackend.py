@@ -114,7 +114,7 @@ def manual_run_functionality_all(threads=8, optimize=False):
                                         progress.TimeElapsedColumn(),
                                         progress.TimeRemainingColumn())
 
-        task = progressbar.add_task(total=len(binaries))
+        task = progressbar.add_task(description="Reassembling ...", total=len(binaries))
         progressbar.start()
 
         pool.map_async(partial(manual_run_functionality_core, optimize=optimize, queue=queue), binaries, chunksize=1)
