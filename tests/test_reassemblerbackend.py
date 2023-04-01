@@ -93,7 +93,7 @@ def manual_run_functionality_all(threads=8, optimize=False):
 
     binaries = []
 
-    for dirname, dirlist, filelist in os.walk(os.path.join(bin_location, 'cgc_samples_multiflags')):
+    for dirname, _, filelist in os.walk(os.path.join(bin_location, 'cgc_samples_multiflags')):
         for b in filelist:
             if '.' in b:
                 continue
@@ -109,12 +109,12 @@ def manual_run_functionality_all(threads=8, optimize=False):
 
         pool = Pool(threads, maxtasksperchild=40)
 
-        progressbar = progress.Progress(progress.SpinnerColumn(), 
+        progressbar = progress.Progress(progress.SpinnerColumn(),
                                         progress.TaskProgressColumn(),
                                         progress.TimeElapsedColumn(),
                                         progress.TimeRemainingColumn())
 
-        task = progress.add_task(total=len(binaries))
+        task = progressbar.add_task(total=len(binaries))
         progressbar.start()
 
         pool.map_async(partial(manual_run_functionality_core, optimize=optimize, queue=queue), binaries, chunksize=1)
@@ -275,7 +275,6 @@ def run_optimization(filename):
 
     target_filepath = os.path.join('/', 'tmp', 'optimized_binaries', os.path.basename(filename))
     rr_filepath = target_filepath + ".rr"
-    cp_filepath = target_filepath + ".cp"
 
     # register reallocation first
     b1 = ReassemblerBackend(filepath, debugging=True)
