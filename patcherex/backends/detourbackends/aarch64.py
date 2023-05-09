@@ -13,8 +13,8 @@ from patcherex.backends.detourbackends._utils import (
 from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
                                AddRODataPatch, AddRWDataPatch,
                                AddRWInitDataPatch, AddSegmentHeaderPatch,
-                               InlinePatch, InsertCodePatch, RawFilePatch,
-                               RawMemPatch, RemoveInstructionPatch,
+                               InlinePatch, InsertCodePatch, InsertFunctionPatch,
+                               RawFilePatch, RawMemPatch, RemoveInstructionPatch,
                                ReplaceFunctionPatch, SegmentHeaderPatch)
 from patcherex.utils import CLangException, ObjcopyException
 
@@ -202,7 +202,7 @@ class DetourBackendAarch64(DetourBackendElf):
         # these patches specify an address in some basic block, In general we will move the basic block
         # and fix relative offsets
         # With this backend heer we can fail applying a patch, in case, resolve dependencies
-        insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
+        insert_code_patches = [p for p in patches if isinstance(p, (InsertCodePatch, InsertFunctionPatch))]
         insert_code_patches = sorted(insert_code_patches, key=lambda x:-1*x.priority)
         applied_patches = []
         while True:
@@ -235,7 +235,7 @@ class DetourBackendAarch64(DetourBackendElf):
                 break #at this point we applied everything in current insert_code_patches
                 # TODO symbol name, for now no name_map for InsertCode patches
 
-        header_patches = [InsertCodePatch,AddEntryPointPatch,AddCodePatch, \
+        header_patches = [InsertCodePatch,InsertFunctionPatch,AddEntryPointPatch,AddCodePatch, \
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
 
         # 5.5) ReplaceFunctionPatch
@@ -370,6 +370,125 @@ class DetourBackendAarch64(DetourBackendElf):
                                               name_map=self.name_map)
         return compiled_code
 
+    def compile_moved_injected_code_for_insertfunctionpatch(self, classified_instructions, patch, offset=0, is_thumb=False):
+        # Prepare pre_code with dummy function address
+        pre_code = "\n".join([self.capstone_to_asm(i)
+                                    for i in classified_instructions
+                                    if i.overwritten == 'pre'])
+        pre_code += "\n"
+        # save x0-x29 onto stack
+        pre_code += "sub sp, sp, #0x1f0\n"
+        pre_code += "stp x0, x1, [sp, #0x0]\n"
+        pre_code += "stp x2, x3, [sp, #0x10]\n"
+        pre_code += "stp x4, x5, [sp, #0x20]\n"
+        pre_code += "stp x6, x7, [sp, #0x30]\n"
+        pre_code += "stp x8, x9, [sp, #0x40]\n"
+        pre_code += "stp x10, x11, [sp, #0x50]\n"
+        pre_code += "stp x12, x13, [sp, #0x60]\n"
+        pre_code += "stp x14, x15, [sp, #0x70]\n"
+        pre_code += "stp x16, x17, [sp, #0x80]\n"
+        pre_code += "stp x18, x19, [sp, #0x90]\n"
+        pre_code += "stp x20, x21, [sp, #0xa0]\n"
+        pre_code += "stp x22, x23, [sp, #0xb0]\n"
+        pre_code += "stp x24, x25, [sp, #0xc0]\n"
+        pre_code += "stp x26, x27, [sp, #0xd0]\n"
+        pre_code += "stp x28, x29, [sp, #0xe0]\n"
+        pre_code += "str x30, [sp, #0xf0]\n"
+        pre_code += "\n"
+        pre_code += patch.prefunc + "\n"
+        pre_code = "\n".join([line for line in pre_code.split("\n") if line != ""])
+
+        # compile pre_code
+        pre_code_compiled = self.compile_asm(pre_code,
+                                              base=self.get_current_code_position(),
+                                              name_map=self.name_map, is_thumb=is_thumb)
+
+        # compile function_call to get the size of it
+        fake_function_call = f"bl {self.get_current_code_position() + 0x40}\n"
+        fake_function_call_compiled = self.compile_asm(fake_function_call,
+                                              base=self.get_current_code_position() + len(pre_code_compiled),
+                                              name_map=self.name_map, is_thumb=is_thumb)
+
+        # prepare post code
+        # restore x0-x29 from stack
+        post_code = "ldp x0, x1, [sp, #0x0]\n"
+        post_code += "ldp x2, x3, [sp, #0x10]\n"
+        post_code += "ldp x4, x5, [sp, #0x20]\n"
+        post_code += "ldp x6, x7, [sp, #0x30]\n"
+        post_code += "ldp x8, x9, [sp, #0x40]\n"
+        post_code += "ldp x10, x11, [sp, #0x50]\n"
+        post_code += "ldp x12, x13, [sp, #0x60]\n"
+        post_code += "ldp x14, x15, [sp, #0x70]\n"
+        post_code += "ldp x16, x17, [sp, #0x80]\n"
+        post_code += "ldp x18, x19, [sp, #0x90]\n"
+        post_code += "ldp x20, x21, [sp, #0xa0]\n"
+        post_code += "ldp x22, x23, [sp, #0xb0]\n"
+        post_code += "ldp x24, x25, [sp, #0xc0]\n"
+        post_code += "ldp x26, x27, [sp, #0xd0]\n"
+        post_code += "ldp x28, x29, [sp, #0xe0]\n"
+        post_code += "ldr x30, [sp, #0xf0]\n"
+        post_code += "add sp, sp, #0x1f0\n"
+        post_code += "\n"
+        post_code += "\n".join([self.capstone_to_asm(i)
+                                    for i in classified_instructions
+                                    if i.overwritten == 'culprit'])
+        post_code += "\n"
+        post_code += "\n".join([self.capstone_to_asm(i)
+                                    for i in classified_instructions
+                                    if i.overwritten == 'post'])
+        post_code += "\n"
+        if "RESTORE_CONTEXT" in patch.postfunc:
+            post_code = patch.postfunc.replace("RESTORE_CONTEXT", post_code)
+        else:
+            post_code = patch.postfunc + "\n" + post_code
+        jmp_back_target = None
+        for i in reversed(classified_instructions):  # jmp back to the one after the last byte of the last non-out
+            if i.overwritten != "out":
+                jmp_back_target = i.address+len(i.bytes)
+                break
+        assert jmp_back_target is not None
+        post_code += "b %s" % hex(int(jmp_back_target) - offset) + "\n"
+        post_code = "\n".join([line for line in post_code.split("\n") if line != ""])
+
+        # compile post_code
+        post_code_compiled = self.compile_asm(post_code,
+                                              base=self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled),
+                                              name_map=self.name_map, is_thumb=is_thumb)
+        jmp_table_addr = self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled)
+        jmp_table_instrs = self.disassemble(post_code_compiled, jmp_table_addr, is_thumb=is_thumb)
+        exit_edges = []
+        for idx in range(len(jmp_table_instrs)):
+            instr = jmp_table_instrs[idx]
+            if instr.mnemonic.startswith("pop"):
+                break
+            if instr.mnemonic.startswith("cmp"):
+                if idx < len(jmp_table_instrs) - 1 and jmp_table_instrs[idx + 1].mnemonic.startswith("b"):
+                    target_is_thumb = not is_thumb if ("x" in jmp_table_instrs[idx + 1].mnemonic) else is_thumb
+                    next_instr = jmp_table_instrs[idx + 1]
+                    ret_val = instr.operands[1].imm
+                    if ret_val < 1:
+                        exit_edges.append([hex(self.lva_to_mva(next_instr.address + (1 if is_thumb else 0))), hex(self.lva_to_mva(next_instr.operands[0].imm + (1 if target_is_thumb else 0)))])
+        self.patch_info["exit_edges"]["patched"][hex(self.project.kb.functions.floor_func(patch.addr).addr)] = exit_edges
+
+        if (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4 != 0:
+            post_code_compiled += b"\x00"*(4 - (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4)
+
+        # recompile function call with the correct function address
+        function_call = f"bl {self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)}\n"
+        function_call_compiled = self.compile_asm(function_call,
+                                              base=self.get_current_code_position() + len(pre_code_compiled),
+                                              name_map=self.name_map, is_thumb=is_thumb)
+
+        # compile the function itslef
+        patch_info_addr = self.get_current_code_position() + len(pre_code_compiled) + len(function_call_compiled) + len(post_code_compiled) + 1 if is_thumb else 0
+        self.patch_info["cfgfast_options"]["patched"]["function_starts"].append(hex(self.lva_to_mva(patch_info_addr)))
+        self.patch_info["patcherex_added_functions"].append(hex(self.lva_to_mva(patch_info_addr)))
+        func_code_compiled = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", is_thumb=is_thumb, entry=self.get_current_code_position() + len(pre_code_compiled) + len(function_call_compiled) + len(post_code_compiled), symbols=patch.symbols)
+        if len(func_code_compiled) % 4 != 0:
+            func_code_compiled += b"\x00"*(4 - len(func_code_compiled) % 4)
+
+        return pre_code_compiled + function_call_compiled + post_code_compiled + func_code_compiled
+
     def insert_detour(self, patch):
         detour_size = 4
 
@@ -434,7 +553,10 @@ class DetourBackendAarch64(DetourBackendElf):
         l.debug("patched bb instructions:\n %s",
                 "\n".join([utils.instruction_to_str(i) for i in patched_bbinstructions]))
 
-        new_code = self.compile_moved_injected_code(movable_instructions, patch.code, offset=offset)
+        if isinstance(patch, InsertFunctionPatch):
+            new_code = self.compile_moved_injected_code_for_insertfunctionpatch(movable_instructions, patch.code, offset=offset)
+        else:
+            new_code = self.compile_moved_injected_code(movable_instructions, patch.code, offset=offset)
 
         return new_code
 
@@ -544,3 +666,52 @@ class DetourBackendAarch64(DetourBackendElf):
             else:
                 compiled = ld.memory.load(ld.all_objects[0].entry, text_section_size)
                 return compiled
+
+    @staticmethod
+    def generate_asm_jump_on_return_val(mapping):
+        asm = ""
+        for ret_val, jmp_addr in mapping.items():
+            asm += f"cmp x0, #{ret_val}\n"
+            asm += f"beq _label_{str(ret_val).replace('-', '_')}\n"
+        asm += f"RESTORE_CONTEXT\n"
+        asm += f"b _end\n"
+        for ret_val, jmp_addr in mapping.items():
+            asm += f"_label_{str(ret_val).replace('-', '_')}:\n"
+            asm += f"RESTORE_CONTEXT\n"
+            asm += f"b #{hex(jmp_addr)}\n"
+        asm += f"_end:\n"
+        return asm
+    
+    @staticmethod
+    def generate_asm_for_arguments(arg_list):
+        if len(arg_list) == 0:
+            return ""
+        if len(arg_list) > 4:
+            raise Exception("Currently Patcherex Only Supports Up to 4 Arguments")
+        asm = ""
+        const_pool = ""
+        for arg in arg_list:
+            _const_pool = re.search(r"b _end\n(.*)_end:", arg, re.DOTALL)
+            if _const_pool:
+                const_pool += f"{_const_pool.group(1)}\n"
+
+
+        for i in range(1, len(arg_list)):
+            if "b _end" in arg_list[i]:
+                asm += f"{arg_list[i][:arg_list[i].index('b _end')]}\n"
+            else:
+                asm += f"{arg_list[i]}\n"
+            asm += f"mov x{i}, x0\n"
+
+        if "b _end" in arg_list[0]:
+            asm += f"{arg_list[0][:arg_list[0].index('b _end')]}\n"
+        else:
+            asm += f"{arg_list[0]}\n"
+
+        if const_pool:
+            const_pool_list = const_pool.splitlines()
+            const_pool = "\n".join(sorted(set(const_pool_list), key=const_pool_list.index))
+            asm += "b _end\n"
+            asm += const_pool
+            asm += "_end:\n"
+        return asm
