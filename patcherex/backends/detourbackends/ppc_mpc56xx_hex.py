@@ -47,16 +47,16 @@ class DetourBackendPpcMpc56xxHex(DetourBackendPpc):
     def apply_patches(self, patches):
         for patch in patches:
             if isinstance(patch, InlinePatch):
+                l.info("Patching %s at %#x with %s", self.filename, patch.instruction_addr, patch.new_asm)
                 new_code = self.compile_asm(patch.new_asm, patch.instruction_addr, self.name_map)
                 self.ihex.puts(patch.instruction_addr, new_code)
-                l.info("Patched %s at %#x with %s", self.filename, patch.instruction_addr, patch.new_asm)
                 sio = io.StringIO()
                 self.ihex.write_hex_file(sio, byte_count=0x20)
                 self.ncontent = sio.getvalue()
                 sio.close()
             elif isinstance(patch, RawMemPatch):
+                l.info("Patching %s at %#x with %s", self.filename, patch.addr, patch.data)
                 self.ihex.puts(patch.addr, patch.data)
-                l.info("Patched %s at %#x with %s", self.filename, patch.addr, patch.data)
                 sio = io.StringIO()
                 self.ihex.write_hex_file(sio, byte_count=0x20)
                 self.ncontent = sio.getvalue()
@@ -97,7 +97,7 @@ class DetourBackendPpcMpc56xxHex(DetourBackendPpc):
         except KeyError as e:
             raise UndefinedSymbolException(str(e)) from e
 
-        code = re.subn(r' r(\d+)', r' \1', code)[0]
+        code = re.subn(r'\br(\d+)\b', r'\1', code)[0]
 
         if base is not None and not dummy:
             # produce a list of {instr_offset: instr} pairs
