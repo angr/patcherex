@@ -155,8 +155,19 @@ class DetourBackendPpcMpc56xxHex(DetourBackendPpc):
             filename = self.filename + "_patched"
 
         final_content = self.get_final_content()
+        entry_point = ""
+        final = ""
+        for line in final_content.splitlines():
+            if line.startswith(":04000005"):
+                entry_point = line
+            elif line == ":00000001FF":
+                final += entry_point + "\n"
+                final += line + "\n"
+            else:
+                final += line + "\n"
+
         with open(filename, "w") as f:
-            f.write(final_content)
+            f.write(final)
 
     def setup_headers(self, segments):
         pass
