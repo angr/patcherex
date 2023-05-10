@@ -50,17 +50,14 @@ class DetourBackendPpcMpc56xxHex(DetourBackendPpc):
                 l.info("Patching %s at %#x with %s", self.filename, patch.instruction_addr, patch.new_asm)
                 new_code = self.compile_asm(patch.new_asm, patch.instruction_addr, self.name_map)
                 self.ihex.puts(patch.instruction_addr, new_code)
-                sio = io.StringIO()
-                self.ihex.write_hex_file(sio, byte_count=0x20)
-                self.ncontent = sio.getvalue()
-                sio.close()
             elif isinstance(patch, RawMemPatch):
                 l.info("Patching %s at %#x with %s", self.filename, patch.addr, patch.data)
                 self.ihex.puts(patch.addr, patch.data)
-                sio = io.StringIO()
-                self.ihex.write_hex_file(sio, byte_count=0x20)
-                self.ncontent = sio.getvalue()
-                sio.close()
+            elif isinstance(patch, InsertCodePatch):
+                l.info("Inserting code at %#x with %s", patch.pos, patch.new_asm)
+                assert patch.detour_pos is not None
+                new_code = self.compile_asm(patch.new_asm, patch.detour_pos, self.name_map)
+                self.ihex.puts(patch.detour_pos, new_code)
             else:
                 raise NotImplementedError(f"Unsupported patch type {type(patch)}")
 
@@ -149,6 +146,12 @@ class DetourBackendPpcMpc56xxHex(DetourBackendPpc):
                 disasms = self.disassemble(result, base if base is not None else 0x0)
                 return result
 
+    def get_final_content(self):
+        sio = io.StringIO()
+        self.ihex.write_hex_file(sio, byte_count=0x20)
+        self.ncontent = sio.getvalue()
+        sio.close()
+        return self.ncontent
 
     def save(self, filename=None):
         if filename is None:

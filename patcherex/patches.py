@@ -156,11 +156,12 @@ class AddEntryPointPatch(CodePatch):
 
 
 class InsertCodePatch(CodePatch):
-    def __init__(self, addr, code, name=None, is_att=False, priority=1, stackable=False):
+    def __init__(self, addr, code, name=None, is_att=False, priority=1, stackable=False, detour_pos=None):
         super(InsertCodePatch, self).__init__(name, asm_code=code, is_att=is_att)
         self.addr = addr
         self.priority = priority
         self.stackable = stackable
+        self.detour_pos = detour_pos
 
     @property
     def code(self):
