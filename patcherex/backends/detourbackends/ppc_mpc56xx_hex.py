@@ -54,10 +54,18 @@ class DetourBackendPpcMpc56xxHex(DetourBackendPpc):
                 l.info("Patching %s at %#x with %s", self.filename, patch.addr, patch.data)
                 self.ihex.puts(patch.addr, patch.data)
             elif isinstance(patch, InsertCodePatch):
-                l.info("Inserting code at %#x with %s", patch.pos, patch.new_asm)
+                l.info("Inserting code at %#x with %s", patch.addr, patch.asm_code)
                 assert patch.detour_pos is not None
-                new_code = self.compile_asm(patch.new_asm, patch.detour_pos, self.name_map)
+                original_instr = self.project.factory.block(patch.addr).disassembly.insns[0]
+                original_instr = f"{original_instr.mnemonic} {original_instr.op_str}"
+                patch_asm_with_original_asm = f"{patch.asm_code}\n{original_instr}"
+                new_code = self.compile_asm(patch_asm_with_original_asm, patch.detour_pos, self.name_map)
+                jmp_back = f"b {hex(patch.addr + 4 - (patch.detour_pos + len(new_code)))}"
+                jmp_back_code = self.compile_asm(jmp_back, patch.detour_pos + len(new_code), self.name_map)
+                jmp_to = self.compile_asm(f"b {hex(patch.detour_pos - patch.addr)}", patch.addr, self.name_map)
                 self.ihex.puts(patch.detour_pos, new_code)
+                self.ihex.puts(patch.detour_pos + len(new_code), jmp_back_code)
+                self.ihex.puts(patch.addr, jmp_to)
             else:
                 raise NotImplementedError(f"Unsupported patch type {type(patch)}")
 
