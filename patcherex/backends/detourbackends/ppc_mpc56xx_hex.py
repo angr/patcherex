@@ -171,33 +171,6 @@ class DetourBackendPpcMpc56xxHex(DetourBackendPpc):
         :return: The CFG object
         :rtype: angr.analyses.CFG
         """
-        regions = [
-        (0x000749d0,   0x000749d0 + 0x0000029c),
-        (0x00074550,   0x00074550 + 0x0000036c),
-        (0x000733e0,   0x000733e0 + 0x000000f4),
-        (0x000741d0,   0x000741d0 + 0x000001b4),
-        (0x000749d0,   0x000749d0 + 0x0000029c),
-        (0x00074d70,   0x00074d70 + 0x000000dc),
-        (0x00073600,   0x00073600 + 0x00000078),
-        (0x00183d70,   0x00183d70 + 0x00000018),
-        (0x00074550,   0x00074550 + 0x0000036c),
-        (0x000748c0,   0x000748c0 + 0x00000018),
-        (0x00074470,   0x00074470 + 0x000000e0),
-        (0x00073b60,   0x00073b60 + 0x000002a0),
-        (0x00074e50,   0x00074e50 + 0x000002bc),
-        (0x001835e0,   0x001835e0 + 0x00000190),
-        (0x00183c90,   0x00183c90 + 0x00000094),
-        (0x000748c0,   0x000748c0 + 0x00000018),
-        (0x00074c70,   0x00074c70 + 0x00000080),
-        (0x00074cf0,   0x00074cf0 + 0x00000074),
-        (0x00074d70,   0x00074d70 + 0x000000dc),
-        (0x000733e0,   0x000733e0 + 0x000000f4),
-        (0x000749d0,   0x000749d0 + 0x0000029c),
-        (0x6000592c,   0x6000592c + 0x00000168),
-        ]
-        # TODO
-        # 1) ida-like cfg
-        # 2) with some strategies we don't need the cfg, we should be able to apply those strategies even if the cfg fails
         l.info("Start generating CFG.")
         cfg = self.project.analyses.CFGFast(exclude_sparse_regions=False, use_patches=True,show_progressbar=True, resolve_indirect_jumps=True, data_references=True, cross_references=False, skip_unmapped_addrs=True, normalize=True, force_smart_scan=True, force_complete_scan=False)
         l.info("Finish generating CFG.")
