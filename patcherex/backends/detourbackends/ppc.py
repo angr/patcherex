@@ -253,7 +253,7 @@ class DetourBackendPpc(DetourBackendElf):
                 break #at this point we applied everything in current insert_code_patches
                 # TODO symbol name, for now no name_map for InsertCode patches
 
-        header_patches = [InsertCodePatch,InsertFunctionPatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
+        header_patches = [InsertCodePatch,InsertFunctionPatch,AddEntryPointPatch,AddCodePatch, \
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
 
         # 5.5) ReplaceFunctionPatch
