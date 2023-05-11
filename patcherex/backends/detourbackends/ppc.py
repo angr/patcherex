@@ -141,7 +141,11 @@ class DetourBackendPpc(DetourBackendElf):
                 self.ncontent = utils.bytes_overwrite(self.ncontent, final_patch_data)
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
-        self.ncontent = utils.pad_bytes(self.ncontent, 0x10)  # some minimal alignment may be good
+
+        for patch in patches:
+            if not isinstance(patch, (InlinePatch)):
+                self.ncontent = utils.pad_bytes(self.ncontent, 0x10)  # some minimal alignment may be good
+                break
 
         self.added_code_file_start = len(self.ncontent)
         if self.replace_note_segment:
