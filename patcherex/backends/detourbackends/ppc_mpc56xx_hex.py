@@ -58,13 +58,10 @@ class DetourBackendPpcMpc56xxHex(DetourBackendPpc):
                 assert patch.detour_pos is not None
                 original_instr = self.project.factory.block(patch.addr).disassembly.insns[0]
                 original_instr = f"{original_instr.mnemonic} {original_instr.op_str}"
-                patch_asm_with_original_asm = f"{patch.asm_code}\n{original_instr}"
+                patch_asm_with_original_asm = f"{patch.asm_code}\n{original_instr}\nb {hex(patch.addr + 4)}"
                 new_code = self.compile_asm(patch_asm_with_original_asm, patch.detour_pos, self.name_map)
-                jmp_back = f"b {hex(patch.addr + 4 - (patch.detour_pos + len(new_code)))}"
-                jmp_back_code = self.compile_asm(jmp_back, patch.detour_pos + len(new_code), self.name_map)
-                jmp_to = self.compile_asm(f"b {hex(patch.detour_pos - patch.addr)}", patch.addr, self.name_map)
+                jmp_to = self.compile_asm(f"b {hex(patch.detour_pos)}", patch.addr, self.name_map)
                 self.ihex.puts(patch.detour_pos, new_code)
-                self.ihex.puts(patch.detour_pos + len(new_code), jmp_back_code)
                 self.ihex.puts(patch.addr, jmp_to)
             else:
                 raise NotImplementedError(f"Unsupported patch type {type(patch)}")
@@ -76,7 +73,7 @@ class DetourBackendPpcMpc56xxHex(DetourBackendPpc):
             with open(os.path.join(td, "code.bin"), "wb") as f:
                 f.write(code)
 
-            res = utils.exec_cmd(f"{os.path.join(DetourBackendPpcMpc56xxHex.vle_binutils_path, 'powerpc-eabivle-objdump')} -D -b binary --adjust-vma={hex(offset)} -EB {os.path.join(td, 'code')}.bin | tail +8", shell=True)
+            res = utils.exec_cmd(f"{os.path.join(DetourBackendPpcMpc56xxHex.vle_binutils_path, 'powerpc-eabivle-objdump')} -D -b binary --adjust-vma={hex(offset)} -m powerpc:common -EB {os.path.join(td, 'code')}.bin | tail +8", shell=True)
             if res[2] != 0:
                 raise Exception(f"powerpc-eabivle-objdump:\n{str(res[0] + res[1], 'utf-8')}")
             str_result = res[0].decode("utf-8")
@@ -112,16 +109,14 @@ class DetourBackendPpcMpc56xxHex(DetourBackendPpc):
                 line = line.strip()
                 if line.startswith(".") or line.startswith("#") or line == "" or line.endswith(":"):
                     continue
-                # if line matches "e_b 0x*" or "e_bl 0x*", add it to the branch_instrs dict
-                if re.match(r"(e_b|e_bl) 0x[0-9a-fA-F]+", line):
+                # if line matches "b 0x*" or "bl 0x*", add it to the branch_instrs dict
+                if re.match(r"b[a-z]* 0x[0-9a-fA-F]+", line):
                     branch_instrs[instr_count] = line
                 instr_count += 1
 
-            disasms = self.disassemble(self.compile_asm(code, base=base, name_map=name_map, dummy=True), offset=base)
-
-            for i in range(len(disasms)):
+            for i in range(instr_count):
                 if i in branch_instrs:
-                    branch_instrs[i] = branch_instrs[i].split(" ")[0] + " " + hex(int(branch_instrs[i].split(" ")[1], 16) - disasms[i]['address'])
+                    branch_instrs[i] = branch_instrs[i].split(" ")[0] + " " + hex(int(branch_instrs[i].split(" ")[1], 16) - base - 4 * i)
 
             instr_count = 0
             for line_count, line in enumerate(code.splitlines()):
