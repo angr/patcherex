@@ -308,7 +308,7 @@ class DetourBackendPpc(DetourBackendElf):
             self.set_added_segment_headers()
             l.debug("final symbol table: %s", repr([(k,hex(v)) for k,v in self.name_map.items()]))
         else:
-            l.info("no patches, the binary will not be touched")
+            l.info("no header patches, the binary header will not be touched")
 
     def check_if_movable(self, instruction, is_thumb=False):
         # the idea here is an instruction is movable if and only if
