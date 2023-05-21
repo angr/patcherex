@@ -11,7 +11,7 @@ from patcherex.backends.detourbackends._utils import (
 from patcherex.backends.misc import (ASM_ENTRY_POINT_PUSH_ENV,
                                      ASM_ENTRY_POINT_RESTORE_ENV)
 from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
-                               AddRODataPatch, AddRWDataPatch,
+                               AddRODataPatch, AddRWDataPatch, AddFunctionPatch,
                                AddRWInitDataPatch, AddSegmentHeaderPatch,
                                InlinePatch, InsertCodePatch, RawFilePatch,
                                RawMemPatch, RemoveInstructionPatch,
@@ -166,6 +166,12 @@ class DetourBackendi386(DetourBackendElf):
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
+            if isinstance(patch, AddFunctionPatch):
+                offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+                code_len = len(self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, symbols=patch.symbols, entry=current_symbol_pos + offset))
+                if patch.name is not None:
+                    self.name_map[patch.name] = current_symbol_pos
+                current_symbol_pos += code_len
         # now compile for real
         for patch in patches:
             if isinstance(patch, AddCodePatch):
@@ -182,6 +188,14 @@ class DetourBackendi386(DetourBackendElf):
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
                 l.info("Added patch: %s", str(patch))
+            if isinstance(patch, AddFunctionPatch):
+                offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+                new_code = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=self.get_current_code_position() + offset, symbols=patch.symbols)
+                self.added_code += new_code
+                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                self.added_patches.append(patch)
+                l.info("Added patch: %s", str(patch))
+
 
         # 3) AddEntryPointPatch
         # basically like AddCodePatch but we detour by changing oep
@@ -310,7 +324,7 @@ class DetourBackendi386(DetourBackendElf):
                 # TODO symbol name, for now no name_map for InsertCode patches
 
         header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
-                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
+                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch,AddFunctionPatch]
 
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
@@ -492,6 +506,12 @@ class DetourBackendi386(DetourBackendElf):
 
             with open(c_fname, 'w') as fp:
                 fp.write(code)
+
+            if symbols is not None:
+                for k, v in self.name_map.items():
+                    if k not in symbols and k != "ADDED_DATA_START" and k != "ADDED_CODE_START":
+                        offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
+                        symbols[k] = v + offset
 
             linker_script = "SECTIONS { .text : SUBALIGN(0) { . = " + hex(entry) + "; *(.text) "
             if symbols is not None:
