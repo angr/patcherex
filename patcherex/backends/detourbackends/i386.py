@@ -329,7 +329,7 @@ class DetourBackendi386(DetourBackendElf):
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
             if isinstance(patch, ReplaceFunctionPatch):
-                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=patch.addr, symbols=patch.symbols, stacklayout=patch.stacklayout)
+                new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=patch.addr, symbols=patch.symbols, stacklayout=patch.stacklayout, dso_local_fix=patch.dso_local_fix)
                 file_offset = self.project.loader.main_object.addr_to_offset(patch.addr)
                 self.ncontent = utils.bytes_overwrite(self.ncontent, b"\x90" * patch.size, file_offset)
                 if(patch.size >= len(new_code)):
@@ -339,7 +339,7 @@ class DetourBackendi386(DetourBackendElf):
                     header_patches.append(ReplaceFunctionPatch)
                     detour_pos = self.get_current_code_position()
                     offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
-                    new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=detour_pos + offset, symbols=patch.symbols, stacklayout=patch.stacklayout)
+                    new_code = self.compile_function(patch.asm_code, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", bits=self.structs.elfclass, entry=detour_pos + offset, symbols=patch.symbols, stacklayout=patch.stacklayout, dso_local_fix=patch.dso_local_fix)
                     self.added_code += new_code
                     self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                     # compile jmp
@@ -495,7 +495,7 @@ class DetourBackendi386(DetourBackendElf):
 
         return new_code
 
-    def compile_function(self, code, compiler_flags="", bits=32, entry=0x0, symbols=None, stacklayout=None):
+    def compile_function(self, code, compiler_flags="", bits=32, entry=0x0, symbols=None, stacklayout=None, dso_local_fix=False):
         with utils.tempdir() as td:
             c_fname = os.path.join(td, "code.c")
             ll_fname = os.path.join(td, "code.ll")
@@ -522,7 +522,7 @@ class DetourBackendi386(DetourBackendElf):
             with open(linker_script_fname, 'w') as fp:
                 fp.write(linker_script)
 
-            if stacklayout is None:
+            if stacklayout is None and not self.dso_local_fix:
                 res = utils.exec_cmd("clang -Wno-incompatible-library-redeclaration -o %s %s -c %s %s" % (object_fname, "-m32" if bits == 32 else "-m64", c_fname, compiler_flags), shell=True)
                 if res[2] != 0:
                     raise CLangException("Clang error: " + str(res[0] + res[1], 'utf-8'))
@@ -531,20 +531,21 @@ class DetourBackendi386(DetourBackendElf):
                 if res[2] != 0:
                     raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
             else:
-                clang_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_denpendencies', 'clang', 'clang'))
-                lld_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_denpendencies', 'clang', 'ld.lld'))
-                opt_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_denpendencies', 'clang', 'opt'))
-                llc_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_denpendencies', 'clang', 'llc'))
-                LLVMAMP_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_denpendencies', 'clang', 'LLVMAMP.so'))
+                clang_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_dependencies', 'clang', 'clang'))
+                lld_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_dependencies', 'clang', 'ld.lld'))
+                opt_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_dependencies', 'clang', 'opt'))
+                llc_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_dependencies', 'clang', 'llc'))
+                LLVMAMP_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_dependencies', 'clang', 'LLVMAMP.so'))
                 # c -> ll
                 res = utils.exec_cmd(f"{clang_path} -Wno-incompatible-library-redeclaration -S -w -emit-llvm -g -o {ll_fname} {'-m32' if bits == 32 else '-m64'} {c_fname} {compiler_flags} -I /usr/lib/clang/10/include", shell=True)
                 if res[2] != 0:
                     raise Exception("Clang Error: " + str(res[0] + res[1], 'utf-8'))
 
-                # ll --force-dso-local-> ll
-                res = utils.exec_cmd(f"{opt_path} -load {LLVMAMP_path} --force-dso-local -S {ll_fname} -o {ll_fname}", shell=True)
-                if res[2] != 0:
-                    raise Exception("opt Error: " + str(res[0] + res[1], 'utf-8'))
+                if dso_local_fix:
+                    # ll --force-dso-local-> ll
+                    res = utils.exec_cmd(f"{opt_path} -load {LLVMAMP_path} --force-dso-local -S {ll_fname} -o {ll_fname}", shell=True)
+                    if res[2] != 0:
+                        raise Exception("opt Error: " + str(res[0] + res[1], 'utf-8'))
 
                 res = utils.exec_cmd(f"{opt_path} -S {ll_fname} -o {ll_fname}", shell=True)
                 if res[2] != 0:
