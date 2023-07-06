@@ -522,7 +522,7 @@ class DetourBackendi386(DetourBackendElf):
             with open(linker_script_fname, 'w') as fp:
                 fp.write(linker_script)
 
-            if stacklayout is None and not self.dso_local_fix:
+            if stacklayout is None and not dso_local_fix:
                 res = utils.exec_cmd("clang -Wno-incompatible-library-redeclaration -o %s %s -c %s %s" % (object_fname, "-m32" if bits == 32 else "-m64", c_fname, compiler_flags), shell=True)
                 if res[2] != 0:
                     raise CLangException("Clang error: " + str(res[0] + res[1], 'utf-8'))
