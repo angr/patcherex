@@ -514,7 +514,10 @@ class DetourBackendArm(DetourBackendElf):
                     ret_val = instr.operands[1].imm
                     if ret_val < 1:
                         exit_edges.append([hex(self.lva_to_mva(next_instr.address + (1 if is_thumb else 0))), hex(self.lva_to_mva(next_instr.operands[0].imm + (1 if target_is_thumb else 0)))])
-        self.patch_info["exit_edges"]["patched"][hex(self.project.kb.functions.floor_func(patch.addr).addr)] = exit_edges
+        if hex(self.project.kb.functions.floor_func(patch.addr).addr) in self.patch_info["exit_edges"]["patched"]:
+            self.patch_info["exit_edges"]["patched"][hex(self.project.kb.functions.floor_func(patch.addr).addr)] += exit_edges
+        else:
+            self.patch_info["exit_edges"]["patched"][hex(self.project.kb.functions.floor_func(patch.addr).addr)] = exit_edges
 
         if (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4 != 0:
             post_code_compiled += b"\x00"*(4 - (self.get_current_code_position() + len(pre_code_compiled) + len(fake_function_call_compiled) + len(post_code_compiled)) % 4)
