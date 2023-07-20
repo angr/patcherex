@@ -551,7 +551,7 @@ class DetourBackendi386(DetourBackendElf):
                 if res[2] != 0:
                     raise Exception("opt Error: " + str(res[0] + res[1], 'utf-8'))
 
-                if stacklayout == {}:
+                if stacklayout == {} or stacklayout is None:
                     ll2_fname = ll_fname
                 else:
                     self.addAMPDebug(ll_fname, ll2_fname, stacklayout)
