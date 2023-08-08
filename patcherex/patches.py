@@ -3,7 +3,10 @@ import struct
 
 from . import utils
 from .utils import ASMConverter
-import compilerex
+try:
+    import compilerex
+except ImportError:
+    print("Warning: compilerex not installed, reassembler backend will not work")
 
 
 class Patch:
