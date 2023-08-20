@@ -499,10 +499,12 @@ class DetourBackendi386(DetourBackendElf):
         with utils.tempdir() as td:
             c_fname = os.path.join(td, "code.c")
             ll_fname = os.path.join(td, "code.ll")
-            ll2_fname = os.path.join(td, "code.2.ll")
+            mir_fname = os.path.join(td, "code.mir")
+            mir2_fname = os.path.join(td, "code.2.mir")
             object_fname = os.path.join(td, "code.o")
             object2_fname = os.path.join(td, "code.2.o")
             linker_script_fname = os.path.join(td, "code.lds")
+            json_fname = os.path.join(td, "code.json")
 
             with open(c_fname, 'w') as fp:
                 fp.write(code)
@@ -531,39 +533,45 @@ class DetourBackendi386(DetourBackendElf):
                 if res[2] != 0:
                     raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
             else:
-                clang_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_dependencies', 'clang', 'clang'))
-                lld_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_dependencies', 'clang', 'ld.lld'))
-                opt_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_dependencies', 'clang', 'opt'))
-                llc_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_dependencies', 'clang', 'llc'))
-                LLVMAMP_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_dependencies', 'clang', 'LLVMAMP.so'))
+                librecomp_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_dependencies', 'clang', 'libRecompiler.so'))
+                librecomp_plugin_path = os.path.realpath(os.path.join(os.path.dirname(__file__), '..', '..', 'binary_dependencies', 'clang', 'libRecompilerPlugin.so'))
                 # c -> ll
-                res = utils.exec_cmd(f"{clang_path} -Wno-incompatible-library-redeclaration -S -w -emit-llvm -g -o {ll_fname} {'-m32' if bits == 32 else '-m64'} {c_fname} {compiler_flags} -I /usr/lib/clang/10/include", shell=True)
+                res = utils.exec_cmd(f"clang-15 -Wno-incompatible-library-redeclaration -S -w -emit-llvm -g -o {ll_fname} {'-m32' if bits == 32 else '-m64'} {c_fname} {compiler_flags} -I /usr/lib/clang/15/include", shell=True)
                 if res[2] != 0:
                     raise Exception("Clang Error: " + str(res[0] + res[1], 'utf-8'))
 
                 if dso_local_fix:
                     # ll --force-dso-local-> ll
-                    res = utils.exec_cmd(f"{opt_path} -load {LLVMAMP_path} --force-dso-local -S {ll_fname} -o {ll_fname}", shell=True)
+                    res = utils.exec_cmd(f"opt-15 -load {librecomp_path} --force-dso-local -S {ll_fname} -o {ll_fname}", shell=True)
                     if res[2] != 0:
                         raise Exception("opt Error: " + str(res[0] + res[1], 'utf-8'))
 
-                res = utils.exec_cmd(f"{opt_path} -S {ll_fname} -o {ll_fname}", shell=True)
+                res = utils.exec_cmd(f"opt-15 -S {ll_fname} -o {ll_fname}", shell=True)
                 if res[2] != 0:
                     raise Exception("opt Error: " + str(res[0] + res[1], 'utf-8'))
 
+                # ll -> mir -> object
                 if stacklayout == {} or stacklayout is None:
-                    ll2_fname = ll_fname
+                    res = utils.exec_cmd(f"llc-15 -o {object_fname} {ll_fname} -relocation-model=pic --x86-asm-syntax=intel --filetype=obj", shell=True)
+                    if res[2] != 0:
+                        raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
                 else:
-                    self.addAMPDebug(ll_fname, ll2_fname, stacklayout)
-
-                # ll + AMPDebug -> obj
-                res = utils.exec_cmd(f"{llc_path} -o {object_fname} {ll2_fname} -relocation-model=pic --x86-asm-syntax=intel --filetype=obj", shell=True)
-                if res[2] != 0:
-                    raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
-                print(str(res[1], 'utf-8'))# TODO: remove this
+                    with open(json_fname, 'w') as fp:
+                        json.dump(stacklayout, fp)
+                    res = utils.exec_cmd(f"llc-15 -stop-before=prologepilog {ll_fname} -o {mir_fname}", shell=True)
+                    if res[2] != 0:
+                        raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
+                    
+                    res = utils.exec_cmd(f"llc-15 -load {librecomp_path} -run-pass=override-stack-offset -stkloc={json_fname} -o {mir2_fname} {mir_fname}", shell=True)
+                    if res[2] != 0:
+                        raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
+                    
+                    res = utils.exec_cmd(f"llc-15 -start-before=prologepilog -o {object_fname} {mir2_fname} -relocation-model=pic --x86-asm-syntax=intel --filetype=obj", shell=True)
+                    if res[2] != 0:
+                        raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
 
                 # relocate
-                res = utils.exec_cmd(f"{lld_path} -relocatable {object_fname} -T {linker_script_fname} -o {object2_fname}", shell=True)
+                res = utils.exec_cmd(f"ld.lld-15 -relocatable {object_fname} -T {linker_script_fname} -o {object2_fname}", shell=True)
                 if res[2] != 0:
                     raise Exception("Linking Error: " + str(res[0] + res[1], 'utf-8'))
                 print(str(res[1], 'utf-8'))
