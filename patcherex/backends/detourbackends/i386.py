@@ -3,6 +3,7 @@ import os
 from collections import defaultdict
 
 import cle
+import json
 from patcherex import utils
 from patcherex.backends.detourbackends._elf import DetourBackendElf, l
 from patcherex.backends.detourbackends._utils import (
@@ -542,7 +543,7 @@ class DetourBackendi386(DetourBackendElf):
 
                 if dso_local_fix:
                     # ll --force-dso-local-> ll
-                    res = utils.exec_cmd(f"opt-15 -load {librecomp_path} --force-dso-local -S {ll_fname} -o {ll_fname}", shell=True)
+                    res = utils.exec_cmd(f"opt-15 -load-pass-plugin={librecomp_path} -passes=force-dso-local -S {ll_fname} -o {ll_fname}", shell=True)
                     if res[2] != 0:
                         raise Exception("opt Error: " + str(res[0] + res[1], 'utf-8'))
 
