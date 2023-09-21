@@ -553,21 +553,21 @@ class DetourBackendi386(DetourBackendElf):
 
                 # ll -> mir -> object
                 if stacklayout == {} or stacklayout is None:
-                    res = utils.exec_cmd(f"llc-15 -o {object_fname} {ll_fname} -relocation-model=pic --x86-asm-syntax=intel --filetype=obj", shell=True)
+                    res = utils.exec_cmd(f"llc-15 -o {object_fname} {ll_fname} -relocation-model=pic --filetype=obj", shell=True)
                     if res[2] != 0:
                         raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
                 else:
                     with open(json_fname, 'w') as fp:
                         json.dump(stacklayout, fp)
-                    res = utils.exec_cmd(f"llc-15 -stop-before=prologepilog {ll_fname} -o {mir_fname}", shell=True)
+                    res = utils.exec_cmd(f"llc-15 -stop-before=prologepilog {ll_fname} -o {mir_fname} -relocation-model=pic", shell=True)
                     if res[2] != 0:
                         raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
                     
-                    res = utils.exec_cmd(f"llc-15 -load {librecomp_path} -run-pass=override-stack-offset -stkloc={json_fname} -o {mir2_fname} {mir_fname}", shell=True)
+                    res = utils.exec_cmd(f"llc-15 -load {librecomp_path} -run-pass=override-stack-offset -stkloc={json_fname} -o {mir2_fname} {mir_fname} -relocation-model=pic", shell=True)
                     if res[2] != 0:
                         raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
                     
-                    res = utils.exec_cmd(f"llc-15 -start-before=prologepilog -o {object_fname} {mir2_fname} -relocation-model=pic --x86-asm-syntax=intel --filetype=obj", shell=True)
+                    res = utils.exec_cmd(f"llc-15 -start-before=prologepilog -o {object_fname} {mir2_fname} -relocation-model=pic --filetype=obj", shell=True)
                     if res[2] != 0:
                         raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
 
