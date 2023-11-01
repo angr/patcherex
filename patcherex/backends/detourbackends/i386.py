@@ -563,11 +563,15 @@ class DetourBackendi386(DetourBackendElf):
                     if res[2] != 0:
                         raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
                     
-                    res = utils.exec_cmd(f"llc-15 -load {librecomp_path} -run-pass=override-stack-offset -stkloc={json_fname} -o {mir2_fname} {mir_fname} -relocation-model=pic", shell=True)
+                    # res = utils.exec_cmd(f"llc-15 -load {librecomp_path} -run-pass=override-stack-offset -stkloc={json_fname} -o {mir2_fname} {mir_fname} -relocation-model=pic", shell=True)
+                    # if res[2] != 0:
+                    #     raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
+
+                    res = utils.exec_cmd(f"llc-15 -load {librecomp_path} -run-pass=updated-prologepilog -stkloc={json_fname} -o {mir2_fname} {mir_fname} -relocation-model=pic", shell=True)
                     if res[2] != 0:
-                        raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
-                    
-                    res = utils.exec_cmd(f"llc-15 -start-before=prologepilog -o {object_fname} {mir2_fname} -relocation-model=pic --filetype=obj", shell=True)
+                        raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8')) 
+
+                    res = utils.exec_cmd(f"llc-15 -start-after=prologepilog -o {object_fname} {mir2_fname} -relocation-model=pic --filetype=obj", shell=True)
                     if res[2] != 0:
                         raise CLangException("llc error: " + str(res[0] + res[1], 'utf-8'))
 
