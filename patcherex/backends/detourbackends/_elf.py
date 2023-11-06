@@ -260,9 +260,6 @@ class DetourBackendElf(Backend):
                     # and now we want to make sure p_vaddr (self.phdr_start) == p_offset (len(self.ncontent))
                     if self.phdr_start > len(self.ncontent):
                         # p_vaddr > p_offset: pad the file (p_offset)
-                        if self.phdr_start - len(self.ncontent) > 1_000_000:
-                            raise Exception("Cannot align the file offset and vaddr of PHDR without increasing the "
-                                            "file size by more than 1 MB.")
                         self.ncontent = self.ncontent.ljust(self.phdr_start, b"\x00")
                     else:
                         # p_vaddr <= p_offset: pad the file (p_offset) to page size, and let p_vaddr = p_offset
