@@ -11,7 +11,7 @@ from patcherex.backends.detourbackends._utils import (
     DetourException, DoubleDetourException, DuplicateLabelsException,
     IncompatiblePatchesException, MissingBlockException)
 from patcherex.patches import (AddCodePatch, AddEntryPointPatch, AddLabelPatch,
-                               AddRODataPatch, AddRWDataPatch,
+                               AddRODataPatch, AddRWDataPatch, AddFunctionPatch,
                                AddRWInitDataPatch, AddSegmentHeaderPatch,
                                InlinePatch, InsertCodePatch, InsertFunctionPatch,
                                RawFilePatch, RawMemPatch, RemoveInstructionPatch,
@@ -145,6 +145,13 @@ class DetourBackendAarch64(DetourBackendElf):
                 if patch.name is not None:
                     self.name_map[patch.name] = current_symbol_pos
                 current_symbol_pos += code_len
+            if isinstance(patch, AddFunctionPatch):
+                if current_symbol_pos % 4 != 0:
+                    current_symbol_pos += 4 - (current_symbol_pos % 4)
+                code_len = len(self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", symbols=patch.symbols, entry=current_symbol_pos))
+                if patch.name is not None:
+                    self.name_map[patch.name] = current_symbol_pos
+                current_symbol_pos += code_len
         # now compile for real
         for patch in patches:
             if isinstance(patch, AddCodePatch):
@@ -156,6 +163,16 @@ class DetourBackendAarch64(DetourBackendElf):
                     new_code = self.compile_asm(patch.asm_code,
                                                  self.get_current_code_position(),
                                                  self.name_map)
+                self.added_code += new_code
+                self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                self.added_patches.append(patch)
+                l.info("Added patch: %s", str(patch))
+            if isinstance(patch, AddFunctionPatch):
+                if self.get_current_code_position() % 4 != 0:
+                    new_code = b"\x00" * (4 - self.get_current_code_position() % 4)
+                    self.added_code += new_code
+                    self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+                new_code = self.compile_function(patch.func, compiler_flags="-fPIE" if self.project.loader.main_object.pic else "", entry=self.get_current_code_position(), symbols=patch.symbols)
                 self.added_code += new_code
                 self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
                 self.added_patches.append(patch)
@@ -236,7 +253,7 @@ class DetourBackendAarch64(DetourBackendElf):
                 # TODO symbol name, for now no name_map for InsertCode patches
 
         header_patches = [InsertCodePatch,InsertFunctionPatch,AddEntryPointPatch,AddCodePatch, \
-                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch]
+                AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch,AddFunctionPatch]
 
         # 5.5) ReplaceFunctionPatch
         for patch in patches:
