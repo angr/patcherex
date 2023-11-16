@@ -147,8 +147,8 @@ class DetourBackendi386(DetourBackendElf):
                                         self.get_current_code_position(),
                                         self.name_map,
                                         bits=self.structs.elfclass)
-        self.added_code += new_code
-        self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
+        # self.added_code += new_code
+        # self.ncontent = utils.bytes_overwrite(self.ncontent, new_code)
 
         # 2) AddCodePatch
         # resolving symbols
@@ -323,7 +323,7 @@ class DetourBackendi386(DetourBackendElf):
                 break #at this point we applied everything in current insert_code_patches
                 # TODO symbol name, for now no name_map for InsertCode patches
 
-        header_patches = [InsertCodePatch,InlinePatch,AddEntryPointPatch,AddCodePatch, \
+        header_patches = [InsertCodePatch,AddEntryPointPatch,AddCodePatch, \
                 AddRWDataPatch,AddRODataPatch,AddRWInitDataPatch,AddFunctionPatch]
 
         # 5.5) ReplaceFunctionPatch
