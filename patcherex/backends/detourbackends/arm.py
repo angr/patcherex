@@ -27,6 +27,9 @@ class DetourBackendArm(DetourBackendElf):
             raise NotImplementedError()
         super().__init__(filename, base_address=base_address, try_reuse_unused_space=try_reuse_unused_space, 
             replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg)
+        # Override code and data segment address since it fails for ARM
+        self.added_code_segment = 0x0600000
+        self.added_data_segment = 0x0700000
 
     def get_block_containing_inst(self, inst_addr):
         index = bisect.bisect_right(self.ordered_nodes, inst_addr) - 1
