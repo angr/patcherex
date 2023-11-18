@@ -22,11 +22,11 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 class DetourBackendArm(DetourBackendElf):
     # how do we want to design this to track relocations in the blocks...
     def __init__(self, filename, base_address=None, try_reuse_unused_space=False, 
-        replace_note_segment=False, try_without_cfg=False):
+        replace_note_segment=False, try_without_cfg=False, cfg=None):
         if try_without_cfg:
             raise NotImplementedError()
         super().__init__(filename, base_address=base_address, try_reuse_unused_space=try_reuse_unused_space, 
-            replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg)
+            replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg, cfg=cfg)
         # Override code and data segment address since it fails for ARM
         self.added_code_segment = 0x0600000
         self.added_data_segment = 0x0700000
