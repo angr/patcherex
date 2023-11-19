@@ -22,10 +22,10 @@ l = logging.getLogger("patcherex.backends.DetourBackend")
 
 class DetourBackendCgc(Backend):
     # how do we want to design this to track relocations in the blocks...
-    def __init__(self, filename, data_fallback=None, try_pdf_removal=True):
+    def __init__(self, filename, data_fallback=None, try_pdf_removal=True, cfg=None):
         super().__init__(filename,try_pdf_removal)
 
-        self.cfg = self._generate_cfg()
+        self.cfg = cfg if cfg is not None else self._generate_cfg()
         self.ordered_nodes = self._get_ordered_nodes(self.cfg)
 
         # header stuff
