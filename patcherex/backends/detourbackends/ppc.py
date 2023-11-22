@@ -321,7 +321,7 @@ class DetourBackendPpc(DetourBackendElf):
         pos3 = bytes_to_comparable_str(instruction_bytes, 0xfe000000)
         return pos1 == pos2 and pos2 == pos3
 
-    def get_movable_instructions(self, block):
+    def get_movable_instructions(self, block, patch_addr):
         # TODO there are two improvements here:
         # 1) being able to move the jmp and call at the end of a bb
         # 2) detect cases like call-pop and dependent instructions (which should not be moved)
@@ -338,7 +338,7 @@ class DetourBackendPpc(DetourBackendElf):
 
     def find_detour_pos(self, block, detour_size, patch_addr):
         # iterates through the instructions to find where the detour can be stored
-        movable_instructions = self.get_movable_instructions(block)
+        movable_instructions = self.get_movable_instructions(block, patch_addr)
 
         movable_bb_start = movable_instructions[0].address
         movable_bb_size = self.project.factory.block(block.addr, num_inst=len(movable_instructions)).size
@@ -413,7 +413,7 @@ class DetourBackendPpc(DetourBackendElf):
         l.debug("inserting detour for patch: %s", (map(hex, (block_addr, block.size, patch.addr))))
 
         # get movable instructions
-        movable_instructions = self.get_movable_instructions(block)
+        movable_instructions = self.get_movable_instructions(block, patch.addr)
         if len(movable_instructions) == 0:
             raise DetourException("No movable instructions found")
 

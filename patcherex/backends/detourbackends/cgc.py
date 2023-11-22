@@ -808,7 +808,7 @@ class DetourBackendCgc(Backend):
             mem += self.ncontent[start : end]
         return mem
 
-    def get_movable_instructions(self, block):
+    def get_movable_instructions(self, block, patch_addr):
         # TODO there are two improvements here:
         # 1) being able to move the jmp and call at the end of a bb
         # 2) detect cases like call-pop and dependent instructions (which should not be moved)
@@ -825,7 +825,7 @@ class DetourBackendCgc(Backend):
 
     def find_detour_pos(self, block, detour_size, patch_addr):
         # iterates through the instructions to find where the detour can be stored
-        movable_instructions = self.get_movable_instructions(block)
+        movable_instructions = self.get_movable_instructions(block, patch_addr)
 
         detour_attempts = range(-1*detour_size, 0+1)
 
@@ -891,7 +891,7 @@ class DetourBackendCgc(Backend):
         detour_size = 5
         one_byte_nop = b'\x90'
 
-        movable_instructions = self.get_movable_instructions(block)
+        movable_instructions = self.get_movable_instructions(block, patch.addr)
         if len(movable_instructions) == 0:
             raise DetourException("No movable instructions found")
         detour_pos = self.find_detour_pos(block, detour_size, patch.addr)
