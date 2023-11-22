@@ -387,7 +387,7 @@ class DetourBackendi386(DetourBackendElf):
             # get largest contiguous block of movable instructions in the bb containing the patch address
             # to ensure instructions using rip are excluded
             for instr_index, instruction in enumerate(instructions):
-                if instruction.address <= patch_addr <= instruction.address + instruction.size:
+                if instruction.address <= patch_addr < instruction.address + instruction.size:
                     # Found instruction containing the patch address. Compute group from this index
                     # First we go backward towards start of list
                     for instr in reversed(instructions[:instr_index]):
