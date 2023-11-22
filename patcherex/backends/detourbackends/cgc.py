@@ -808,7 +808,7 @@ class DetourBackendCgc(Backend):
             mem += self.ncontent[start : end]
         return mem
 
-    def get_movable_instructions(self, block, patch_addr):
+    def get_movable_instructions(self, block, patch_addr):  # pylint:disable=unused-argument
         # TODO there are two improvements here:
         # 1) being able to move the jmp and call at the end of a bb
         # 2) detect cases like call-pop and dependent instructions (which should not be moved)
