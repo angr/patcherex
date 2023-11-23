@@ -118,8 +118,8 @@ class Tests(unittest.TestCase):
         extern int printf(const char *format, ...);
         int multiply(int a, int b){ printf("%sWorld %s %s %s %d\\n", "Hello ", "Hello ", "Hello ", "Hello ", a * b);printf("%sWorld\\n", "Hello "); return a * b; }
         '''
-        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4006a2, 0x48, code, symbols={
-                      "add": 0x400660, "subtract": 0x400681})], expected_output=b"-21-21")
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4006a2, 0x48, code, symbols={"printf" : 0x400520})],
+                      expected_output=b"Hello World Hello  Hello  Hello  21\nHello World\n2121")
 
     def test_rip_relative_addressing_insert_code(self):
         patch_asm = "sub rax, 10"
