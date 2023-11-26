@@ -516,7 +516,7 @@ class DetourBackendi386(DetourBackendElf):
                         offset = self.project.loader.main_object.mapped_base if self.project.loader.main_object.pic else 0
                         symbols[k] = v + offset
 
-            linker_script = "SECTIONS { .text : SUBALIGN(0) { . = " + hex(entry) + "; *(.text) "
+            linker_script = "SECTIONS { .text : SUBALIGN(0) { . = " + hex(entry) + "; *(.text) *(.rodata) "
             if symbols is not None:
                 for i in symbols:
                     linker_script += i + " = " + hex(symbols[i]) + ";"
