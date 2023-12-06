@@ -30,6 +30,7 @@ class DetourBackendi386(DetourBackendElf):
         super().__init__(filename, base_address=base_address, replace_note_segment=replace_note_segment, try_without_cfg=try_without_cfg, cfg=cfg)
 
     def apply_patches(self, patches):
+        success = True
         # deal with stackable patches
         # add stackable patches to the one with highest priority
         insert_code_patches = [p for p in patches if isinstance(p, InsertCodePatch)]
@@ -301,6 +302,7 @@ class DetourBackendi386(DetourBackendElf):
                     #print map(str,removed)
                     applied_patches = self.restore_state(applied_patches, removed)
                     l.warning("One patch failed, rolling back InsertCodePatch patches. Failed patch: %s", str(patch))
+                    success = False
                     break
                     # TODO: right now rollback goes back to 0 patches, we may want to go back less
                     # the solution is to save touched_bytes and ncontent indexed by applied patfch
@@ -359,6 +361,8 @@ class DetourBackendi386(DetourBackendElf):
             l.debug("final symbol table: %s", repr([(k,hex(v)) for k,v in self.name_map.items()]))
         else:
             l.info("no patches, the binary will not be touched")
+
+        return success
 
     def check_if_movable(self, instruction, is_thumb=False):
         # the idea here is an instruction is movable if and only if
