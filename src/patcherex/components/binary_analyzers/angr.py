@@ -110,7 +110,7 @@ class Angr(BinaryAnalyzer):
                 continue
             symbols[symbol.name] = self.normalize_addr(symbol.rebased_addr)
         for func in self.p.kb.functions.values():
-            if func.is_simprocedure or func.is_alignment:
+            if func.is_simprocedure or func.alignment:
                 continue
             symbols[func.name] = self.normalize_addr(func.addr)
         return symbols
