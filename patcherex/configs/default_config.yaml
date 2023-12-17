@@ -1,6 +1,0 @@
-techniques:
-    stackretencryption:
-        options:
-backend:
-    name: reassembler_backend
-    options:

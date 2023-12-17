@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "patcherex"
+version = "0.0.0"
+requires-python = ">=3.8"
+readme = "README.md"
+dependencies = [
+    "angr",
+    "pyelftools",
+    "lief",
+    "keystone-engine",
+    "intelhex",
+    "requests",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
