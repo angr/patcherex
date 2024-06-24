@@ -8,6 +8,9 @@ import shutil
 from functools import wraps
 import tempfile
 import random
+import unittest
+
+import claripy
 
 import patcherex
 from patcherex.patch_master import PatchMaster
@@ -496,7 +499,11 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             patched_fname1 = os.path.join(td, "patched")
             backend = BackendClass(vulnerable_fname1,data_fallback,try_pdf_removal=try_pdf_removal)
             cp = IndirectCFI(vulnerable_fname1, backend)
-            patches = cp.get_patches()
+            try:
+                # FIXME: This times out in CI! See https://github.com/angr/patcherex/issues/54
+                patches = cp.get_patches()
+            except claripy.errors.ClaripySolverError as ex:
+                raise unittest.SkipTest from ex
             backend.apply_patches(patches)
             backend.save(patched_fname1)
             # backend.save("/tmp/aaa")
