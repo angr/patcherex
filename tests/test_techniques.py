@@ -502,7 +502,7 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             try:
                 # FIXME: This times out in CI! See https://github.com/angr/patcherex/issues/54
                 patches = cp.get_patches()
-            except claripy.errors.ClaripySolverError as ex:
+            except claripy.errors.ClaripySolverInterruptError as ex:
                 raise unittest.SkipTest from ex
             backend.apply_patches(patches)
             backend.save(patched_fname1)
