@@ -118,8 +118,15 @@ class Tests(unittest.TestCase):
         extern int printf(const char *format, ...);
         int multiply(int a, int b){ printf("%sWorld %s %s %s %d\\n", "Hello ", "Hello ", "Hello ", "Hello ", a * b);printf("%sWorld\\n", "Hello "); return a * b; }
         '''
-        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4006a2, 0x48, code, symbols={
-                      "add": 0x400660, "subtract": 0x400681})], expected_output=b"-21-21")
+        self.run_test("replace_function_patch", [ReplaceFunctionPatch(0x4006a2, 0x48, code, symbols={"printf" : 0x400520})],
+                      expected_output=b"Hello World Hello  Hello  Hello  21\nHello World\n2121")
+
+    def test_rip_relative_addressing_insert_code(self):
+        patch_asm = "sub rax, 10"
+        patch_addr = 0x401154
+        bins_dir = os.path.join(os.path.dirname(os.path.realpath(__file__)), os.pardir, "test_binaries")
+        target_binary = os.path.join(bins_dir, "rip-relative-addressing.out")
+        self.run_test(target_binary, [InsertCodePatch(patch_addr, patch_asm)], expected_output=b"Goodbye!\n")
 
     def run_test(self, filename, patches, set_oep=None, inputvalue=None, expected_output=None, expected_returnCode=None):
         filepath = os.path.join(self.bin_location, filename)
