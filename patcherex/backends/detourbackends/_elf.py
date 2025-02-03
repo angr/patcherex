@@ -484,17 +484,17 @@ class DetourBackendElf(Backend):
             mem += self.ncontent[start : end]
         return mem
 
-    def get_movable_instructions(self, block):
+    def get_movable_instructions(self, block, patch_addr):
         raise NotImplementedError()
 
     def find_detour_pos(self, block, detour_size, patch_addr):
         # iterates through the instructions to find where the detour can be stored
-        movable_instructions = self.get_movable_instructions(block)
+        movable_instructions = self.get_movable_instructions(block, patch_addr)
 
         detour_attempts = range(-1*detour_size, 0+1)
 
         movable_bb_start = movable_instructions[0].address
-        movable_bb_size = self.project.factory.block(block.addr, num_inst=len(movable_instructions)).size
+        movable_bb_size = self.project.factory.block(movable_bb_start, num_inst=len(movable_instructions)).size
         l.debug("movable_bb_size: %d", movable_bb_size)
         l.debug("movable bb instructions:\n%s", "\n".join([utils.instruction_to_str(i) for i in movable_instructions]))
 

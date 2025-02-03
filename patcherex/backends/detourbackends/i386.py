@@ -375,18 +375,40 @@ class DetourBackendi386(DetourBackendElf):
             return False
         return pos1 == pos2 and pos2 == pos3
 
-    def get_movable_instructions(self, block):
+    def get_movable_instructions(self, block, patch_addr):
         # TODO there are two improvements here:
         # 1) being able to move the jmp and call at the end of a bb
         # 2) detect cases like call-pop and dependent instructions (which should not be moved)
         # get movable_instructions in the bb
         original_bbcode = block.bytes
         instructions = utils.disassemble(original_bbcode, block.addr, bits=self.structs.elfclass)
+        movable_instructions = []
+        if self.structs.elfclass == 64:
+            # get largest contiguous block of movable instructions in the bb containing the patch address
+            # to ensure instructions using rip are excluded
+            for instr_index, instruction in enumerate(instructions):
+                if instruction.address <= patch_addr < instruction.address + instruction.size:
+                    # Found instruction containing the patch address. Compute group from this index
+                    # First we go backward towards start of list
+                    for instr in reversed(instructions[:instr_index]):
+                        if self.check_if_movable(instr):
+                            movable_instructions.insert(0, instr)
+                        else:
+                            break
 
-        if self.check_if_movable(instructions[-1]):
-            movable_instructions = instructions
+                    # Now we go forward towards end of list
+                    for instr in instructions[instr_index:]:
+                        if self.check_if_movable(instr):
+                            movable_instructions.append(instr)
+                        else:
+                            break
+
+                    break
         else:
-            movable_instructions = instructions[:-1]
+            if self.check_if_movable(instructions[-1]):
+                movable_instructions = instructions
+            else:
+                movable_instructions = instructions[:-1]
 
         return movable_instructions
 
@@ -436,7 +458,7 @@ class DetourBackendi386(DetourBackendElf):
         one_byte_nop = b'\x90'
 
         # get movable instructions
-        movable_instructions = self.get_movable_instructions(block)
+        movable_instructions = self.get_movable_instructions(block, patch.addr)
         if len(movable_instructions) == 0:
             raise DetourException("No movable instructions found")
 
