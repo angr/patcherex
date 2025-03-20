@@ -1172,7 +1172,7 @@ class SimplePointerEncryption(Technique):
         if syscall is None:
             return patches
 
-        predecessors = cfg.get_any_node(syscall.addr).predecessors
+        predecessors = cfg.model.get_any_node(syscall.addr).predecessors
         for pred in predecessors:
             # it must ends with int 80h
             last_instr_addr = pred.instruction_addrs[-1]

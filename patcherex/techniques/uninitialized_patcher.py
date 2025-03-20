@@ -72,7 +72,7 @@ class UninitializedPatcher:
         # map all basic block addresses in the function to which regs are read or written
         reg_free_map = dict()
         reg_not_free_map = dict()
-        for n in self.patcher.cfg.nodes():
+        for n in self.patcher.cfg.model.nodes():
 
             if self.patcher.project.is_hooked(n.addr):
                 continue
@@ -113,7 +113,8 @@ class UninitializedPatcher:
             return True
         if cfg_utils.is_floatingpoint_function(self.patcher, ff):
             return True
-        all_pred_addrs = set(x.addr for x in self.patcher.cfg.get_predecessors(self.patcher.cfg.get_any_node(ff.addr)))
+        predecessors = self.patcher.cfg.model.get_predecessors(self.patcher.cfg.model.get_any_node(ff.addr))
+        all_pred_addrs = set(x.addr for x in predecessors)
         if len(all_pred_addrs) > 5:
             return True
 
@@ -143,7 +144,7 @@ class UninitializedPatcher:
             return False
 
     def is_last_returning_block(self,node):
-        node = self.patcher.cfg.get_any_node(node.addr)
+        node = self.patcher.cfg.model.get_any_node(node.addr)
         try:
             function = self.patcher.cfg.functions[node.function_address]
         except KeyError:
@@ -154,7 +155,7 @@ class UninitializedPatcher:
         return False
 
     def last_block_to_return_locations(self,addr):
-        node = self.patcher.cfg.get_any_node(addr)
+        node = self.patcher.cfg.model.get_any_node(addr)
         if node is None:
             return []
         function = self.patcher.cfg.functions[node.function_address]
@@ -163,14 +164,14 @@ class UninitializedPatcher:
 
         return_locations = []
         for site in self.inv_callsites[function.addr]:
-            node = self.patcher.cfg.get_any_node(site)
-            nlist = self.patcher.cfg.get_successors_and_jumpkind(node, excluding_fakeret=False)
+            node = self.patcher.cfg.model.get_any_node(site)
+            nlist = self.patcher.cfg.model.get_successors_and_jumpkind(node, excluding_fakeret=False)
             return_locations.extend([n[0] for n in nlist if n[1]=='Ijk_FakeRet'])
         return return_locations
 
     def get_all_succ(self,addr):
         cfg = self.patcher.cfg
-        all_nodes = cfg.get_all_nodes(addr)
+        all_nodes = cfg.model.get_all_nodes(addr)
         if len(all_nodes) != 1:
             raise CfgError()
         n = all_nodes[0]
@@ -180,7 +181,7 @@ class UninitializedPatcher:
             return [n.addr for n in self.last_block_to_return_locations(addr)], False
 
         all_succ = set()
-        for s, jk in cfg.get_successors_and_jumpkind(n):
+        for s, jk in cfg.model.get_successors_and_jumpkind(n):
             if not jk.startswith("Ijk_Sys"):
                 all_succ.add(s.addr)
                 # a syscall writes in eax, I do not handle it explicitly
@@ -278,7 +279,7 @@ class UninitializedPatcher:
             bl, seen, written = to_process.pop()
             seen.add(bl)
 
-            cfg_node = self.patcher.cfg.get_any_node(bl.addr)
+            cfg_node = self.patcher.cfg.model.get_any_node(bl.addr)
             if not cfg_node:
                 continue
             insts = cfg_node.instruction_addrs

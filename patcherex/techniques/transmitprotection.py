@@ -139,7 +139,7 @@ class TransmitProtection(Technique):
             l.warning("Found %d transmit_wrapper... better not to touch anything"%len(transmit_wrapper))
             return []
         transmit_wrapper = transmit_wrapper[0]
-        victim_node = cfg.get_any_node(transmit_wrapper.addr)
+        victim_node = cfg.model.get_any_node(transmit_wrapper.addr)
         victim_addr = int(victim_node.instruction_addrs[-1])
 
         patches.extend(self.compute_patches(victim_addr))

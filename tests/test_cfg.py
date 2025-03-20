@@ -59,7 +59,7 @@ def last_block_to_callers(addr,cfg,inv_callsites):
     return_locations = []
     for site in inv_callsites[function.addr]:
         node = cfg.model.get_any_node(site)
-        nlist = cfg.get_successors_and_jumpkind(node, excluding_fakeret=False)
+        nlist = cfg.model.get_successors_and_jumpkind(node, excluding_fakeret=False)
         return_locations.extend([n[0] for n in nlist if n[1]=='Ijk_FakeRet'])
     return return_locations
 

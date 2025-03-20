@@ -1324,6 +1324,8 @@ def test_countdown_1(BackendClass, data_fallback, try_pdf_removal):
         pipe = subprocess.PIPE
         p = subprocess.Popen([tmp_file], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"foo\ntest\n")
+        print(f'got: {res[0]}')
+        print(f'expected: {expected_output}')
         assert expected_output == res[0]
 
 

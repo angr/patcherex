@@ -176,7 +176,7 @@ class StackRetEncryption(object):
 
         tailp = []
         for i,e in enumerate(ends):
-            bb_addr = self.patcher.cfg.get_any_node(e,anyaddr=True).addr
+            bb_addr = self.patcher.cfg.model.get_any_node(e,anyaddr=True).addr
             code = self.add_patch_at_bb(bb_addr,is_tail=True)
             tailp.append(InsertCodePatch(e,code,name="stackretencryption_tail_%d_%d_%#x"%(self.npatch,i,start),priority=100))
 
@@ -216,7 +216,7 @@ class StackRetEncryption(object):
         return None, None
 
     def is_last_returning_block(self,node):
-        node = self.patcher.cfg.get_any_node(node.addr)
+        node = self.patcher.cfg.model.get_any_node(node.addr)
         try:
             function = self.patcher.cfg.functions[node.function_address]
         except KeyError:
@@ -227,7 +227,7 @@ class StackRetEncryption(object):
         return False
 
     def last_block_to_return_locations(self,addr):
-        node = self.patcher.cfg.get_any_node(addr)
+        node = self.patcher.cfg.model.get_any_node(addr)
         if node == None:
             return []
         function = self.patcher.cfg.functions[node.function_address]
@@ -236,8 +236,8 @@ class StackRetEncryption(object):
 
         return_locations = []
         for site in self.inv_callsites[function.addr]:
-            node = self.patcher.cfg.get_any_node(site)
-            nlist = self.patcher.cfg.get_successors_and_jumpkind(node, excluding_fakeret=False)
+            node = self.patcher.cfg.model.get_any_node(site)
+            nlist = self.patcher.cfg.model.get_successors_and_jumpkind(node, excluding_fakeret=False)
             return_locations.extend([n[0] for n in nlist if n[1]=='Ijk_FakeRet'])
         return return_locations
 
@@ -264,7 +264,7 @@ class StackRetEncryption(object):
         # map all basic block addresses in the function to which regs are read or written
         reg_free_map = dict()
         reg_not_free_map = dict()
-        for n in self.patcher.cfg.nodes():
+        for n in self.patcher.cfg.model.nodes():
 
             if self.patcher.project.is_hooked(n.addr):
                 continue
@@ -302,7 +302,7 @@ class StackRetEncryption(object):
 
     def get_all_succ(self,addr):
         cfg = self.patcher.cfg
-        all_nodes = cfg.get_all_nodes(addr)
+        all_nodes = cfg.model.get_all_nodes(addr)
         if len(all_nodes) != 1:
             raise CfgError()
         n = all_nodes[0]
@@ -312,7 +312,7 @@ class StackRetEncryption(object):
             return [n.addr for n in self.last_block_to_return_locations(addr)], False
 
         all_succ = set()
-        for s, jk in cfg.get_successors_and_jumpkind(n):
+        for s, jk in cfg.model.get_successors_and_jumpkind(n):
             if not jk.startswith("Ijk_Sys"):
                 all_succ.add(s.addr)
                 # a syscall writes in eax, I do not handle it explicitly
@@ -370,7 +370,8 @@ class StackRetEncryption(object):
             return True
 
         # skip functions that have enough predecessors
-        if len(self.patcher.cfg.get_predecessors(self.patcher.cfg.get_any_node(func.addr))) > self.safe_calls_limit:
+        predecessors = self.patcher.cfg.model.get_predecessors(self.patcher.cfg.model.get_any_node(func.addr))
+        if len(predecessors) > self.safe_calls_limit:
             return True
 
         is_safe = True

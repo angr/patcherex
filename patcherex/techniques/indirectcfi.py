@@ -48,7 +48,7 @@ class IndirectCFI(object):
         # but we do not apply indirectcfi if we find an allocate of executable memory
         return True
 
-        baddr = self.patcher.cfg.get_any_node(addr,anyaddr=True).addr
+        baddr = self.patcher.cfg.model.get_any_node(addr,anyaddr=True).addr
         if baddr == None:
             return False
         call_sites = ff.get_call_sites()

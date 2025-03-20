@@ -60,7 +60,8 @@ class NoFlagPrintfPatcher(object):
     def ro_segments(self):
         if self._ro_segments is None:
             self._ro_segments = tuple(
-                seg for seg in self.patcher.project.loader.main_object.segments if seg.is_readable and not seg.is_writable
+                seg for seg in self.patcher.project.loader.main_object.segments
+                if seg.is_readable and not seg.is_writable
             )
 
         return self._ro_segments
@@ -79,7 +80,8 @@ class NoFlagPrintfPatcher(object):
                 continue
 
             fmt_arg_pos = PRINTF_VARIANTS[func_name]
-            callers = set.union(set(), *(cfg.get_predecessors(node) for node in cfg.get_all_nodes(func.addr)))
+            callers = set.union(set(), *(cfg.model.get_predecessors(node)
+                                         for node in cfg.model.get_all_nodes(func.addr)))
 
             handled_addrs = set()
             func_to_cfg = {}
