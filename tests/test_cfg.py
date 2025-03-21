@@ -18,7 +18,7 @@ bin_location = str(os.path.join(os.path.dirname(os.path.realpath(__file__)), '..
 
 
 def is_sane_function(ff):
-    return not ff.is_syscall and not ff.has_unresolved_calls and not ff.has_unresolved_jumps and not ff.alignment
+    return not ff.is_syscall and not ff.has_unresolved_calls and not ff.has_unresolved_jumps and not ff.is_alignment
 
 
 def map_callsites(cfg):
@@ -115,7 +115,7 @@ def test_CADET_00003():
         0x804869a,
     }
 
-    non_syscall_functions = [v for k,v in cfg.functions.items() if not v.is_syscall and not v.alignment]
+    non_syscall_functions = [v for k,v in cfg.functions.items() if not v.is_syscall and not v.is_alignment]
     #check startpoints, I know that sometimes they could be None, but this should not happen in CADET_00003
     function_entrypoints = set([f.startpoint.addr for f in non_syscall_functions])
     print("additional:", list(map(hex, function_entrypoints-legitimate_functions)))
@@ -201,7 +201,7 @@ def test_0b32aa01_01():
         0x8048695
     }
 
-    non_syscall_functions = [v for k,v in cfg.functions.items() if not v.is_syscall and not v.alignment]
+    non_syscall_functions = [v for k,v in cfg.functions.items() if not v.is_syscall and not v.is_alignment]
     #check startpoints, I know that sometimes they could be None, but this should not happen in CADET_00003
     function_entrypoints = set([f.startpoint.addr for f in non_syscall_functions])
     print("additional:", list(map(hex,function_entrypoints-legitimate_functions)))
@@ -368,7 +368,7 @@ def test_fullcfg_properties():
 
             # check that we do not encounter any unexpected jumpout
             if not ff.is_syscall and ff.returning and not ff.has_unresolved_calls and \
-                    not ff.has_unresolved_jumps and ff.startpoint is not None and not ff.alignment and ff.endpoints:
+                    not ff.has_unresolved_jumps and ff.startpoint is not None and not ff.is_alignment and ff.endpoints:
                 if not cfg_utils.is_floatingpoint_function(backend,ff):
                     if len(ff.jumpout_sites) > 0:
                         unexpected_jumpout = [(binary,int(jo.addr)) for jo in ff.jumpout_sites \
