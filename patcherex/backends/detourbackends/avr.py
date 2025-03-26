@@ -302,7 +302,7 @@ class DetourBackendAVR(DetourBackendElf):
         mnemonic = self.disassemble(instruction.bytes)[0]['mnemonic']
         return mnemonic != "rjmp" and mnemonic != "rcall" and not mnemonic.startswith("br")
 
-    def get_movable_instructions(self, block):
+    def get_movable_instructions(self, block, patch_addr):
         # TODO there are two improvements here:
         # 1) being able to move the jmp and call at the end of a bb
         # 2) detect cases like call-pop and dependent instructions (which should not be moved)
@@ -319,7 +319,7 @@ class DetourBackendAVR(DetourBackendElf):
 
     def find_detour_pos(self, block, detour_size, patch_addr):
         # iterates through the instructions to find where the detour can be stored
-        movable_instructions = self.get_movable_instructions(block)
+        movable_instructions = self.get_movable_instructions(block, patch_addr)
 
         movable_bb_start = movable_instructions[0].address
         movable_bb_size = self.project.factory.block(block.addr, num_inst=len(movable_instructions)).size
@@ -381,7 +381,7 @@ class DetourBackendAVR(DetourBackendElf):
         avr_nop = b"\x00\x00"
 
         # get movable instructions
-        movable_instructions = self.get_movable_instructions(block)
+        movable_instructions = self.get_movable_instructions(block, patch.addr)
         if len(movable_instructions) == 0:
             raise DetourException("No movable instructions found")
 
