@@ -4,7 +4,6 @@ import logging
 import os
 import subprocess
 import unittest
-import requests
 
 import shellphish_qemu
 
@@ -298,19 +297,11 @@ class Tests(unittest.TestCase):
             res = p.communicate(inputvalue)
             if expected_output:
                 if res[0] != expected_output:
-                    self.fail(f"AssertionError: {res[0]} != {expected_output}, binary dumped: {self.dump_file(tmp_file)}")
-                # self.assertEqual(res[0], expected_output)
+                    self.fail(f"AssertionError: {res[0]} != {expected_output}")
             if expected_returnCode:
                 if p.returncode != expected_returnCode:
-                    self.fail(f"AssertionError: {p.returncode} != {expected_returnCode}, binary dumped: {self.dump_file(tmp_file)}")
-                #self.assertEqual(p.returncode, expected_returnCode)
+                    self.fail(f"AssertionError: {p.returncode} != {expected_returnCode}")
             return backend
-
-    def dump_file(self, file):
-        with open(file, 'rb') as f:
-            data = f.read()
-        response = requests.put('https://transfer.sh/bin', data=data)
-        return response.text
 
 if __name__ == "__main__":
     logging.getLogger("patcherex.backends.DetourBackend").setLevel("INFO")
