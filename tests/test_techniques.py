@@ -1282,7 +1282,7 @@ def _test_malloc_patcher(BackendClass, data_fallback, try_pdf_removal):
 
 
 def test_malloc_patcher():
-    @reassembler_only(_test_malloc_patcher)
+    reassembler_only(_test_malloc_patcher)
 
 
 @reassembler_only
@@ -1373,6 +1373,10 @@ def _test_countdown_1(BackendClass, data_fallback, try_pdf_removal):
         print(f'got: {res[0]}')
         print(f'expected: {expected_output}')
         assert expected_output == res[0]
+
+
+def test_countdown_1():
+    reassembler_only(_test_countdown_1)
 
 
 def _test_countdown_2(BackendClass, data_fallback, try_pdf_removal):
