@@ -6,14 +6,12 @@ import subprocess
 import logging
 import shutil
 from functools import wraps
-import tempfile
 import random
 import unittest
 
 import claripy
 
 import patcherex
-from patcherex.patch_master import PatchMaster
 from patcherex.backends.detourbackend import DetourBackend
 from patcherex.backends.reassembler_backend import ReassemblerBackend
 from patcherex.patches import *
@@ -123,8 +121,7 @@ def detour_only(f):
         f(DetourBackend, None, True)
     return wrapper
 
-@add_fallback_strategy
-def test_shadowstack(BackendClass, data_fallback, try_pdf_removal):
+def _test_shadowstack(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
 
@@ -147,8 +144,11 @@ def test_shadowstack(BackendClass, data_fallback, try_pdf_removal):
         assert p.returncode == 68
 
 
-@add_fallback_strategy
-def test_packer(BackendClass, data_fallback, try_pdf_removal):
+def test_shadowstack():
+    add_fallback_strategy(_test_shadowstack)
+
+
+def _test_packer(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
 
@@ -167,8 +167,11 @@ def test_packer(BackendClass, data_fallback, try_pdf_removal):
         assert res[0] == expected and p.returncode == 0
 
 
-@add_fallback_strategy
-def test_simplecfi(BackendClass, data_fallback, try_pdf_removal):
+def test_packer():
+    add_fallback_strategy(_test_packer)
+
+
+def _test_simplecfi(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
 
@@ -207,8 +210,11 @@ def test_simplecfi(BackendClass, data_fallback, try_pdf_removal):
         assert res[0] == expected3 and p.returncode == 0x45
 
 
-@add_fallback_strategy
-def test_qemudetection(BackendClass, data_fallback, try_pdf_removal):
+def test_simplecfi():
+    add_fallback_strategy(_test_simplecfi)
+
+
+def _test_qemudetection(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "0b32aa01_01_2")
     pipe = subprocess.PIPE
 
@@ -237,8 +243,11 @@ def test_qemudetection(BackendClass, data_fallback, try_pdf_removal):
         assert res[0] == expected and p.returncode == 0
 
 
-@add_fallback_strategy
-def test_randomsyscallloop(BackendClass, data_fallback, try_pdf_removal):
+def test_qemudetection():
+    add_fallback_strategy(_test_qemudetection)
+
+
+def _test_randomsyscallloop(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
 
@@ -262,8 +271,11 @@ def test_randomsyscallloop(BackendClass, data_fallback, try_pdf_removal):
         assert p.returncode == -11
 
 
-@add_fallback_strategy
-def test_cpuid(BackendClass, data_fallback, try_pdf_removal):
+def test_randomsyscallloop():
+    add_fallback_strategy(_test_randomsyscallloop)
+
+
+def _test_cpuid(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "CADET_00003")
     pipe = subprocess.PIPE
 
@@ -288,8 +300,11 @@ def test_cpuid(BackendClass, data_fallback, try_pdf_removal):
         assert p.returncode == -11
 
 
-@reassembler_only
-def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
+def test_cpuid():
+    add_fallback_strategy(_test_cpuid)
+
+
+def _test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
     filepath1 = os.path.join(bin_location, "0b32aa01_01_2")
     filepath2 = os.path.join(bin_location, "CROMU_00070")
     filepath3 = os.path.join(bin_location, "original/CROMU_00008")
@@ -421,8 +436,11 @@ def test_stackretencryption(BackendClass, data_fallback, try_pdf_removal):
         '''
 
 
-@reassembler_only
-def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
+def test_stackretencryption():
+    reassembler_only(_test_stackretencryption)
+
+
+def _test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
     tests = [
         ("patchrex/indirect_call_test_O0", b"b7fff000"),
         #("patchrex/indirect_call_test_fullmem_O0", b"78000000"),
@@ -647,6 +665,10 @@ def test_indirectcfi(BackendClass, data_fallback, try_pdf_removal):
             '''
 
 
+def test_indirectcfi():
+    reassembler_only(_test_indirectcfi)
+
+
 def test_freeregs():
     def bin_str(name,btype="original"):
         return "%s/%s" % (btype,name)
@@ -684,8 +706,7 @@ def test_freeregs():
     #import IPython; IPython.embed()
 
 
-@reassembler_only
-def test_transmitprotection(BackendClass, data_fallback, try_pdf_removal):
+def _test_transmitprotection(BackendClass, data_fallback, try_pdf_removal):
     def check_test(test):
         values,expected_crash = test
         tinput = b"08048000\n00000005\n"
@@ -804,8 +825,11 @@ def test_transmitprotection(BackendClass, data_fallback, try_pdf_removal):
                 check_test(test)
 
 
-@reassembler_only
-def test_shiftstack(BackendClass, data_fallback, try_pdf_removal):
+def test_transmitprotection():
+    reassembler_only(_test_transmitprotection)
+
+
+def _test_shiftstack(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "CROMU_00044")
     tinput = b"1\n" * 50 + b"2\n" * 50
 
@@ -858,9 +882,11 @@ def test_shiftstack(BackendClass, data_fallback, try_pdf_removal):
         print(map(hex,random_stack_pos))
         assert len(random_stack_pos)>=2
 
+def test_shiftstack():
+    reassembler_only(_test_shiftstack)
 
-@try_reassembler_and_detour_full # this changes the headers, let't test it in all 4 cases
-def test_nxstack(BackendClass, data_fallback, try_pdf_removal):
+
+def _test_nxstack(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "CROMU_00044")
     tinput = b"login\n" * 50 + b"2\n"*50
     res = QEMURunner(filepath,tinput,record_stdout=True)
@@ -968,8 +994,12 @@ def test_nxstack(BackendClass, data_fallback, try_pdf_removal):
             '''
 
 
-@try_reassembler_and_detour
-def test_adversarial(BackendClass, data_fallback, try_pdf_removal):
+def test_nxstack():
+    # this changes the headers, let's test it in all 4 cases
+    try_reassembler_and_detour_full(_test_nxstack)
+
+
+def _test_adversarial(BackendClass, data_fallback, try_pdf_removal):
     pipe = subprocess.PIPE
     tinput = b"1\n" * 50 + b"2\n"*50
     filepath = os.path.join(bin_location, "CROMU_00044")
@@ -994,8 +1024,11 @@ def test_adversarial(BackendClass, data_fallback, try_pdf_removal):
         assert original_res[1] != patched_res[1]
 
 
-@reassembler_only
-def test_backdoor(BackendClass, data_fallback, try_pdf_removal):
+def test_adversarial():
+    try_reassembler_and_detour_full(_test_adversarial)
+
+
+def _test_backdoor(BackendClass, data_fallback, try_pdf_removal):
     def solution_to_bytearray(l):
         # deal with endianness craziness
         return bytes([ l[3],l[2],l[1],l[0],0,0,0,l[4] ])
@@ -1104,8 +1137,11 @@ def test_backdoor(BackendClass, data_fallback, try_pdf_removal):
             '''
 
 
-@reassembler_only
-def test_bitflip(BackendClass, data_fallback, try_pdf_removal):
+def test_backdoor():
+    reassembler_only(_test_backdoor)
+
+
+def _test_bitflip(BackendClass, data_fallback, try_pdf_removal):
     all_chars = [bytes([c]) for c in range(256)]
     pipe = subprocess.PIPE
     tests = []
@@ -1162,8 +1198,10 @@ def test_bitflip(BackendClass, data_fallback, try_pdf_removal):
                 print(test, tlen)
                 assert expected == patched
 
-@reassembler_only
-def test_uninitialized(BackendClass, data_fallback, try_pdf_removal):
+def test_bitflip():
+    reassembler_only(_test_bitflip)
+
+def _test_uninitialized(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "CROMU_00070")
 
     with patcherex.utils.tempdir() as td:
@@ -1204,8 +1242,12 @@ def test_uninitialized(BackendClass, data_fallback, try_pdf_removal):
         res = p.communicate(poll_input)
         assert expected_output == res[0]
 
-@reassembler_only
-def test_malloc_patcher(BackendClass, data_fallback, try_pdf_removal):
+
+def test_uninitialized():
+    reassembler_only(_test_uninitialized)
+
+
+def _test_malloc_patcher(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "NRFIN_00078")
 
     with patcherex.utils.tempdir() as td:
@@ -1237,6 +1279,10 @@ def test_malloc_patcher(BackendClass, data_fallback, try_pdf_removal):
         res = p.communicate(poll_input)
         assert expected_output == res[0]
         '''
+
+
+def test_malloc_patcher():
+    reassembler_only(_test_malloc_patcher)
 
 
 @reassembler_only
@@ -1304,8 +1350,8 @@ nick stephens
         assert expected_stdout == actual_stdout
         '''
 
-@detour_only
-def test_countdown_1(BackendClass, data_fallback, try_pdf_removal):
+
+def _test_countdown_1(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "countdown_test")
 
     with patcherex.utils.tempdir() as td:
@@ -1329,8 +1375,11 @@ def test_countdown_1(BackendClass, data_fallback, try_pdf_removal):
         assert expected_output == res[0]
 
 
-@detour_only
-def test_countdown_2(BackendClass, data_fallback, try_pdf_removal):
+def test_countdown_1():
+    reassembler_only(_test_countdown_1)
+
+
+def _test_countdown_2(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "countdown_test")
 
     with patcherex.utils.tempdir() as td:
@@ -1351,9 +1400,11 @@ def test_countdown_2(BackendClass, data_fallback, try_pdf_removal):
         res = p.communicate(b"foo\n")
         assert expected_output == res[0]
 
+def test_countdown_2():
+    reassembler_only(_test_countdown_2)
 
-@detour_only
-def test_countdown_3(BackendClass, data_fallback, try_pdf_removal):
+
+def _test_countdown_3(BackendClass, data_fallback, try_pdf_removal):
     filepath = os.path.join(bin_location, "countdown_test")
 
     with patcherex.utils.tempdir() as td:
@@ -1375,6 +1426,10 @@ def test_countdown_3(BackendClass, data_fallback, try_pdf_removal):
         p = subprocess.Popen([tmp_file, "-run"], stdin=pipe, stdout=pipe, stderr=pipe)
         res = p.communicate(b"foo\ntest\n")
         assert expected_output == res[0]
+
+
+def test_countdown_3():
+    detour_only(_test_countdown_3)
 
 
 def run_all():
