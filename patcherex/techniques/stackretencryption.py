@@ -70,8 +70,9 @@ class StackRetEncryption(object):
 
         # create inverse callsite map
         inv_callsites = defaultdict(set)
-        for c, f in callsites.items():
-            inv_callsites[f].add(c)
+        for c, targets in callsites.items():
+            for target in targets:
+                inv_callsites[target].add(c)
         return inv_callsites
 
     def get_common_patches(self):
