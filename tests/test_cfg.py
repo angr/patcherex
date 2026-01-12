@@ -261,7 +261,7 @@ def test_detect_syscall_wrapper():
     syscall_wrappers = set([(ff.addr,cfg_utils.detect_syscall_wrapper(backend,ff)) \
             for ff in cfg.functions.values() if cfg_utils.detect_syscall_wrapper(backend,ff)!=None])
     print("syscall wrappers in CROMU_00071:")
-    print(map(lambda x:(hex(x[0]),x[1]),syscall_wrappers))
+    print(list(map(lambda x:(hex(x[0]),x[1]),syscall_wrappers)))
     assert syscall_wrappers == legitimate_syscall_wrappers
 
     filepath = os.path.join(bin_location, "CROMU_00070")
@@ -280,7 +280,7 @@ def test_detect_syscall_wrapper():
     syscall_wrappers = set([(ff.addr,cfg_utils.detect_syscall_wrapper(backend,ff)) \
             for ff in cfg.functions.values() if cfg_utils.detect_syscall_wrapper(backend,ff)!=None])
     print("syscall wrappers in CROMU_00070:")
-    print(map(lambda x:(hex(x[0]),x[1]),syscall_wrappers))
+    print(list(map(lambda x:(hex(x[0]),x[1]),syscall_wrappers)))
     assert syscall_wrappers == legitimate_syscall_wrappers
 
 
