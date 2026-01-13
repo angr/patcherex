@@ -80,7 +80,7 @@ def detect_syscall_wrapper(backend, ff):
         return None
 
     try:
-        succ = ff.startpoint.successors()
+        outedges = ff.transition_graph.out_edges(ff.startpoint, data=True)
     except networkx.NetworkXError:
         return None
     ends = ff.endpoints
@@ -90,19 +90,21 @@ def detect_syscall_wrapper(backend, ff):
         return None
 
     if syscall_number == 1:
-        if len(succ) == 1:
-            bb1 = succ[0]
-            if hasattr(bb1,"is_syscall") and bb1.is_syscall:
+        if len(outedges) == 1:
+            edge_data = list(outedges)[0][-1]
+            if edge_data.get("type") == "syscall":
                 return syscall_number
         return None
     else:
         if not is_sane_function(ff):
             return None
-        if len(succ) == 2:
-            bb1,bb2 = succ
-            if hasattr(bb1,"is_syscall") and bb1.is_syscall:
+        if len(outedges) == 2:
+            outedges = list(outedges)
+            _, bb1, data1 = outedges[0]
+            _, bb2, data2 = outedges[1]
+            if data1.get("type") == "syscall":
                 ebb = bb2
-            elif hasattr(bb2,"is_syscall") and bb2.is_syscall:
+            elif data2.get("type") == "syscall":
                 ebb = bb1
             else:
                 ebb= None
