@@ -556,8 +556,10 @@ class DetourBackendElf(Backend):
             fp.write(code)
             fp.close()
             print(self.project.arch.triplet)
-            res = utils.exec_cmd("clang -nostdlib -mno-sse -target %s -ffreestanding %s -o %s -c %s %s" \
-                            % (self.project.arch.triplet, optimization, object_fname, c_fname, compiler_flags), shell=True)
+            # -mno-sse is x86-specific; clang rejects it on non-x86 targets
+            arch_specific_flags = "-mno-sse" if self.project.arch.name in ("X86", "AMD64") else ""
+            res = utils.exec_cmd("clang -nostdlib %s -target %s -ffreestanding %s -o %s -c %s %s" \
+                            % (arch_specific_flags, self.project.arch.triplet, optimization, object_fname, c_fname, compiler_flags), shell=True)
             if res[2] != 0:
                 print("CLang error:")
                 print(res[0])

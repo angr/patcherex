@@ -511,7 +511,7 @@ class DetourBackendAVR(DetourBackendElf):
             fp.write(code)
             fp.close()
 
-            res = utils.exec_cmd("clang-10 -nostdlib -mno-sse -target avr -mmcu=atmega328p -ffreestanding %s -o %s -c %s %s" \
+            res = utils.exec_cmd("clang-10 -nostdlib -target avr -mmcu=atmega328p -ffreestanding %s -o %s -c %s %s" \
                             % (optimization, object_fname, c_fname, compiler_flags), shell=True)
             if res[2] != 0:
                 print("CLang error:")
