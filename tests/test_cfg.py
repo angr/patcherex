@@ -28,11 +28,11 @@ def map_callsites(cfg):
             if f.get_call_target(callsite) is None:
                 continue
             callsites[callsite] = f.get_call_target(callsite)
-
     # create inverse callsite map
     inv_callsites = defaultdict(set)
-    for c, f in callsites.items():
-        inv_callsites[f].add(c)
+    for c, targets in callsites.items():
+        for target in targets:
+            inv_callsites[target].add(c)
     return inv_callsites
 
 
