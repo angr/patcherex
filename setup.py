@@ -12,7 +12,6 @@ setup(
         'keystone-engine',
         'psutil',
         'povsim',
-        'compilerex',
         'shellphish-qemu',
         'fidget',
         'pyyaml',

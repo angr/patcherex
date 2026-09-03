@@ -2,8 +2,8 @@
 import struct
 
 from . import utils
+from . import compilerex
 from .utils import ASMConverter
-import compilerex
 
 
 class Patch:

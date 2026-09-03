@@ -7,7 +7,7 @@ import subprocess
 l = logging.getLogger('patcherex.backends.reassembler_backend')
 
 try:
-    import compilerex
+    from patcherex import compilerex
 except ImportError:
     l.warning('Cannot import compilerex. Reassembler backend will not be able to recompile assembly files.')
 
