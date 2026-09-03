@@ -1,4 +1,4 @@
-import claripy
+from angr import claripy
 import logging
 from patcherex.patches import AddLabelPatch, InsertCodePatch, AddRODataPatch
 

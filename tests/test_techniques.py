@@ -9,7 +9,7 @@ from functools import wraps
 import random
 import unittest
 
-import claripy
+from angr import claripy
 
 import patcherex
 from patcherex.backends.detourbackend import DetourBackend
