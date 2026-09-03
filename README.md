@@ -10,6 +10,12 @@ sudo apt-get install clang-10 gcc-avr binutils-avr avr-libc # (optional) for AVR
 
 # mkvirtualenv cgc # create and activate a proper virtual env in which other CRS components have been installed (see setup.py)
 
+# will need to install these manually (pip install -e .) (https://github.com/angr/patcherex/issues/4):
+# https://github.com/mechaphish/povsim
+# https://github.com/angr/tracer
+# https://github.com/mechaphish/compilerex
+# or remove povsim from setup.py (https://github.com/angr/patcherex/issues/10)
+
 git clone https://github.com/angr/patcherex.git
 cd patcherex
 pip install -e .
