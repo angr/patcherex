@@ -398,7 +398,8 @@ def test_fullcfg_properties():
 
 
 def test_jumpouts_and_indirectcalls():
-    expected_jumpouts = [("KPRCA_00034",0x08050140,[0x0805014f])]
+    # 0x0804e1c0 is a one-instruction thunk, "jmp 0x8052340", so its only block leaves the function
+    expected_jumpouts = [("KPRCA_00034",0x0804e1c0,[0x0804e1c0])]
     exptected_unresolved_calls = [("KPRCA_00025",0x8048ECC)]
 
     cfg_cache = {}
